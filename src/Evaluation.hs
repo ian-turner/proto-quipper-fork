@@ -5,7 +5,8 @@
 -- | This module implements a closure-based call-by-value evaluation.
 -- It still has memory problem when generating super-large circuits.
 
-module Evaluation (evaluation, evaluate,  size, toVal, getAllWires) where
+module Evaluation 
+       (evaluation, size, toVal, getAllWires) where
 
 import Syntax
 import Erasure
@@ -17,10 +18,14 @@ import TCMonad
 import TypeError
 
 
-import Control.Monad.State.Strict
+import Control.Monad.State (State)
+import qualified Control.Monad.State as S
 import Control.Monad.Identity
 import Control.Monad.Except
 
+import System.IO
+import qualified Control.Exception as E
+import Network.Socket
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import Data.Set (Set)
@@ -34,24 +39,25 @@ import Debug.Trace
 -- * The evaluation functions for TCMonad.
 
 -- | Evaluate an expression with an underlying circuit, return value and the updated circuit.
-evaluate :: Morphism -> EExp -> TCMonad (Value, Morphism)
-evaluate circ e =
-  do st <- get
-     let gl = globalCxt $ lcontext st
-         (r, s) = runState (runExceptT $ eval e)
-                  ES{morph = circ, evalEnv = gl, localEvalEnv = Map.empty}
-     case r of
-       Left e -> throwError $ EvalErr e
-       Right r -> return (r, morph s)
+
+-- evaluate :: Morphism -> EExp -> TCMonad (Value, Morphism)
+-- evaluate circ e =
+--   do st <- get
+--      let gl = globalCxt $ lcontext st
+--          (r, s) = runState (runExceptT $ eval e)
+--                   ES{morph = circ, evalEnv = gl, localEvalEnv = Map.empty}
+--      case r of
+--        Left e -> throwError $ EvalErr e
+--        Right r -> return (r, morph s)
 
 -- | Evaluate a parameter term and return a value. 
-evaluation :: EExp -> TCMonad Value
+
+evaluation :: EExp -> Simulation Value
 evaluation e =
-  do st <- get
+  do st <- S.get
      let gl = globalCxt $ lcontext st
-         (r, s) = runState (runExceptT $ eval e)
-                  ES{morph = Morphism VStar [] VStar, evalEnv = gl, localEvalEnv = Map.empty
-                     }
+     (st', r) <- lift $ simulate $ getSt (runExceptT $ eval e)
+                 ES{evalEnv = gl, localEvalEnv = Map.empty}
      case r of
        Left e -> throwError $ EvalErr e
        Right r -> return r
@@ -59,19 +65,90 @@ evaluation e =
 -- * The Eval monad and eval function.
 
 -- | The evaluation monad.
-type Eval a = ExceptT EvalError (State EvalState) a
+type Eval a = ExceptT EvalError QuantumState a
+
+type Wire = Label
 
 -- | Evaluator state, it contains an underlying circuit and
 -- a global context. 
 data EvalState =
-  ES { morph :: Morphism, -- ^ The underlying incomplete circuit.
-       evalEnv :: Context,  -- ^ The global evaluation context.
+  ES { evalEnv :: Context,  -- ^ The global evaluation context.
        localEvalEnv :: Map Variable (Value, Integer, Integer, [Variable])
        -- ^ The heap for evaluation, represented by a map.
        -- The first 'Integer' represents the approximate number of occurrences,
        -- the second 'Integer' represents its accurate reference count,
        -- the ['Variable'] is the variables that it refers to.
+
      }
+
+newtype QuantumState a = QS {getSt :: EvalState -> ReadWrite (EvalState, a)}
+
+
+get :: Eval EvalState
+get = lift $ QS $ \ s -> return (s, s)
+
+put :: EvalState -> Eval ()
+put s' = lift $ QS $ \ s -> return (s', ())
+
+dynliftRW :: Label -> ReadWrite Bool
+dynliftRW q = RW_Read q (\ans -> return ans)
+
+dynamicLift :: Label -> Eval Bool
+dynamicLift l = lift $ QS $ \ s ->
+  do b <- dynliftRW l
+     return (s, b)
+
+gateRW :: Gate -> ReadWrite ()
+gateRW g = RW_Write g (return ())
+
+
+addGates :: [Gate] -> Eval ()
+addGates gs =
+  lift (QS $ \ s -> mapM_ gateRW gs >> return (s, ()))
+                         
+boxGates :: ReadWrite b -> ([Gate], b)
+boxGates (RW_Return b) = ([], b)
+boxGates (RW_Write x c) =
+  let (gs, b) = boxGates c
+  in (x : gs, b)
+boxGates (RW_Read q c) = error "from box Gate"
+
+
+
+instance Monad QuantumState where
+  return a = QS $ \ s -> return (s, a)
+  f >>= g = QS $ \ s ->
+    case f of
+      QS f' ->
+         do (s', r) <- f' s
+            let QS g' = g r
+            g' s'
+          
+data ReadWrite a = RW_Return a
+                 | RW_Write Gate (ReadWrite a)
+                 | RW_Read Wire (Bool -> ReadWrite a)
+
+instance Monad ReadWrite where
+  return a = RW_Return a
+  f >>= g =
+    case f of
+      RW_Return a -> g a
+      RW_Write gate f' -> RW_Write gate (f' >>= g)
+      RW_Read bit cont -> RW_Read bit (\bool -> cont bool >>= g)
+
+instance Applicative ReadWrite where
+  pure = return
+  (<*>) = ap
+
+instance Functor ReadWrite where
+  fmap = liftM
+
+instance Applicative QuantumState where
+  pure = return
+  (<*>) = ap
+
+instance Functor QuantumState where
+  fmap = liftM
 
 -- | Evaluate an expression to
 -- a value in the value domain. The eval function also takes an environment
@@ -116,6 +193,7 @@ eval (EForce m) =
   do m' <- eval m
      case m' of
        VLift _ e -> eval e
+       VDynlift -> return $ VForce VDynlift
        w@(VLiftCirc _) -> return w
        v@(VApp VUnBox _) -> return $ VForce v
 
@@ -131,6 +209,7 @@ eval a@(ELift ws body) = return (VLift ws body)
      
 eval EUnBox = return VUnBox
 eval EReverse = return VReverse
+eval EDynlift = return VDynlift
 eval EControlled = return VControlled
 eval EWithComputed = return VWithComputed
 eval a@(EBox) = return VBox
@@ -252,6 +331,9 @@ evalApp :: Value -> Value -> Eval Value
 
 evalApp VUnBox v | Wired _ <- v = return $ VApp VUnBox v
 evalApp VUnBox v | otherwise = return VUnBox
+evalApp (VForce VDynlift) (VLabel v) =
+  do b <- dynamicLift v
+     if b then return $ VConst (Id "True") else return $ VConst (Id "False")
 evalApp (VForce (VApp VUnBox v)) w =
   case v of
     Wired bd ->
@@ -410,13 +492,12 @@ evalBox body uv =
                 Right body' -> eval body'
                 Left v -> return v
       let uv' = toVal uv vs
-          d = Morphism uv' [] uv'
-          (res, st') = runState (runExceptT $ evalApp b uv') st{morph = d}
+          (gs, (_, res)) = boxGates $ getSt (runExceptT $ evalApp b uv') st 
       case res of
         Left e -> throwError e
         Right res' -> 
-          let Morphism ins gs _ = morph st'
-              newMorph = Morphism ins (reverse gs) res'
+          let -- Morphism ins gs _ = morph st'
+              newMorph = Morphism uv' gs res'
               wires = getAllWires newMorph
               morph' = Wired $ abst wires (VCircuit newMorph)
           in return morph'
@@ -434,12 +515,12 @@ evalExbox body uv =
       b <- eval body
       let uv' = toVal uv vs
           d = Morphism uv' [] uv'
-          (res, st') = runState (runExceptT $ evalApp b uv') st{morph = d}
+          (gs, (_, res)) = boxGates $ getSt (runExceptT $ evalApp b uv') st
       case res of
         Left e -> throwError e
         Right (VPair n res') -> 
-          let Morphism ins gs _ = morph st'
-              newMorph = Morphism ins (reverse gs) res'
+          let -- Morphism ins gs _ = morph st'
+              newMorph = Morphism uv' gs res'
               wires = getAllWires newMorph
               morph' = Wired $ abst wires (VCircuit newMorph)
           in return (VPair n morph')        
@@ -452,15 +533,10 @@ evalExbox body uv =
 -- have to reverse the list of gates as part of the post-processing. 
 appendMorph :: Binding -> Morphism -> Eval Value
 appendMorph binding f@(Morphism fins fs fouts) =
-  do st <- get
-     let circ = morph st
-         (Morphism fins' fs' fouts') = rename f binding
-     case circ of
-       Morphism ins gs outs ->
-         let
-           newCirc = Morphism ins (reverse fs'++gs) fouts' in
-         do put st{morph = newCirc }
-            return fouts'
+  do let (Morphism fins' fs' fouts') = rename f binding
+     addGates fs'
+     return fouts'
+
 
 
 -- | A binding is a map of labels. 
@@ -512,15 +588,15 @@ invertName id =  Id $ getName id ++ "*"
 
 -- | Rename /uv/ using fresh labels draw from /vs/.
 toVal :: Value -> [Label] -> Value
-toVal uv vs = evalState (templateToVal uv) vs
+toVal uv vs = S.evalState (templateToVal uv) vs
 
 -- | Obtain a fresh template inhabitant of a simple type, with wirenames
 -- drawn from the state. The input is a simple data type.
 templateToVal :: Value -> State [Label] Value
 templateToVal (VLBase _) =
-  do x <- get
+  do x <- S.get
      let (v:vs) = x
-     put vs
+     S.put vs
      return (VLabel v)
 templateToVal a@(VConst _) = return a
 templateToVal a@(VUnit) = return VStar
@@ -569,8 +645,53 @@ decrRef (v:vs) m =
       let m' = Map.insert v (val, n, ref-1, ps) m
       in decrRef vs m'
         
-                             
-          
+data Response = Null
+              | OK
+              | Reply String
+              | Terminate
+              | Error String
+              | InternalError String
+              deriving (Eq, Show, Read)
+
+
+simulate :: ReadWrite a -> IO a
+simulate m = runTCPClient "127.0.0.1" "1901" $ \s -> do
+  h <- socketToHandle s ReadWriteMode
+  msg <- hGetLine h
+  res <- interaction m h
+  hPutStrLn h "quit"
+  return res
+  where interaction :: ReadWrite a -> Handle -> IO a
+        interaction (RW_Return a) h = return a
+        interaction (RW_Read l k) h =
+          do hPutStrLn h ("R "++ (tail (show l)))
+             r <- hGetLine h
+             case read r of
+               Reply str | str == "0" -> interaction (k False) h
+               Reply str | str == "1" -> interaction (k True) h
+        interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h
+          | getName name == "Init0" =
+          do hPutStrLn h ("Q " ++ tail (show w))
+             r <- hGetLine h
+             case read r of
+               OK -> interaction c h 
+
+             
+
+runTCPClient :: HostName -> ServiceName -> (Socket -> IO a) -> IO a
+runTCPClient host port client = withSocketsDo $ do
+    addr <- resolve
+    E.bracket (open addr) close client
+  where
+    resolve = do
+        let hints = defaultHints { addrSocketType = Stream }
+        head <$> getAddrInfo (Just hints) (Just host) (Just port)
+    open addr = do
+        sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+        connect sock $ addrAddress addr
+        return sock
+
+  
 
 
 

@@ -124,10 +124,14 @@ teleBox_t1 = teleBox 9
 teleBox' : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 teleBox' n = box (Vec Qubit n) $ \ x -> tele_generic n x
 
+bellState : ! (Unit -> Bool * Bool)
+bellState u =
+  let x = Init0 ()
+      y = Init0 ()
+      x' = H x
+      (y', x'') = CNot y x'
+      y'' = Mea y'
+      x''' = Mea x''
+  in (dynlift x''', dynlift y'')
 
 
-coin : !(Unit -> Qubit)
-coin x = H $ initQubit False
-
-main : Circ(Unit, Qubit)
-main = box Unit coin

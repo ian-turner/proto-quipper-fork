@@ -54,10 +54,9 @@ dispatch Help =
                ":e <expr>               display an existential circuit in a previewer\n" ++
                ":p <expr> \"filename\"    print a circuit to a file\n" ++
                ":r                      reload the most recent file, clear circuit state\n" ++
-               ":s                      show the current top-level circuit\n" ++
                ":q                      exit interpreter\n" ++
                ":h                      show this list of commands\n" ++
-               -- ":g <expr>               gate count" ++
+               ":g <expr>               gate count" ++
                "\n" 
 
 
@@ -67,22 +66,6 @@ dispatch Reload =
        Nothing -> throwError NoReloadError
        Just file -> dispatch (Load True file)
 
-
-dispatch (ShowCirc) =
-  do c <- getCirc
-     let Morphism a gs b = c
-         gs' = reverse gs
-         c' = Morphism a gs' b
-     liftIO $ putStrLn ("current circuit \n" ++ (show $ vcat $ map dispRaw gs') ++ "\n")
-     let ws = getAllWires c'
-         res = Wired $ abst ws (VCircuit c')
-     tmpdir <- liftIO $ getTemporaryDirectory
-     (pdffile, fd) <- liftIO $ openTempFile tmpdir "DPQ.pdf"
-     ioTop $ printCirc_fd res fd
-     liftIO $ hClose fd
-     liftIO $ system_pdf_viewer 100 pdffile
-     liftIO $ removeFile pdffile                     
-     return True
 
 dispatch (Type e) =
   do e' <- topResolve e
@@ -98,15 +81,13 @@ dispatch (Eval e) =
      (t', e'') <- topTypeInfer e'
      if isKind t' then
          do liftIO $ putStrLn ("it has kind \n" ++ (show $ disp t'))
-            n <- tcTop $ normalize e''
+            n <- tcTop $ liftS $ normalize e''
             liftIO $ putStrLn ("it normalizes to \n" ++ (show $ disp n))
             return True
        else do
          let fvs = getVars AllowEigen t'
          when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
-         c <- getCirc
-         (et, circ) <- tcTop $ erasure e'' >>= evaluate c
-         putCirc circ
+         et <- tcTop $ liftS (erasure e'') >>= evaluation 
          liftIO $ putStrLn ("it has type \n" ++ (show $ disp t'))
          liftIO $ putStrLn ("it has value \n" ++ (show $ dispRaw et))
          return True
@@ -114,7 +95,7 @@ dispatch (Eval e) =
 dispatch (Display e) =
   do e' <- topResolve e
      (t', et) <- topTypeInfer e'
-     et <- tcTop $ erasure et
+     et <- tcTop $ liftS $ erasure et
      case t' of
        A.Circ _ _ _ ->
          do res <- tcTop $ evaluation et
@@ -132,7 +113,7 @@ dispatch (Display e) =
 dispatch (Print e file) =
   do e' <- topResolve e
      (t', et') <- topTypeInfer e'
-     et <- tcTop $ erasure et'
+     et <- tcTop $ liftS $ erasure et'
      case t' of
        A.Circ _ _ _ ->
          do res <- tcTop $ evaluation et
@@ -152,7 +133,7 @@ dispatch (Print e file) =
 dispatch (GateCount name e) =
   do e' <- topResolve e
      (t', et') <- topTypeInfer e'
-     et <- tcTop $ erasure et'
+     et <- tcTop $ liftS $ erasure et'
      case t' of
        A.Circ _ _ _ ->
          do res <- tcTop $ evaluation et
@@ -183,7 +164,7 @@ dispatch (GateCount name e) =
 dispatch (DisplayEx e) =
   do e' <- topResolve e
      (t', et) <- topTypeInfer e'
-     et <- tcTop $ erasure et
+     et <- tcTop $ liftS $ erasure et
      case t' of
        A.Exists (Abst n (A.Circ _ _ _)) _ ->
          do res <- tcTop $ evaluation et

@@ -123,6 +123,11 @@ typeInfer False a@(Controlled) =
       ty' = abstractMode ty
   in return (ty', Controlled, identityMod)
 
+typeInfer False Dynlift =
+  let ty = Bang (Arrow (LBase (Id "Bit")) (Base (Id "Bool")))
+           (M (BConst False) (BConst False) (BConst False))
+  in return (ty, Dynlift, identityMod)
+     
 typeInfer False a@(WithComputed) =
   freshNames ["a", "b", "c", "d", "e", "x", "y"] $ \ xs@[a, b, c, d, e, x, y] ->
   let vxs@[va, vb, vc, vd, ve, vx, vy] = map Var xs

@@ -179,6 +179,7 @@ substitute s (UnBox) = UnBox
 substitute s (Reverse) = Reverse
 substitute s (Controlled) = Controlled
 substitute s (WithComputed) = WithComputed
+substitute s (Dynlift) = Dynlift
 substitute s (RunCirc) = RunCirc
 substitute s a@(Box) = a
 substitute s a@(ExBox) = a

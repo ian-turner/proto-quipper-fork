@@ -299,6 +299,11 @@ proofInfer flag Reverse =
       ty = Forall (abst [a, b] t1') Set
   in return ty
 
+proofInfer flag Dynlift =
+  let ty = Bang (Arrow (LBase (Id "Bit")) (Base (Id "Bool")))
+           (M (BConst False) (BConst False) (BConst False))
+  in return ty
+
 proofInfer flag a@(WithComputed) =
   freshNames ["a", "b", "c", "d", "e", "x", "y"] $ \ xs@[a, b, c, d, e, x, y] ->
   let vxs@[va, vb, vc, vd, ve, vx, vy] = map Var xs

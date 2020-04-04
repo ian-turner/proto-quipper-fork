@@ -107,7 +107,7 @@ data Exp =
   | Controlled  -- ^ Obtain the controlled version of a circuit.
   | WithComputed  
   | Circ Exp Exp Modality -- ^ The circuit type. 
-    
+  | Dynlift
     -- constants  
   | Star  -- ^ Unique inhabitant of unit type.
   | Unit -- ^ The unit type.
@@ -321,6 +321,7 @@ instance Disp Exp where
   display flag (Reverse) = text "reverse"
   display flag (Controlled) = text "controlled"
   display flag (WithComputed) = text "withComputed"
+  display flag (Dynlift) = text "dynlift"
   display flag (RunCirc) = text "runCirc"
   display flag (Let m bd) =
     open bd $ \ x b ->
@@ -416,6 +417,7 @@ data Value =
   | VReverse -- ^ Value version of 'Reverse'.
   | VControlled -- ^ Value version of 'Controlled'.
   | VWithComputed
+  | VDynlift
   | VRunCirc -- ^ Value version of 'RunCirc'.
   deriving (Show, NominalShow, NominalSupport, Generic)
 
@@ -476,6 +478,7 @@ instance Nominal Value where
   pi • VReverse = VReverse
   pi • VControlled = VControlled
   pi • VWithComputed = VWithComputed
+  pi • VDynlift = VDynlift
   pi • VRunCirc = VRunCirc 
   pi • VUnBox = VUnBox
 
@@ -498,6 +501,7 @@ instance Disp Value where
   display flag (VReverse) = text "reverse"
   display flag (VControlled) = text "controlled"
   display flag (VWithComputed) = text "withComputed"
+  display flag (VDynlift) = text "dynlift"
   display flag (VRunCirc) = text "runCirc"
   display flag (VCircuit m) = display flag m
   display flag (VLam ws (Abst vs e)) = 
@@ -632,6 +636,7 @@ data EExp =
   | ERunCirc
   | EBox
   | EExBox
+  | EDynlift
   | ELet EExp (Bind (Variable, Integer) EExp)
   | ELetPair EExp (Bind [(Variable, Integer)] EExp) 
   | ELetPat EExp (Bind EPattern EExp) 
@@ -665,6 +670,7 @@ instance Disp EExp where
   display flag (EReverse) = text "reverse"
   display flag (EControlled) = text "controlled"
   display flag (EWithComputed) = text "withComputed"
+  display flag (EDynlift) = text "dynlift"
   display flag (ERunCirc) = text "runCirc"
   display flag (ELam ws (Abst vs e)) = 
     sep [text "\\elam" <+> brackets (sep $ map (display flag) ws),

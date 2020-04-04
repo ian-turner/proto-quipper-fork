@@ -112,8 +112,24 @@ makeInstanceCxt gl =
 newtype TCMonadT m a = TC{runTC :: ExceptT TypeError (StateT TypeState m) a}
   deriving (Functor, Monad, Applicative, MonadError TypeError, MonadState TypeState)
 
+instance MonadTrans TCMonadT where
+  lift ma = TC (lift (lift ma))
+
 -- | The type checking monad.
 type TCMonad a = TCMonadT Identity a
+
+type Simulation a = TCMonadT IO a
+
+liftS :: TCMonad a -> Simulation a
+liftS ma =
+  do st <- get
+     let (r, st') = runIdentity $ runStateT (runExceptT (runTC ma)) st
+     put st'
+     case r of
+       Left e -> throwError e
+       Right r' -> return r'
+
+     
 
 -- | A state for 'TCMonad'.
 data TypeState = TS {

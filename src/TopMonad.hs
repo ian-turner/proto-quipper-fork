@@ -98,7 +98,6 @@ runTop p body =
 data InterpreterState = InterpreterState {
   scope :: Scope,   -- ^ Scope information.
   context :: Context,  -- ^ Typing context.
-  circ :: Morphism,  -- ^ Top level incomplete circuit.
   mainExp :: Maybe (A.Value, A.Exp),  -- ^ Main value and its type.
   instCxt :: GlobalInstanceCxt, -- ^ Type class instance context.
   parserState :: ParserState,   -- ^ Infix operators table.
@@ -122,12 +121,6 @@ getFilename :: Top (Maybe String)
 getFilename = do
   s <- get
   return (filename s)
-
--- | Get current top-level circuit.
-getCirc :: Top Morphism
-getCirc = do
-  s <- getInterpreterState
-  return (circ s)
 
 -- | Get the interpreter state.
 getInterpreterState :: Top InterpreterState
@@ -154,12 +147,12 @@ scopeTop x = case runResolve x of
                  Right a -> return a
 
 -- | Perform an 'TCMonad' action, will update 'Top'. 
-tcTop :: TCMonad a -> Top a
-tcTop m =
+tcTop :: Simulation a -> Top a
+tcTop m = 
   do st <- getInterpreterState
      let cxt = context st
          inst = instCxt st
-         (res, s) = runIdentity $ runTCMonadT cxt inst m
+     (res, s) <- ioTop $ runTCMonadT cxt inst m
      case res of
        Left e -> throwError $ CompileErr e
        Right e ->
@@ -172,13 +165,13 @@ tcTop m =
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
 topTypeInfer :: A.Exp -> Top (A.Exp, A.Exp)
 topTypeInfer def = tcTop $
-  do (ty, tm, _) <- typeInfer (isKind def) def
-     ty' <- updateWithSubst ty
-     tm' <- updateWithSubst tm
-     (ann1, rt) <- elimConstraint def tm' ty'
+  do (ty, tm, _) <- liftS $ typeInfer (isKind def) def
+     ty' <- liftS $ updateWithSubst ty
+     tm' <- liftS $ updateWithSubst tm
+     (ann1, rt) <- liftS $ elimConstraint def tm' ty'
      let ann' = unEigen ann1
-     rt' <- resolveGoals rt `catchError` \ e -> throwError $ withPosition def e
-     ann'' <- resolveGoals ann' `catchError` \ e -> throwError $ withPosition def e
+     rt' <- liftS $ resolveGoals rt `catchError` \ e -> throwError $ withPosition def e
+     ann'' <- liftS $ resolveGoals ann' `catchError` \ e -> throwError $ withPosition def e
      return $ (rt', ann'')     
        where elimConstraint e a (A.Imply (b:bds) ty) = 
                  do ns <- newNames ["#outergoalinst"]
@@ -206,7 +199,6 @@ clearInterpreterState =
 emptyState p = InterpreterState {
   scope = emptyScope,
   context = Map.empty,
-  circ = Morphism A.VStar [] A.VStar,
   mainExp = Nothing,
   instCxt = [],
   parserState = initialParserState,
@@ -257,12 +249,6 @@ putScope scope = do
   let s' = s { scope = scope }
   putInterpreterState s'
 
--- | Update top-level circuit.
-putCirc :: Morphism -> Top ()
-putCirc c = do
-  s <- getInterpreterState
-  let s' = s {circ = c}
-  putInterpreterState s'      
   
 -- | Update counter.
 putCounter :: Int -> Top ()
