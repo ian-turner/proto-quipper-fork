@@ -657,26 +657,106 @@ data Response = Null
 simulate :: ReadWrite a -> IO a
 simulate m = runTCPClient "127.0.0.1" "1901" $ \s -> do
   h <- socketToHandle s ReadWriteMode
-  msg <- hGetLine h
-  res <- interaction m h
+  hGetLine h
+  res <- interaction m h Map.empty []
   hPutStrLn h "quit"
   return res
-  where interaction :: ReadWrite a -> Handle -> IO a
-        interaction (RW_Return a) h = return a
-        interaction (RW_Read l k) h =
-          do hPutStrLn h ("R "++ (tail (show l)))
+  where interaction :: ReadWrite a -> Handle -> Map Label Label -> [Label] -> IO a
+        interaction (RW_Return a) h map ls = return a
+        interaction (RW_Read l k) h map ls =
+          do let (VLabel l') = renameTemp (VLabel l) map
+             hPutStrLn h ("R "++ labelToNum l')
              r <- hGetLine h
              case read r of
-               Reply str | str == "0" -> interaction (k False) h
-               Reply str | str == "1" -> interaction (k True) h
-        interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h
+               Reply str | str == "0" -> interaction (k False) h map (l':ls)
+               Reply str | str == "1" -> interaction (k True) h map (l':ls)
+        interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
+          | getName name == "Discard" =
+            do let (VLabel w') = renameTemp (VLabel w) map
+               hPutStrLn h ("D " ++ labelToNum w')
+               r <- hGetLine h
+               case read r of
+                 OK -> interaction c h map (w':ls)
+        interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
+          | getName name == "Term0" =
+            do let (VLabel w') = renameTemp (VLabel w) map
+               hPutStrLn h ("M " ++ labelToNum w')
+               r <- hGetLine h
+               case read r of
+                 OK ->
+                   do hPutStrLn h ("R " ++ labelToNum w')
+                      r' <- hGetLine h
+                      case read r' of
+                        Reply s | s == "0" -> interaction c h map (w':ls)
+          | getName name == "Term1" =
+            do let (VLabel w') = renameTemp (VLabel w) map
+               hPutStrLn h ("M " ++ labelToNum w')
+               r <- hGetLine h
+               case read r of
+                 OK ->
+                   do hPutStrLn h ("R " ++ labelToNum w')
+                      r' <- hGetLine h
+                      case read r' of
+                        Reply s | s == "1" -> interaction c h map (w':ls)
+                
+        interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map []
           | getName name == "Init0" =
-          do hPutStrLn h ("Q " ++ tail (show w))
+          do let cmd = ("Q " ++ labelToNum w)
+             hPutStrLn h cmd
              r <- hGetLine h
              case read r of
-               OK -> interaction c h 
-
-             
+               OK -> interaction c h map []
+               a -> error $ "from interaction" ++ show a ++ ":" ++ cmd
+          | getName name == "Init1" =
+          do hPutStrLn h ("Q " ++ labelToNum w ++ " 1")
+             r <- hGetLine h
+             case read r of
+               OK -> interaction c h map []
+        interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map (v:vs)
+          | getName name == "Init0" =
+          do let map' = map `Map.union` Map.fromList [(w, v)]
+             hPutStrLn h ("Q " ++ labelToNum v)
+             r <- hGetLine h
+             case read r of
+               OK -> interaction c h map' vs
+          | getName name == "Init1" =
+          do let map' = map `Map.union` Map.fromList [(w, v)]
+             hPutStrLn h ("Q " ++ labelToNum v ++ " 1")
+             r <- hGetLine h
+             case read r of
+               OK -> interaction c h map' vs
+        interaction (RW_Write (Gate name [] (VLabel v) (VLabel w) VStar _) c) h map ls =
+          do let (VLabel v') = renameTemp (VLabel v) map
+                 map' = map `Map.union` Map.fromList [(w, v')]
+                 g = toGateName (getName name)
+             hPutStrLn h (g++ " "++ labelToNum v')
+             r <- hGetLine h
+             case read r of
+                OK -> interaction c h map' ls
+        interaction (RW_Write (Gate name [] v@(VPair _ _) w@(VPair _ _) VStar _) res) h map ls =
+          do let (VPair (VLabel a) (VLabel b)) = renameTemp v map
+                 (VPair (VLabel c) (VLabel d)) = w
+                 map' = map `Map.union` Map.fromList [(c, a), (d, b)]
+                 g = toGateName (getName name)
+             hPutStrLn h (g++ " "++ labelToNum a ++ " " ++ labelToNum b)
+             r <- hGetLine h
+             case read r of
+                OK -> interaction res h map' ls
+                   
+            
+labelToNum l =
+  let r = tail (show l) in if null r then "0" else r
+                                                   
+toGateName "CNot" = "CNOT"
+toGateName "Meas" = "M"
+toGateName "QNot" = "X"
+toGateName "H" = "H"
+toGateName "ZGate" = "Z"
+toGateName "C_X" = "X"
+toGateName "C_Z" = "Z"
+toGateName "SGate" = "S"
+toGateName "TGate" = "T"
+toGateName "Discard" = "D"
 
 runTCPClient :: HostName -> ServiceName -> (Socket -> IO a) -> IO a
 runTCPClient host port client = withSocketsDo $ do

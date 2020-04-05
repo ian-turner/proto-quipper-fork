@@ -40,7 +40,7 @@ gate {1,1,1} R Nat : Qubit -> Qubit -> Qubit * Qubit
 gate {1,0,0} Discard : Bit -> Unit
 
 -- Measurement gate
-gate {1,0,0} Mea : Qubit -> Bit
+gate {1,0,0} Meas : Qubit -> Bit
 
 
 

@@ -33,7 +33,7 @@ bell00 =  box Unit $
 alice : ! (Qubit * Qubit -> Bit * Bit)
 alice p = let (q, a) = p 
               (a', q') = CNot a q
-              q'' = H q' in (Mea q'', Mea a')
+              q'' = H q' in (Meas q'', Meas a')
 	    
 
 aliceCirc : Circ(Qubit * Qubit, Bit * Bit) 
@@ -90,7 +90,7 @@ bell_g_box n = box Unit $ \ u ->  bell_generic n
 alice_generic : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n -> Vec Bit n * Vec Bit n
 alice_generic n q a = let (a', q') = unzip $ zipWith CNot a q
                           q'' = map H q'        
-                       in (map Mea q'', map Mea a')
+                       in (map Meas q'', map Meas a')
 
 alice_g_box : ! (n : Nat) -> Circ (Vec Qubit n * Vec Qubit n, Vec Bit n * Vec Bit n)
 alice_g_box n = box (Vec Qubit n * Vec Qubit n) $
@@ -130,8 +130,17 @@ bellState u =
       y = Init0 ()
       x' = H x
       (y', x'') = CNot y x'
-      y'' = Mea y'
-      x''' = Mea x''
+      y'' = Meas y'
+      x''' = Meas x''
   in (dynlift x''', dynlift y'')
 
 
+ha = bellState ()
+
+teleportation =
+  let x = [Init1 (), Init0 (), Init0 (), Init0 (), Init0 (), Init1 ()]
+  --VCons (Init0 ()) (VCons (Init1 ()) (VCons (Init0 ()) VNil)) 
+      r = unbox (teleBox 6) x
+      r' = map Meas r
+      r'' = map dynlift r'
+  in r''

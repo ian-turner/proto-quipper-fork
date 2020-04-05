@@ -763,7 +763,7 @@ appExp =
                      return $ foldl (\ x y -> Pair x y) (head tms) (tail tms)
                      }
                             
-        arg = wrapPos $ try unit <|> unitTy <|> set
+        arg = wrapPos $ try unit <|> unitTy <|> set <|> dynliftExp
               <|> try varExp <|> try constExp <|> nat <|> try vector <|> idiomExp
               <|> do{
                      tms <- parens (term `sepBy1` comma);

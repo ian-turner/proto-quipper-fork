@@ -535,6 +535,7 @@ shape UnBox = return UnBox
 shape Reverse = return Reverse
 shape Controlled = return Controlled
 shape WithComputed = return WithComputed
+shape Dynlift = return Dynlift
 
 shape (Case tm (B br)) =
   do tm' <- shape tm
