@@ -135,12 +135,13 @@ bellState u =
   in (dynlift x''', dynlift y'')
 
 
-ha = bellState ()
+-- ha = bellState ()
 
-teleportation =
-  let x = [Init1 (), Init0 (), Init0 (), Init0 (), Init0 (), Init1 ()]
-  --VCons (Init0 ()) (VCons (Init1 ()) (VCons (Init0 ()) VNil)) 
-      r = unbox (teleBox 6) x
-      r' = map Meas r
-      r'' = map dynlift r'
-  in r''
+-- teleportation =
+--   let x = [Init1 (), Init0 (), Init0 (), Init0 (), Init0 (), Init1 ()]
+--       r = unbox (teleBox 6) x
+--       r' = map Meas r
+--       r'' = map dynlift r'
+--   in r''
+
+-- test2 = let x = teleportation in box Qubit (\ x -> let y = dynlift (Meas (H (Init0 ()))) in x)

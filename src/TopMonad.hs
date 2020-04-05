@@ -33,7 +33,7 @@ import Data.Map (Map)
 -- | Top-level error data type. 
 data Error =
   NoReloadError  
-  | IOError IOError  -- ^ A wrapper for IO error.
+  | IOError IOError -- ^ A wrapper for IO error.
   | ScopeErr ScopeError -- ^ A wrapper for scope error.
   | Mess Position Doc  -- ^ A wrapper for a message.
   | Cyclic Position [String] String -- ^ Cyclic importation error.
@@ -42,7 +42,7 @@ data Error =
 
 
 instance Disp Error where
-  display flag (IOError e) = text $ show e
+  display flag (IOError e) = (text $ show e)
 
   display flag NoReloadError = text "There is no file to reload"
   display flag (Mess p s) = display flag p $$ display flag s

@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | This module implements a closure-based call-by-value evaluation.
 -- It still has memory problem when generating super-large circuits.
@@ -37,18 +38,6 @@ import Debug.Trace
 
 
 -- * The evaluation functions for TCMonad.
-
--- | Evaluate an expression with an underlying circuit, return value and the updated circuit.
-
--- evaluate :: Morphism -> EExp -> TCMonad (Value, Morphism)
--- evaluate circ e =
---   do st <- get
---      let gl = globalCxt $ lcontext st
---          (r, s) = runState (runExceptT $ eval e)
---                   ES{morph = circ, evalEnv = gl, localEvalEnv = Map.empty}
---      case r of
---        Left e -> throwError $ EvalErr e
---        Right r -> return (r, morph s)
 
 -- | Evaluate a parameter term and return a value. 
 
@@ -654,13 +643,18 @@ data Response = Null
               deriving (Eq, Show, Read)
 
 
+withoutSimulator :: ReadWrite a -> IO a
+withoutSimulator (RW_Return a) = return a
+withoutSimulator a = E.throw $ userError "qserver is not up, can't run simulator"
+
 simulate :: ReadWrite a -> IO a
-simulate m = runTCPClient "127.0.0.1" "1901" $ \s -> do
-  h <- socketToHandle s ReadWriteMode
-  hGetLine h
-  res <- interaction m h Map.empty []
-  hPutStrLn h "quit"
-  return res
+simulate m =
+  (runTCPClient "127.0.0.1" "1901" $ \s -> do
+      h <- socketToHandle s ReadWriteMode
+      hGetLine h
+      res <- interaction m h Map.empty []
+      hPutStrLn h "quit"
+      return res) `E.catch` \ (e :: E.IOException) -> withoutSimulator m
   where interaction :: ReadWrite a -> Handle -> Map Label Label -> [Label] -> IO a
         interaction (RW_Return a) h map ls = return a
         interaction (RW_Read l k) h map ls =

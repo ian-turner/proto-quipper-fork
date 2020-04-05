@@ -134,7 +134,7 @@ process (Defn pos f Nothing def) =
        throwError (ErrPos pos $ NotParam (Const f) ty)
      a' <- liftS $ erasure a
      liftS $ proofChecking False a ty
-     v <- evaluation a'
+     v <- evaluation a' 
      b <- liftS $ isBasicValue v
      v' <- if b then
              do x <- liftS $ typeChecking False (toExp v) ty

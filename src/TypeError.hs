@@ -69,6 +69,7 @@ data TypeError = Unhandle Exp
                | ArityExistsErr Exp [Variable]
                | ModalityErr Modality Modality Exp
                | ModalityGEqErr Exp Exp Exp (Modality, Exp) (Modality, Exp)
+
                deriving Show
 
 -- | A data type for evaluation errors.
@@ -118,6 +119,7 @@ addErrPos p a = ErrPos p a
 
 
 instance Disp TypeError where
+
   display flag (ErrPos p e) =
     display flag p $$   
     display flag e
