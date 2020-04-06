@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 
 -- | This module implements a closure-based call-by-value evaluation.
 -- It still has memory problem when generating super-large circuits.
@@ -23,7 +23,7 @@ import Control.Monad.State (State)
 import qualified Control.Monad.State as S
 import Control.Monad.Identity
 import Control.Monad.Except
-
+import Text.PrettyPrint
 import System.IO
 import qualified Control.Exception as E
 import Network.Socket
@@ -289,18 +289,19 @@ lookupLEnv x =
          if (n-1 <= 0) && ref == 0 then
            do let lenv' = decrRef ps (Map.delete x lenv)
               put st{localEvalEnv = lenv'}
-              return v
+              trace (show $ text "removing:" <+> dispRaw x) $ return v
          else
            do let lenv' = Map.insert x (v, n-1, ref, ps) lenv
               put st{localEvalEnv = lenv'}
               return v
 
 -- | Add a value to the environment.
+addDefinition (x, n) m | trace (show $ text "adding:"<+> dispRaw x <+> text ":" <+> dispRaw m) $ False = undefined              
 addDefinition (x, n) m =
   do st <- get
      let vs = vars m
          lenv = localEvalEnv st
-         lenv' = if n == 0 then lenv
+         lenv' = if n == 0 then trace (show $ text "not adding:" <+> dispRaw x) $ lenv
                  else Map.insert x (m, n, 0, vs) (addRef vs lenv) 
      put st{localEvalEnv = lenv'}
 
@@ -310,7 +311,7 @@ addRef :: [Variable] -> Map Variable (Value, Integer, Integer, [Variable]) ->
 addRef [] lenv = lenv
 addRef (v:vs) lenv =
   case Map.lookup v lenv of
-    Nothing -> error "from addRef"
+    Nothing -> error $ "from addRef:" ++ show v
     Just (val, n, ref, ps) ->
       let lenv' = Map.insert v (val, n , ref+1, ps) lenv
       in addRef vs lenv'
@@ -655,7 +656,8 @@ simulate m =
       res <- interaction m h Map.empty []
       hPutStrLn h "quit"
       return res) `E.catch` \ (e :: E.IOException) -> withoutSimulator m
-  where interaction :: ReadWrite a -> Handle -> Map Label Label -> [Label] -> IO a
+  where 
+        interaction :: ReadWrite a -> Handle -> Map Label Label -> [Label] -> IO a
         interaction (RW_Return a) h map ls = return a
         interaction (RW_Read l k) h map ls =
           do let (VLabel l') = renameTemp (VLabel l) map
@@ -682,6 +684,8 @@ simulate m =
                       r' <- hGetLine h
                       case read r' of
                         Reply s | s == "0" -> interaction c h map (w':ls)
+                        Reply s ->
+                          error $ "termination error, expecting to terminate with 0, but get:" ++ s
           | getName name == "Term1" =
             do let (VLabel w') = renameTemp (VLabel w) map
                hPutStrLn h ("M " ++ labelToNum w')
@@ -692,6 +696,8 @@ simulate m =
                       r' <- hGetLine h
                       case read r' of
                         Reply s | s == "1" -> interaction c h map (w':ls)
+                        Reply s ->
+                          error $ "termination error, expecting to terminate with 1, but get:" ++ s
                 
         interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map []
           | getName name == "Init0" =

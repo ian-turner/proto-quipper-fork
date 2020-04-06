@@ -130,13 +130,34 @@ testH' = withBasisChange initialization hadamard
 -- testH = withComputed initialization hadamard
 -- testH = reverse initialization
 
-testC : !(Qubit * Qubit -> Qubit * Qubit)
-testC q = let (_, r) = controlled testH' () q in r
+class Neg a where
+  negate : (Simple a) => a -> a
+
+instance Neg Qubit where
+  negate a = QNot a
+
+instance forall a b -> (Simple a, Simple b, Neg a, Neg b) => Neg (a * b) where
+  negate x =
+    let (a, b) = x in (negate a, negate b)
+  
 --- controlling (withComputed )
 --  CNot
 
-testBoxC = box (Qubit * Qubit) testC
+controlledNeg : ! forall (a b s : Type) -> (Neg s, Simple s, Simple a, Simple b) =>
+                    Circ(a, b) -> !(a -> s -> b * s)
+controlledNeg circ input ctrl = -- controlled circ input (negate ctrl)
+  let (r, ctrl') = controlled circ input (negate ctrl)
+  in (r, negate ctrl')
 
+testC : !(Qubit * Qubit -> Qubit * Qubit * Unit)
+testC q = let (z, r) = controlledNeg testH' () q in (r, z)
+
+f (x : Bool) = (x, x, x)
+
+f' (x : Unit) = let y = False in f y
+-- testBoxC = box (Qubit * Qubit) testC 
+
+{-
 testC' : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit)
 testC' tr = let (a, b, c) = tr in controlled testBoxC (a, b) c
 
@@ -146,4 +167,4 @@ testBoxC' = box (Qubit * Qubit * Qubit) testC'
 apply : ! {s : Type} -> forall u v -> (Simple s, Simple u, Simple v) =>
              Circ(s, u) -> Circ(u, v) -> Circ(s, v)
 apply s circ1 circ2 = box s (\ x -> unbox circ2 ((unbox circ1) x))
-
+-}

@@ -57,8 +57,15 @@ initialParserState = ParserState{
 -- further information). Currently, we have the following build-in operators:
 -- * (precedence 7), -> (precedence 10), : (precedence 16).
 initialOpTable :: [[Operator String ParserState (IndentT Identity) Exp]]
-initialOpTable = [[], [], [], [], [], [unaryBang "!" Bang], [], [binOp AssocLeft "*" Tensor] , [], [], [binOp AssocRight "->" Arrow], [], [], [], [], [], [binOp AssocLeft ":" WithAnn]]
+initialOpTable = [[], [], [], [], [], [unaryBang "!" Bang, quotedOp], [], [binOp AssocLeft "*" Tensor] , [], [], [binOp AssocRight "->" Arrow], [], [], [], [], [], [binOp AssocLeft ":" WithAnn]]
   where binOp assoc op f = Infix (reservedOp op >> return f) assoc
+        quotedOp =
+          Infix (operator' >>= \ x -> return (\ y z -> (App (App (Var x) y) z))) AssocNone
+        operator' = do
+          reservedOp "`"
+          op <- var
+          reservedOp "`"
+          return op
         unaryBang op f =
           Prefix $ do
           reservedOp op
@@ -253,10 +260,13 @@ classDecl =
        where method =
                do pos <- getPosition
                   n <- parens operator <|> var
-                  m <- parseMode
+                  m <- option Nothing (parseMode >>= \ x -> return (Just x))
                   reservedOp ":"
                   t <- typeExp
-                  return (P pos, n, t, m)
+                  let m' = case m of
+                             Nothing -> (True, True, True)
+                             Just r -> r
+                  return (P pos, n, t, m')
 
 -- | Parse an instance declaration. For the instance of the phantom class,
 -- one should not use the keyword "where".
@@ -763,7 +773,7 @@ appExp =
                      return $ foldl (\ x y -> Pair x y) (head tms) (tail tms)
                      }
                             
-        arg = wrapPos $ try unit <|> unitTy <|> set <|> dynliftExp
+        arg = wrapPos $ try unit <|> unitTy <|> set <|> dynliftExp <|> reverseExp
               <|> try varExp <|> try constExp <|> nat <|> try vector <|> idiomExp
               <|> do{
                      tms <- parens (term `sepBy1` comma);
@@ -916,7 +926,7 @@ dpqStyle = Token.LanguageDef
                     "round"
                   ]
                , Token.reservedOpNames =
-                    ["λ", ".", "\\", "<-", "->", "*", "()", "!", "#", "_", ":", "=", "=>", "[|", "|]", "{-#", "#-}"]
+                    ["λ", ".", "\\", "<-", "->", "*", "()", "!", "_", ":", "=", "=>", "[|", "|]", "`"]
                 }
 
 -- | Parse a Proto-Quipper-D token.

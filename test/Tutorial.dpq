@@ -224,8 +224,8 @@ test1 x = kill x
 -- * The monad type class
 
 class Monad (m : Type -> Type) where
-  return {1,1,1} : forall a -> a -> m a
-  bind {1,1,1} : forall a b -> m a -> (a -> m b) -> m b
+  return : forall a -> a -> m a
+  bind : forall a b -> m a -> (a -> m b) -> m b
 
 -- pure : ! forall (m : Type -> Type) ->
 --            (Monad m) => forall a -> a -> m a
@@ -265,7 +265,7 @@ unGarbage : ! forall a -> WithGarbage a -> (n : Nat) * Vec Qubit n * a
 unGarbage z = let WG ex a = z in let (n, v) = ex in (n, (v, a))
 
 class Disposable a where
-  dispose {1,1,1} : a -> WithGarbage Unit
+  dispose : a -> WithGarbage Unit
 
 instance Disposable Qubit where
   dispose q = WG (1, VCons q VNil) ()
@@ -403,9 +403,9 @@ copy3 q =
 adder : !(Qubit -> Qubit -> Qubit -> WithGarbage (Qubit * Qubit))
 adder a b carryIn = do
   let (a1, a2, a3) = copy3 a
-      (b1, b2, b3) = copy3 b
+      (b1, b2, b3) = copy3 b 
       (carryIn1, carryIn2, carryIn3) = copy3 carryIn 
-  s <- [| xor (xor a1 b1) (pure carryIn1)|]
+  s <- [| (a1 `xor` b1) `xor` (pure carryIn1)|]   
   carryOut <- [| [| (a2 && b2) || (a3 && carryIn2) |] || (b3 && carryIn3) |]
   return (s, carryOut)
 

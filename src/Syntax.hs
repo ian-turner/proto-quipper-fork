@@ -505,11 +505,11 @@ instance Disp Value where
   display flag (VRunCirc) = text "runCirc"
   display flag (VCircuit m) = display flag m
   display flag (VLam ws (Abst vs e)) = 
-    sep [text "\\vlam" <+> brackets (sep $ map (display flag) ws),
+    sep [text "\\vlam" <+> brackets (hsep $ map (display flag) ws),
          hsep (map (\ (x, y) -> parens (display flag x <> text ":" <> integer y)) vs)
          <+> text "->", nest 2 (display flag e)]
   display flag (VLift ws e) = 
-   text "vlift" <+> (brackets $ sep (map (display flag) ws)) <+> display flag e
+   text "vlift" <+> (brackets $ hsep (map (display flag) ws)) <+> display flag e
   display flag (VLiftCirc (Abst vs (Abst env e))) = 
    text "vliftCirc" <+> hsep (map (display flag) vs) <+> text "->"
    <+> braces (display flag env) $$ nest 2 (display flag e)
@@ -519,7 +519,8 @@ instance Disp Value where
       Nothing ->
         case toVec a of
           Nothing ->
-            parens $ display flag t <+> display flag t'
+            fsep [dParen flag (precedence a - 1) t, dParen flag (precedence a) t']
+
           Just vs -> brackets $ fsep $ punctuate comma $ map (\ x -> display flag x ) vs
       Just i -> int i
     where toNat (VApp (VConst id) t') =
@@ -543,6 +544,15 @@ instance Disp Value where
           toVec _ = Nothing
 
   display flag (VForce v) = text "&" <> display flag v
+
+  precedence (VVar _) = 12
+  precedence (VConst _) = 12
+  precedence (VBase _) = 12
+  precedence (VLBase _) = 12
+  precedence (VTensor _ _) = 8
+  precedence (VPair _ _) = 11
+  precedence (VApp _ _) = 10
+  precedence _ = 0
 
 instance Disp (Map Variable (Value, Integer)) where
    display flag l =
@@ -673,14 +683,15 @@ instance Disp EExp where
   display flag (EDynlift) = text "dynlift"
   display flag (ERunCirc) = text "runCirc"
   display flag (ELam ws (Abst vs e)) = 
-    sep [text "\\elam" <+> brackets (sep $ map (display flag) ws),
-         hsep (map (\ (x, y) -> parens (display False x <> text ":" <> integer y)) vs)
-         <+> text "->", nest 2 (display flag e)]
+    sep [text "\\elam" <+> brackets (hsep $ map (display flag) ws),
+         hsep (map (\ (x, y) -> parens (display False x <> text ":" <> integer y)) vs),
+         text "->", nest 2 (display flag e)]
   display flag (ELift ws e) = 
-   text "elift" <+> (brackets $ sep (map (display flag) ws)) <+> display flag e
+   text "elift" <+> (brackets $ hsep (map (display flag) ws)) <+> display flag e
 
-  display flag (EApp v1 v2) =
-    parens $ display flag v1 <+> display flag v2  
+  display flag a@(EApp v1 v2) =
+    fsep [dParen flag (precedence a - 1) v1, dParen flag (precedence a) v2]
+    -- parens $ display flag v1 <+> display flag v2  
   display flag (EForce v) = text "&" <> display flag v
   display flag (ECase e (EB brs)) =
     text "case" <+> display flag e <+> text "of" $$
@@ -704,6 +715,15 @@ instance Disp EExp where
     fsep [text "elet" <+> (display flag ps) <+> text "=" , display flag m,
           text "in" <+> display flag b]
 
+  precedence (EVar _) = 12
+  precedence (EConst _) = 12
+  precedence (EBase _) = 12
+  precedence (ELBase _) = 12
+  precedence (ETensor _ _) = 8
+  precedence (EPair _ _) = 11
+  precedence (EApp _ _) = 10
+  precedence _ = 0
+  
 instance Disp EPattern where
   display flag (EPApp id vs) =
     display flag id <+>
