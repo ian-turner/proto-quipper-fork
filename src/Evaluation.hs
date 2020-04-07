@@ -144,7 +144,7 @@ instance Functor QuantumState where
 -- as argument and form a closure when evaluating a lambda abstraction or a lifted term.
 
 eval :: EExp -> Eval Value
--- eval a | trace ("eval:" ++ show (disp a)) False = undefined
+eval a | trace ("eval:" ++ show (dispRaw a)) False = undefined
 eval (EVar x) = do
   v <- lookupLEnv x 
   return v
@@ -296,12 +296,12 @@ lookupLEnv x =
               return v
 
 -- | Add a value to the environment.
-addDefinition (x, n) m | trace (show $ text "adding:"<+> dispRaw x <+> text ":" <+> dispRaw m) $ False = undefined              
+addDefinition (x, n) m | trace (show $ text "adding:"<+> dispRaw x <+> text ":" <+> text (show n) <+>text ":" <+> dispRaw m) $ False = undefined              
 addDefinition (x, n) m =
   do st <- get
      let vs = vars m
          lenv = localEvalEnv st
-         lenv' = if n == 0 then trace (show $ text "not adding:" <+> dispRaw x) $ lenv
+         lenv' = if n == 0 then lenv
                  else Map.insert x (m, n, 0, vs) (addRef vs lenv) 
      put st{localEvalEnv = lenv'}
 
@@ -391,7 +391,7 @@ evalApp (VComputed m1) m2 =
   in return res
   where negateCtrl (Gate e1 e2 e3 e4 e5 b) = Gate e1 e2 e3 e4 e5 False
   
-evalApp a@(Wired _) w = return a
+-- evalApp a@(Wired _) w = return a
 
 evalApp v w = 
   let (h, res) = unwindVal v
