@@ -1126,6 +1126,7 @@ vars (VLam ws (Abst _ e)) = ws
 vars (VLift ws e) = ws
 vars (VPair e1 e2) = (vars e1) ++ (vars e2)
 vars (VTensor e1 e2) = (vars e1) ++ (vars e2)
+vars (VApp e1 e2) = (vars e1) ++ (vars e2)
 vars _ = []
 
 -- | Generate a fresh modality.

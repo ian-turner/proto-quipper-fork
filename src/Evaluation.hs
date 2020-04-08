@@ -144,7 +144,6 @@ instance Functor QuantumState where
 -- as argument and form a closure when evaluating a lambda abstraction or a lifted term.
 
 eval :: EExp -> Eval Value
-eval a | trace ("eval:" ++ show (dispRaw a)) False = undefined
 eval (EVar x) = do
   v <- lookupLEnv x 
   return v
@@ -185,7 +184,8 @@ eval (EForce m) =
        VDynlift -> return $ VForce VDynlift
        w@(VLiftCirc _) -> return w
        v@(VApp VUnBox _) -> return $ VForce v
-
+       a -> error $ "from eval(EForce):" ++ (show $ disp a)
+       
 eval (ETensor e1 e2) =
   do e1' <- eval e1
      e2' <- eval e2
@@ -289,14 +289,13 @@ lookupLEnv x =
          if (n-1 <= 0) && ref == 0 then
            do let lenv' = decrRef ps (Map.delete x lenv)
               put st{localEvalEnv = lenv'}
-              trace (show $ text "removing:" <+> dispRaw x) $ return v
+              return v
          else
            do let lenv' = Map.insert x (v, n-1, ref, ps) lenv
               put st{localEvalEnv = lenv'}
               return v
 
 -- | Add a value to the environment.
-addDefinition (x, n) m | trace (show $ text "adding:"<+> dispRaw x <+> text ":" <+> text (show n) <+>text ":" <+> dispRaw m) $ False = undefined              
 addDefinition (x, n) m =
   do st <- get
      let vs = vars m
@@ -314,11 +313,10 @@ addRef (v:vs) lenv =
     Nothing -> error $ "from addRef:" ++ show v
     Just (val, n, ref, ps) ->
       let lenv' = Map.insert v (val, n , ref+1, ps) lenv
-      in addRef vs lenv'
+      in addRef vs lenv' 
   
 -- | A helper function for evaluating various of applications.
 evalApp :: Value -> Value -> Eval Value
-
 evalApp VUnBox v | Wired _ <- v = return $ VApp VUnBox v
 evalApp VUnBox v | otherwise = return VUnBox
 evalApp (VForce VDynlift) (VLabel v) =
@@ -391,7 +389,7 @@ evalApp (VComputed m1) m2 =
   in return res
   where negateCtrl (Gate e1 e2 e3 e4 e5 b) = Gate e1 e2 e3 e4 e5 False
   
--- evalApp a@(Wired _) w = return a
+evalApp a@(Wired _) w = return a
 
 evalApp v w = 
   let (h, res) = unwindVal v

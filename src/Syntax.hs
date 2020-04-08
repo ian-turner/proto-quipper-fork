@@ -419,7 +419,7 @@ data Value =
   | VWithComputed
   | VDynlift
   | VRunCirc -- ^ Value version of 'RunCirc'.
-  deriving (Show, NominalShow, NominalSupport, Generic)
+  deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 
 -- | Local variable environment for evaluation. It contains the
 -- approximate number of uses of for each variable. 
@@ -440,7 +440,7 @@ instance Bindable (Map Variable (Value, Integer)) where
 -- | Gate, ['Value'] is a list of parameters, the last three values
 -- are input, output, control and controllable flag.          
 data Gate = Gate Id [Value] Value Value Value Bool
-  deriving (Show, NominalShow, NominalSupport, Generic)
+  deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 
 -- | A list of gates.
 type Gates = [Gate]
@@ -448,40 +448,8 @@ type Gates = [Gate]
 -- | Morphism denotes an incomplete circuit, a completion would be
 -- using the Wired constructor to bind all the free labels in it.
 data Morphism = Morphism Value Gates Value
-  deriving (Show, NominalShow, NominalSupport, Generic)
+  deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
            
-instance Nominal Gate where
-  pi • Gate id params v1 v2 ctrl b = Gate id (pi • params) (pi • v1) (pi • v2) (pi • ctrl) b
-
-instance Nominal Morphism where
-  pi • Morphism v1 gs v2 = Morphism (pi • v1) (pi • gs) (pi • v2)
-
-instance Nominal Value where
-  pi • VLabel l = VLabel $ pi • l
-  pi • VVar x = VVar $ pi • x
-  pi • VLam vs bd = VLam vs $ pi • bd
-  pi • Wired bd = Wired $ pi • bd
-  pi • VConst id = VConst id
-  pi • VLBase id = VLBase id
-  pi • VBase id = VBase id
-  pi • VUnit = VUnit
-  pi • VStar = VStar
-  pi • VLift vs bd = VLift vs $ pi • bd
-  pi • VLiftCirc bd = VLiftCirc $ pi • bd
-  pi • VTensor a b = VTensor (pi • a) (pi • b)
-  pi • VPair a b = VPair (pi • a) (pi • b)
-  pi • VApp a b = VApp (pi • a) (pi • b)
-  pi • VForce v = VForce (pi • v)
-  pi • VCircuit m = VCircuit (pi • m)
-  pi • VBox = VBox
-  pi • VExBox = VExBox
-  pi • VReverse = VReverse
-  pi • VControlled = VControlled
-  pi • VWithComputed = VWithComputed
-  pi • VDynlift = VDynlift
-  pi • VRunCirc = VRunCirc 
-  pi • VUnBox = VUnBox
-
   
 instance Disp Value where
   display flag (VLabel l) = text $ show l
@@ -505,14 +473,14 @@ instance Disp Value where
   display flag (VRunCirc) = text "runCirc"
   display flag (VCircuit m) = display flag m
   display flag (VLam ws (Abst vs e)) = 
-    sep [text "\\vlam" <+> brackets (hsep $ map (display flag) ws),
-         hsep (map (\ (x, y) -> parens (display flag x <> text ":" <> integer y)) vs)
+    sep [text "\\vlam" <+> brackets (hsep $ map dispRaw ws),
+         hsep (map (\ (x, y) -> parens (dispRaw x <> text ":" <> integer y)) vs)
          <+> text "->", nest 2 (display flag e)]
   display flag (VLift ws e) = 
-   text "vlift" <+> (brackets $ hsep (map (display flag) ws)) <+> display flag e
+   text "vlift" <+> (brackets $ hsep (map dispRaw ws)) <+> display flag e
   display flag (VLiftCirc (Abst vs (Abst env e))) = 
-   text "vliftCirc" <+> hsep (map (display flag) vs) <+> text "->"
-   <+> braces (display flag env) $$ nest 2 (display flag e)
+   text "vliftCirc" <+> hsep (map dispRaw vs) <+> text "->"
+   <+> braces (dispRaw env) $$ nest 2 (display flag e)
   display flag (Wired (Abst ls v)) = display flag v
   display flag a@(VApp t t') = 
     case toNat a of
@@ -557,14 +525,14 @@ instance Disp Value where
 instance Disp (Map Variable (Value, Integer)) where
    display flag l =
      vcat $
-     map (\ (x, (y, n)) -> display False x<> text ":" <> integer n
+     map (\ (x, (y, n)) -> dispRaw x <> text ":" <> integer n
                            <+> text ":=" <+> display flag y) (Map.toList l)
 
 instance Disp (Map Variable (Value, Integer, Integer)) where
    display flag l =
      vcat $
-     map (\ (x, (y, n, ref)) -> display False x<> text ":" <> integer n
-                               <> text ":" <> integer ref <+> text ":=" <+> display flag y)
+     map (\ (x, (y, n, ref)) -> dispRaw x <> text ":" <> integer n
+                                <> text ":" <> integer ref <+> text ":=" <+> display flag y)
      (Map.toList l)
 
 instance Disp Morphism where
@@ -683,36 +651,35 @@ instance Disp EExp where
   display flag (EDynlift) = text "dynlift"
   display flag (ERunCirc) = text "runCirc"
   display flag (ELam ws (Abst vs e)) = 
-    sep [text "\\elam" <+> brackets (hsep $ map (display flag) ws),
-         hsep (map (\ (x, y) -> parens (display False x <> text ":" <> integer y)) vs),
+    sep [text "\\elam" <+> brackets (hsep $ map dispRaw ws),
+         hsep (map (\ (x, y) -> parens (dispRaw x <> text ":" <> integer y)) vs),
          text "->", nest 2 (display flag e)]
   display flag (ELift ws e) = 
-   text "elift" <+> (brackets $ hsep (map (display flag) ws)) <+> display flag e
+   text "elift" <+> (brackets $ hsep (map dispRaw ws)) <+> display flag e
 
   display flag a@(EApp v1 v2) =
     fsep [dParen flag (precedence a - 1) v1, dParen flag (precedence a) v2]
-    -- parens $ display flag v1 <+> display flag v2  
   display flag (EForce v) = text "&" <> display flag v
   display flag (ECase e (EB brs)) =
     text "case" <+> display flag e <+> text "of" $$
     nest 2 (vcat $ map helper brs)
     where helper bd =
-            open bd $ \ p b -> fsep [display flag p, text "->" , nest 2 (display flag b)]
+            open bd $ \ p b -> fsep [dispRaw p, text "->" , nest 2 (display flag b)]
 
   display flag (ELet m bd) =
     open bd $ \ (x, n) b ->
-    fsep [text "elet" <+> display False x <> text ":" <> integer n <+> text "=", display flag m,
+    fsep [text "elet" <+> dispRaw x <> text ":" <> integer n <+> text "=", display flag m,
           text "in" <+> display flag b]
     
   display flag (ELetPair m bd) =
     open bd $ \ xs b ->
-    fsep [text "elet" <+> parens (hsep $ punctuate comma $ map (\ (x, n) -> display False x <> text ":" <> integer n) xs),
+    fsep [text "elet" <+> parens (hsep $ punctuate comma $ map (\ (x, n) -> dispRaw x <> text ":" <> integer n) xs),
           text "=", display flag m,
           text "in" <+> display flag b]
 
   display flag (ELetPat m bd) =
     open bd $ \ ps b ->
-    fsep [text "elet" <+> (display flag ps) <+> text "=" , display flag m,
+    fsep [text "elet" <+> (dispRaw ps) <+> text "=" , display flag m,
           text "in" <+> display flag b]
 
   precedence (EVar _) = 12
