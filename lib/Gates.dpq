@@ -20,8 +20,9 @@ gate {1,1,1} WGateInverse : Qubit -> Qubit -> Qubit * Qubit
 gate {1,1,1} H : Qubit -> Qubit
 
 gate {1,1,1} TGate : Qubit -> Qubit
+gate {1,1,1} SGate : Qubit -> Qubit
 
-gate {1,1,1} C_H : Qubit -> Qubit -> Qubit * Qubit
+-- gate {1,1,1} C_H : Qubit -> Qubit -> Qubit * Qubit
 
 
 -- The second qubit is the control bit
@@ -47,12 +48,12 @@ gate {1,0,0} Meas : Qubit -> Bit
 -- A Toffoli gate specialized to one positive and one negative
 -- control-> The second argument is the positive control and the third
 -- argument is the negative one->
-gate {1,1,1} ToffoliGate_10 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+-- gate {1,1,1} ToffoliGate_10 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
 
 -- A Toffoli gate specialized to one positive and one negative
 -- control-> The second argument is the negative control and the third
 -- argument is the positive one->
-gate {1,1,1} ToffoliGate_01 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+-- gate {1,1,1} ToffoliGate_01 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
 
 -- A Toffoli gate with signed controls-> A sign of 'True' means the
 -- control fires when the qubit is 1; a sign of 'False' means the
@@ -63,7 +64,8 @@ gate {1,1,1} ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * 
 
 
 -- A controlled-not gate with a signed control, the second qubit is the controlling qubit
-gate {1,1,1} CNotGate Bool : Qubit -> Qubit -> Qubit * Qubit
+
+-- gate {1,1,1} CNotGate Bool : Qubit -> Qubit -> Qubit * Qubit
 
 -- A not gate
 gate {1,1,1} QNot : Qubit -> Qubit
@@ -114,4 +116,42 @@ initQubit b = case b of
 		False -> Init0 ()
 
 
+tgate_inv : ! (Qubit -> Qubit)
+tgate_inv x =  SGate (TGate (SGate x))
 
+sgate = SGate 
+
+tgate = TGate 
+
+measure = Meas
+
+toffoli : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
+toffoli c b a =
+  let 
+      c = H c
+      (c, b) = CNot c b
+      c = tgate_inv c
+      (c, a) = CNot c a
+      c = tgate c
+      (c, b) = CNot c b
+      c = tgate_inv c
+      (c, a) = CNot c a
+      c = H (TGate c)
+      b = tgate b
+      (b, a) = CNot b a
+      a = tgate a
+      b = tgate_inv b
+      (b, a) = CNot b a
+      -- a = tgate a
+      -- b = sgate b
+  in (c, b, a)
+
+boxToffoli = box (Qubit * Qubit * Qubit) $ \ x -> uncurry (uncurry toffoli) x
+
+testTof =
+  let (x, y, z) = toffoli (initQubit True) (initQubit False) (initQubit True)
+  in (dynlift (measure x), dynlift (measure y), dynlift (measure z))
+
+testCNot =
+  let (x, y) = CNot (initQubit False) (initQubit True)
+  in (dynlift (measure x), dynlift (measure y))
