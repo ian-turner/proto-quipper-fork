@@ -1,13 +1,14 @@
--- | This module simulates the classical boolean circuits, i.e., circuits
--- that consist of {CNot, QNot, Init0, Init1, Term0, Term1, CNotGate,
--- ToffoliGate, Not_g} from the "lib/Gates.dpq".
+{-# LANGUAGE ScopedTypeVariables #-}
 
-module Simulation (runCircuit, SimulateError) where
+module Simulation where
 
 import SyntacticOperations hiding (toBool)
 import Syntax
 import Utils
 
+import qualified Control.Exception as E
+import Network.Socket
+import System.IO
 
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -17,180 +18,172 @@ import Text.PrettyPrint
 
 import Debug.Trace
 
--- | The boolean simulation monad. It maintains a global state
--- that tracks the boolean values for labels. 
-type Simulate a = ExceptT SimulateError (State (Map Label Bool)) a
+data ReadWrite a = RW_Return a
+                 | RW_Write Gate (ReadWrite a)
+                 | RW_Read Label (Bool -> ReadWrite a)
 
--- | Apply a circuit to a given value, return the result.
-runCircuit :: Morphism -> Value -> Either SimulateError Value
-runCircuit (Morphism minput gs moutput) input =
-  let m = makeValueMap minput input
-      m' = runState (runExceptT $ runGates gs) m
-  in
-   case m' of
-     (Left e@(AssertionErr _ _ _), _) -> Left $ WrapGates gs e
-     (Left e, _) -> Left e
-     (Right _, m'') -> Right $ makeOutput m'' moutput
-  where runGates gs = mapM_ applyGate gs       
-        -- Construct a map of values from a template and a boolean value term. 
-        makeValueMap :: Value -> Value -> Map Label Bool
-        makeValueMap VStar VStar = Map.empty
-        makeValueMap (VConst x) (VConst y) | x == y = Map.empty
-        makeValueMap (VLabel l) a@(VConst x) =
-          Map.fromList [(l, toBool a)]
-        makeValueMap (VPair x y) (VPair a b) =
-          let m1 = makeValueMap x a
-              m2 = makeValueMap y b
-          in Map.union m1 m2
-        makeValueMap (VApp x y) (VApp a b) =
-          let m1 = makeValueMap x a
-              m2 = makeValueMap y b
-          in Map.union m1 m2
-        makeValueMap a b =
-          error $ "from makeValueMap: " ++ (show $ disp a <+> text "," <+> disp b)
-        -- substitute the labels for values in a given template. 
-        makeOutput m a@(VStar) = a
-        makeOutput m a@(VConst _) = a
-        makeOutput m (VLabel l) =
-          case Map.lookup l m of
-            Nothing -> error "from makeOutput"
-            Just i -> fromBool i
-        makeOutput m (VPair x y) =
-          VPair (makeOutput m x) (makeOutput m y)
-        makeOutput m (VApp x y) = 
-          VApp (makeOutput m x) (makeOutput m y)
+instance Monad ReadWrite where
+  return a = RW_Return a
+  f >>= g =
+    case f of
+      RW_Return a -> g a
+      RW_Write gate f' -> RW_Write gate (f' >>= g)
+      RW_Read bit cont -> RW_Read bit (\bool -> cont bool >>= g)
 
--- | Simulation error data type.
-data SimulateError =
-  NotSupported String
-  | AssertionErr Label Bool Bool
-  | WrapGates [Gate] SimulateError
-  deriving Show
-           
-instance Disp Bool where
-  display _ True = text "1"
-  display _ False = text "0"
-  
-instance Disp SimulateError where
-  display flag (NotSupported s) =
-    text "simulator currently does not support simulating gate:" <+> text s
+instance Applicative ReadWrite where
+  pure = return
+  (<*>) = ap
 
-  display flag (AssertionErr x exp act) =
-    text "assertion error on label:" <+> dispRaw x $$
-    text "expecting value:" <+> display flag exp $$
-    text "actual value:" <+> display flag act
+instance Functor ReadWrite where
+  fmap = liftM
 
-  display flag (WrapGates gs e) =
-    display flag e $$
-    text "when running the simulation for the circuit:" $$
-    vcat (map (display flag) gs)
+gateRW :: Gate -> ReadWrite ()
+gateRW g = RW_Write g (return ())
 
--- | Convert a boolean data type to type 'Bool'.
-toBool :: Value -> Bool
-toBool (VConst x) | getName x == "True" = True
-toBool (VConst x) | getName x == "False" = False
-toBool _ = error "unknown boolean format, bools should be coming from the Prelude module"  
+dynliftRW :: Label -> ReadWrite Bool
+dynliftRW q = RW_Read q (\ans -> return ans)
+
+boxGates :: ReadWrite b -> ([Gate], b)
+boxGates (RW_Return b) = ([], b)
+boxGates (RW_Write x c) =
+  let (gs, b) = boxGates c
+  in (x : gs, b)
+boxGates (RW_Read q c) = error "from box Gate"
+
+data Response = Null
+              | OK
+              | Reply String
+              | Terminate
+              | Error String
+              | InternalError String
+              deriving (Eq, Show, Read)
 
 
 
--- | Look up a value for a label. Since a label is used linearly,
--- it will be garbage collected once the lookup is done.
-lookupValue :: Label -> Simulate Bool
-lookupValue x =
-  do m <- get
-     case Map.lookup x m of
-       Nothing -> error $ "simulation error: can't find label:" ++ show x
-       Just i -> 
-         do let m' = Map.delete x m
-            put m'
-            return i
+simulate :: ReadWrite a -> IO a
+simulate m =
+  (runTCPClient "127.0.0.1" "1901" $ \s -> do
+      h <- socketToHandle s ReadWriteMode
+      hGetLine h
+      res <- interaction m h Map.empty []
+      hPutStrLn h "quit"
+      return res) `E.catch` \ (e :: E.IOException) -> withoutSimulator m
 
--- | Update the boolean value for a label.
-updateValue :: Label -> Bool -> Simulate ()
-updateValue x v =
-  do m <- get
-     put $ Map.insert x v m
+withoutSimulator :: ReadWrite a -> IO a
+withoutSimulator (RW_Return a) = return a
+withoutSimulator a = E.throw $ userError "qserver is not up, can't run simulator"
+                                                      
+interaction :: ReadWrite a -> Handle -> Map Label Label -> [Label] -> IO a
+interaction (RW_Return a) h map ls = return a
+interaction (RW_Read l k) h map ls =
+          do let (VLabel l') = renameTemp (VLabel l) map
+             hPutStrLn h ("R "++ labelToNum l')
+             r <- hGetLine h
+             case read r of
+               Reply str | str == "0" -> interaction (k False) h map (l':ls)
+               Reply str | str == "1" -> interaction (k True) h map (l':ls)
+interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
+          | getName name == "Discard" =
+            do let (VLabel w') = renameTemp (VLabel w) map
+               hPutStrLn h ("D " ++ labelToNum w')
+               r <- hGetLine h
+               case read r of
+                 OK -> interaction c h map (w':ls)
+interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
+          | getName name == "Term0" =
+            do let (VLabel w') = renameTemp (VLabel w) map
+               hPutStrLn h ("M " ++ labelToNum w')
+               r <- hGetLine h
+               case read r of
+                 OK ->
+                   do hPutStrLn h ("R " ++ labelToNum w')
+                      r' <- hGetLine h
+                      case read r' of
+                        Reply s | s == "0" -> interaction c h map (w':ls)
+                        Reply s ->
+                          error $ "termination error, expecting to terminate with 0, but get:" ++ s
+          | getName name == "Term1" =
+            do let (VLabel w') = renameTemp (VLabel w) map
+               hPutStrLn h ("M " ++ labelToNum w')
+               r <- hGetLine h
+               case read r of
+                 OK ->
+                   do hPutStrLn h ("R " ++ labelToNum w')
+                      r' <- hGetLine h
+                      case read r' of
+                        Reply s | s == "1" -> interaction c h map (w':ls)
+                        Reply s ->
+                          error $ "termination error, expecting to terminate with 1, but get:" ++ s
+                
+interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map []
+          | getName name == "Init0" =
+          do let cmd = ("Q " ++ labelToNum w)
+             hPutStrLn h cmd
+             r <- hGetLine h
+             case read r of
+               OK -> interaction c h map []
+               a -> error $ "from interaction" ++ show a ++ ":" ++ cmd
+          | getName name == "Init1" =
+          do hPutStrLn h ("Q " ++ labelToNum w ++ " 1")
+             r <- hGetLine h
+             case read r of
+               OK -> interaction c h map []
+interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map (v:vs)
+          | getName name == "Init0" =
+          do let map' = map `Map.union` Map.fromList [(w, v)]
+             hPutStrLn h ("Q " ++ labelToNum v)
+             r <- hGetLine h
+             case read r of
+               OK -> interaction c h map' vs
+          | getName name == "Init1" =
+          do let map' = map `Map.union` Map.fromList [(w, v)]
+             hPutStrLn h ("Q " ++ labelToNum v ++ " 1")
+             r <- hGetLine h
+             case read r of
+               OK -> interaction c h map' vs
+interaction (RW_Write (Gate name [] (VLabel v) (VLabel w) VStar _) c) h map ls =
+          do let (VLabel v') = renameTemp (VLabel v) map
+                 map' = map `Map.union` Map.fromList [(w, v')]
+                 g = toGateName (getName name)
+             hPutStrLn h (g++ " "++ labelToNum v')
+             r <- hGetLine h
+             case read r of
+                OK -> interaction c h map' ls
+interaction (RW_Write (Gate name [] v@(VPair _ _) w@(VPair _ _) VStar _) res) h map ls =
+          do let (VPair (VLabel a) (VLabel b)) = renameTemp v map
+                 (VPair (VLabel c) (VLabel d)) = w
+                 map' = map `Map.union` Map.fromList [(c, a), (d, b)]
+                 g = toGateName (getName name)
+             hPutStrLn h (g++ " "++ labelToNum a ++ " " ++ labelToNum b)
+             r <- hGetLine h
+             case read r of
+                OK -> interaction res h map' ls
+                   
+            
+labelToNum l =
+  let r = tail (show l) in if null r then "0" else r
+                                                   
+toGateName "CNot" = "CNOT"
+toGateName "Meas" = "M"
+toGateName "QNot" = "X"
+toGateName "H" = "H"
+toGateName "ZGate" = "Z"
+toGateName "C_X" = "X"
+toGateName "C_Z" = "Z"
+toGateName "SGate" = "S"
+toGateName "TGate" = "T"
+toGateName "Discard" = "D"
 
+runTCPClient :: HostName -> ServiceName -> (Socket -> IO a) -> IO a
+runTCPClient host port client = withSocketsDo $ do
+    addr <- resolve
+    E.bracket (open addr) close client
+  where
+    resolve = do
+        let hints = defaultHints { addrSocketType = Stream }
+        head <$> getAddrInfo (Just hints) (Just host) (Just port)
+    open addr = do
+        sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+        connect sock $ addrAddress addr
+        return sock
 
--- | Update the current state according to the meaning of the
--- gate. The termination of a wired will invoke a runtime check.
-applyGate :: Gate -> Simulate ()
-applyGate (Gate id [] (VLabel input) (VLabel output) VStar b) | getName id == "QNot" = 
-  do v <- lookupValue input
-     updateValue output (not v)
-applyGate (Gate name [] (VPair (VLabel w) (VLabel c)) (VPair (VLabel t) (VLabel c')) VStar b) 
-  | getName name == "CNot" =
-    do wv <- lookupValue w
-       cv <- lookupValue c
-       updateValue c' cv
-       updateValue t (booleanAdd cv wv)
-
-applyGate (Gate name [] VStar (VLabel w) VStar b) 
-  | getName name == "Init0" = updateValue w False
-
-applyGate (Gate name [] VStar (VLabel w) VStar b) 
-  | getName name == "Init1" = updateValue w True
-
-applyGate (Gate name [] (VLabel w) VStar VStar b) 
-  | getName name == "Term0" =
-    do w' <- lookupValue w
-       if w' then throwError $ AssertionErr w False True
-         else return ()
-
-applyGate (Gate name [] (VLabel w) VStar VStar b) 
-  | getName name == "Term1" =
-    do w' <- lookupValue w
-       if w' then return ()
-         else throwError $ AssertionErr w  True False
-
-
-applyGate (Gate name [v] (VPair (VLabel w) (VLabel c)) (VPair (VLabel t) (VLabel c')) VStar b)
-  | getName name == "CNotGate" =
-    do let v' = toBool v
-       wv <- lookupValue w
-       cv <- lookupValue c
-       updateValue c' cv
-       if v' then
-         updateValue t (booleanAdd cv wv)
-         else updateValue t (booleanAdd (not cv) wv)
-         
-applyGate (Gate name [v1, v2] (VPair (VPair (VLabel w) (VLabel c1)) (VLabel c2))
-           (VPair (VPair (VLabel t) (VLabel c1')) (VLabel c2')) VStar b)
-  | getName name == "ToffoliGate" =
-    do let v1' = toBool v1
-           v2' = toBool v2
-       wvalue <- lookupValue w
-       c1value <- lookupValue c1
-       c2value <- lookupValue c2
-       updateValue c1' c1value
-       updateValue c2' c2value
-       case (v1', v2') of
-         (True, True) -> updateValue t $ (c1value && c2value) `booleanAdd` wvalue
-         (True, False) -> updateValue t $ (c1value && not c2value) `booleanAdd` wvalue
-         (False, True) -> updateValue t $ (not c1value && c2value) `booleanAdd` wvalue
-         (False, False) -> updateValue t $ (not c1value && not c2value) `booleanAdd` wvalue 
-
-applyGate (Gate name [] (VLabel input) (VLabel output) ctrl b) | getName name == "Not_g"  =
-  do let ws = getWires ctrl
-     values <- mapM lookupValue ws
-     v <- lookupValue input
-     if and values then
-       do updateValue output (not v)
-          mapM_ (\ (x, v) -> updateValue x v) (zip ws values)
-          
-       else do updateValue output v
-               mapM_ (\ (x, v) -> updateValue x v) (zip ws values)
-applyGate (Gate name ps input output ctrl b) =
-  throwError $ NotSupported (getName name)
-
--- | Convert 'Bool' to a boolean data type.
-fromBool :: Bool -> Value
-fromBool True = VConst (Id "True")
-fromBool False = VConst (Id "False")
-
--- | Add two booleans.
-booleanAdd :: Bool -> Bool -> Bool
-booleanAdd True False = True
-booleanAdd True True = False
-booleanAdd False True = True
-booleanAdd False False = False

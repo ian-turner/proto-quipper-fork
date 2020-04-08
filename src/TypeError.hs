@@ -79,7 +79,6 @@ data EvalError = MissBranch Id EExp
                | PatternMismatch Pattern Value
                | TupleMismatch [Variable] Value
                | ErrWrapper TypeError
-               | SimulationErr SimulateError
                deriving Show                 
 
 instance Disp EvalError where
@@ -104,9 +103,6 @@ instance Disp EvalError where
 
   display flag (UndefinedId id) =
     text "nontermination detected when evaluating:" <+> display flag id
-
-  display flag (SimulationErr a) =
-    display flag a
 
   -- A wrapper due to tcToEval
   display flag (ErrWrapper e) = display flag e

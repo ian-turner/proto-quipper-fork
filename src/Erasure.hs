@@ -171,7 +171,6 @@ erasure (Reverse) = return EReverse
 erasure (Controlled) = return EControlled
 erasure (WithComputed) = return EWithComputed
 erasure (Dynlift) = return EDynlift
-erasure (RunCirc) = return ERunCirc
 
 erasure a@(Box) = return EBox
 erasure a@(ExBox) = return EExBox
@@ -319,7 +318,6 @@ countVar xs e =
         helper EControlled x = 0
         helper EWithComputed x = 0
         helper EDynlift x = 0
-        helper ERunCirc x = 0
         helper EBox x = 0
         helper EExBox x = 0
         helper EStar x = 0

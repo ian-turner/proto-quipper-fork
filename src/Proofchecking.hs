@@ -349,17 +349,6 @@ proofInfer flag t@(Box) = freshNames ["a", "b"] $ \ [a, b] ->
          boxType = Pi (abst [a] (Forall (abst [b] t1') Set)) Set
      return boxType
 
-proofInfer flag t@(RunCirc) = freshNames ["a", "b", "c", "d"] $ \ [a, b, c, d] ->
-  do let va = Var a
-         vb = Var b
-         vc = Var c
-         vd = Var d
-         simpParam = Id "SimpParam"
-         t1 = Arrow (Circ va vb identityMod) (Arrow vc vd)
-         t1' = Imply [App' (App' (Base simpParam) va) vc , App' (App' (Base simpParam) vb) vd] t1
-         res = Forall (abst [a, b, c, d] t1') Set
-     return res
-
 proofInfer flag t@(ExBox) =
   freshNames ["a", "b", "p", "n"] $ \ [a, b, p, n] ->
   do let va = Var a

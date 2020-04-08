@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+
 
 
 -- | This module implements a closure-based call-by-value evaluation.
@@ -24,11 +24,10 @@ import qualified Control.Monad.State as S
 import Control.Monad.Identity
 import Control.Monad.Except
 import Text.PrettyPrint
-import System.IO
-import qualified Control.Exception as E
-import Network.Socket
-import qualified Data.Map.Strict as Map
-import Data.Map.Strict (Map)
+
+
+import qualified Data.Map as Map
+import Data.Map (Map)
 import Data.Set (Set)
 import Data.List
 import qualified Data.Set as S
@@ -56,7 +55,6 @@ evaluation e =
 -- | The evaluation monad.
 type Eval a = ExceptT EvalError QuantumState a
 
-type Wire = Label
 
 -- | Evaluator state, it contains an underlying circuit and
 -- a global context. 
@@ -79,28 +77,16 @@ get = lift $ QS $ \ s -> return (s, s)
 put :: EvalState -> Eval ()
 put s' = lift $ QS $ \ s -> return (s', ())
 
-dynliftRW :: Label -> ReadWrite Bool
-dynliftRW q = RW_Read q (\ans -> return ans)
-
 dynamicLift :: Label -> Eval Bool
 dynamicLift l = lift $ QS $ \ s ->
   do b <- dynliftRW l
      return (s, b)
-
-gateRW :: Gate -> ReadWrite ()
-gateRW g = RW_Write g (return ())
 
 
 addGates :: [Gate] -> Eval ()
 addGates gs =
   lift (QS $ \ s -> mapM_ gateRW gs >> return (s, ()))
                          
-boxGates :: ReadWrite b -> ([Gate], b)
-boxGates (RW_Return b) = ([], b)
-boxGates (RW_Write x c) =
-  let (gs, b) = boxGates c
-  in (x : gs, b)
-boxGates (RW_Read q c) = error "from box Gate"
 
 
 
@@ -113,24 +99,6 @@ instance Monad QuantumState where
             let QS g' = g r
             g' s'
           
-data ReadWrite a = RW_Return a
-                 | RW_Write Gate (ReadWrite a)
-                 | RW_Read Wire (Bool -> ReadWrite a)
-
-instance Monad ReadWrite where
-  return a = RW_Return a
-  f >>= g =
-    case f of
-      RW_Return a -> g a
-      RW_Write gate f' -> RW_Write gate (f' >>= g)
-      RW_Read bit cont -> RW_Read bit (\bool -> cont bool >>= g)
-
-instance Applicative ReadWrite where
-  pure = return
-  (<*>) = ap
-
-instance Functor ReadWrite where
-  fmap = liftM
 
 instance Applicative QuantumState where
   pure = return
@@ -203,7 +171,6 @@ eval EControlled = return VControlled
 eval EWithComputed = return VWithComputed
 eval a@(EBox) = return VBox
 eval a@(EExBox) = return VExBox
-eval ERunCirc = return VRunCirc
 
 eval (EApp m n) =
   do v <- eval m
@@ -343,11 +310,6 @@ evalApp (VApp (VApp (VApp (VApp VExBox q) _) _) _) v =
   case v of
     VLift _ body ->
       evalExbox body q
-
-evalApp (VApp (VApp (VApp VRunCirc  _) _) (Wired (Abst _ (VCircuit m)))) input =
-  case runCircuit m input of
-    Left e -> throwError $ SimulationErr e
-    Right r -> return r
 
 
 evalApp (VApp (VApp VReverse _) _) m' =
@@ -633,141 +595,6 @@ decrRef (v:vs) m =
       let m' = Map.insert v (val, n, ref-1, ps) m
       in decrRef vs m'
         
-data Response = Null
-              | OK
-              | Reply String
-              | Terminate
-              | Error String
-              | InternalError String
-              deriving (Eq, Show, Read)
-
-
-withoutSimulator :: ReadWrite a -> IO a
-withoutSimulator (RW_Return a) = return a
-withoutSimulator a = E.throw $ userError "qserver is not up, can't run simulator"
-
-simulate :: ReadWrite a -> IO a
-simulate m =
-  (runTCPClient "127.0.0.1" "1901" $ \s -> do
-      h <- socketToHandle s ReadWriteMode
-      hGetLine h
-      res <- interaction m h Map.empty []
-      hPutStrLn h "quit"
-      return res) `E.catch` \ (e :: E.IOException) -> withoutSimulator m
-  where 
-        interaction :: ReadWrite a -> Handle -> Map Label Label -> [Label] -> IO a
-        interaction (RW_Return a) h map ls = return a
-        interaction (RW_Read l k) h map ls =
-          do let (VLabel l') = renameTemp (VLabel l) map
-             hPutStrLn h ("R "++ labelToNum l')
-             r <- hGetLine h
-             case read r of
-               Reply str | str == "0" -> interaction (k False) h map (l':ls)
-               Reply str | str == "1" -> interaction (k True) h map (l':ls)
-        interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
-          | getName name == "Discard" =
-            do let (VLabel w') = renameTemp (VLabel w) map
-               hPutStrLn h ("D " ++ labelToNum w')
-               r <- hGetLine h
-               case read r of
-                 OK -> interaction c h map (w':ls)
-        interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
-          | getName name == "Term0" =
-            do let (VLabel w') = renameTemp (VLabel w) map
-               hPutStrLn h ("M " ++ labelToNum w')
-               r <- hGetLine h
-               case read r of
-                 OK ->
-                   do hPutStrLn h ("R " ++ labelToNum w')
-                      r' <- hGetLine h
-                      case read r' of
-                        Reply s | s == "0" -> interaction c h map (w':ls)
-                        Reply s ->
-                          error $ "termination error, expecting to terminate with 0, but get:" ++ s
-          | getName name == "Term1" =
-            do let (VLabel w') = renameTemp (VLabel w) map
-               hPutStrLn h ("M " ++ labelToNum w')
-               r <- hGetLine h
-               case read r of
-                 OK ->
-                   do hPutStrLn h ("R " ++ labelToNum w')
-                      r' <- hGetLine h
-                      case read r' of
-                        Reply s | s == "1" -> interaction c h map (w':ls)
-                        Reply s ->
-                          error $ "termination error, expecting to terminate with 1, but get:" ++ s
-                
-        interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map []
-          | getName name == "Init0" =
-          do let cmd = ("Q " ++ labelToNum w)
-             hPutStrLn h cmd
-             r <- hGetLine h
-             case read r of
-               OK -> interaction c h map []
-               a -> error $ "from interaction" ++ show a ++ ":" ++ cmd
-          | getName name == "Init1" =
-          do hPutStrLn h ("Q " ++ labelToNum w ++ " 1")
-             r <- hGetLine h
-             case read r of
-               OK -> interaction c h map []
-        interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map (v:vs)
-          | getName name == "Init0" =
-          do let map' = map `Map.union` Map.fromList [(w, v)]
-             hPutStrLn h ("Q " ++ labelToNum v)
-             r <- hGetLine h
-             case read r of
-               OK -> interaction c h map' vs
-          | getName name == "Init1" =
-          do let map' = map `Map.union` Map.fromList [(w, v)]
-             hPutStrLn h ("Q " ++ labelToNum v ++ " 1")
-             r <- hGetLine h
-             case read r of
-               OK -> interaction c h map' vs
-        interaction (RW_Write (Gate name [] (VLabel v) (VLabel w) VStar _) c) h map ls =
-          do let (VLabel v') = renameTemp (VLabel v) map
-                 map' = map `Map.union` Map.fromList [(w, v')]
-                 g = toGateName (getName name)
-             hPutStrLn h (g++ " "++ labelToNum v')
-             r <- hGetLine h
-             case read r of
-                OK -> interaction c h map' ls
-        interaction (RW_Write (Gate name [] v@(VPair _ _) w@(VPair _ _) VStar _) res) h map ls =
-          do let (VPair (VLabel a) (VLabel b)) = renameTemp v map
-                 (VPair (VLabel c) (VLabel d)) = w
-                 map' = map `Map.union` Map.fromList [(c, a), (d, b)]
-                 g = toGateName (getName name)
-             hPutStrLn h (g++ " "++ labelToNum a ++ " " ++ labelToNum b)
-             r <- hGetLine h
-             case read r of
-                OK -> interaction res h map' ls
-                   
-            
-labelToNum l =
-  let r = tail (show l) in if null r then "0" else r
-                                                   
-toGateName "CNot" = "CNOT"
-toGateName "Meas" = "M"
-toGateName "QNot" = "X"
-toGateName "H" = "H"
-toGateName "ZGate" = "Z"
-toGateName "C_X" = "X"
-toGateName "C_Z" = "Z"
-toGateName "SGate" = "S"
-toGateName "TGate" = "T"
-toGateName "Discard" = "D"
-
-runTCPClient :: HostName -> ServiceName -> (Socket -> IO a) -> IO a
-runTCPClient host port client = withSocketsDo $ do
-    addr <- resolve
-    E.bracket (open addr) close client
-  where
-    resolve = do
-        let hints = defaultHints { addrSocketType = Stream }
-        head <$> getAddrInfo (Just hints) (Just host) (Just port)
-    open addr = do
-        sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-        connect sock $ addrAddress addr
-        return sock
 
   
 

@@ -39,7 +39,6 @@ data Exp =
   | Reverse -- ^ Circuit reversal: @reverse@.
   | Controlled -- ^ Circuit control: @controlled@.
   | WithComputed -- ^ Circuit control: @controlled@.
-  | RunCirc -- ^ Run classical circuit: @runCirc@.
   | Dynlift
   | Case Exp Branches -- ^ Case expression.
   | Wild -- ^ Wildcard. 

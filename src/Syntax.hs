@@ -102,7 +102,6 @@ data Exp =
   | Box -- ^ Circuit boxing. 
   | ExBox -- ^ Existential circuit boxing. 
   | UnBox -- ^ Circuit unboxing.
-  | RunCirc -- ^ Run classical circuits.
   | Reverse  -- ^ Obtain the adjoint of a circuit.
   | Controlled  -- ^ Obtain the controlled version of a circuit.
   | WithComputed  
@@ -322,7 +321,6 @@ instance Disp Exp where
   display flag (Controlled) = text "controlled"
   display flag (WithComputed) = text "withComputed"
   display flag (Dynlift) = text "dynlift"
-  display flag (RunCirc) = text "runCirc"
   display flag (Let m bd) =
     open bd $ \ x b ->
     fsep [text "let" <+> display flag x <+> text "=", display flag m,
@@ -360,7 +358,6 @@ instance Disp Exp where
   precedence (Box) = 12
   precedence (UnBox) = 12
   precedence (Reverse) = 12
-  precedence (RunCirc) = 12
   precedence (ExBox) = 12
   precedence (Set) = 12
   precedence (App _ _) = 10
@@ -418,7 +415,6 @@ data Value =
   | VControlled -- ^ Value version of 'Controlled'.
   | VWithComputed
   | VDynlift
-  | VRunCirc -- ^ Value version of 'RunCirc'.
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 
 -- | Local variable environment for evaluation. It contains the
@@ -470,7 +466,6 @@ instance Disp Value where
   display flag (VControlled) = text "controlled"
   display flag (VWithComputed) = text "withComputed"
   display flag (VDynlift) = text "dynlift"
-  display flag (VRunCirc) = text "runCirc"
   display flag (VCircuit m) = display flag m
   display flag (VLam ws (Abst vs e)) = 
     sep [text "\\vlam" <+> brackets (hsep $ map dispRaw ws),
@@ -611,7 +606,6 @@ data EExp =
   | EReverse
   | EControlled
   | EWithComputed
-  | ERunCirc
   | EBox
   | EExBox
   | EDynlift
@@ -649,7 +643,6 @@ instance Disp EExp where
   display flag (EControlled) = text "controlled"
   display flag (EWithComputed) = text "withComputed"
   display flag (EDynlift) = text "dynlift"
-  display flag (ERunCirc) = text "runCirc"
   display flag (ELam ws (Abst vs e)) = 
     sep [text "\\elam" <+> brackets (hsep $ map dispRaw ws),
          hsep (map (\ (x, y) -> parens (dispRaw x <> text ":" <> integer y)) vs),

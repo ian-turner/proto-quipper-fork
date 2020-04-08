@@ -153,19 +153,6 @@ typeInfer False t@(Box) = freshNames ["a", "b", "alpha", "beta"] $ \ [a, b, alph
          ty' = abstractMode boxType
      return (ty', t, identityMod)
 
-typeInfer False t@(RunCirc) =
-  freshNames ["a", "b", "c", "d", "alpha", "beta"] $ \ [a, b, c, d, alpha, beta] ->
-  do let va = Var a
-         vb = Var b
-         vc = Var c
-         vd = Var d
-         simpParam = Id "SimpParam"
-         boxMode = M (BConst True) (BVar alpha) (BVar beta)
-         t1 = Arrow (Circ va vb boxMode) (Arrow vc vd)
-         t1' = Imply [App' (App' (Base simpParam) va) vc , App' (App' (Base simpParam) vb) vd] t1
-         res = Forall (abst [a, b, c, d] t1') Set
-         ty' = abstractMode res
-     return (ty', t, identityMod)
 
 typeInfer False t@(ExBox) =
   freshNames ["a", "b", "p", "n", "alpha", "beta"] $ \ [a, b, p, n, alpha, beta] ->
