@@ -172,6 +172,7 @@ toGateName "C_X" = "X"
 toGateName "C_Z" = "Z"
 toGateName "SGate" = "S"
 toGateName "TGate" = "T"
+toGateName "TGate*" = "T*"
 toGateName "Discard" = "D"
 
 runTCPClient :: HostName -> ServiceName -> (Socket -> IO a) -> IO a

@@ -804,8 +804,8 @@ typeCheck flag a@(Case tm (B brs)) goal =
                          -- we need to restore the substitution to ss
                          -- because subb' may be influenced by dependent pattern matching.
                          let goal''' = substitute subb goal''
-                         ann2' <- resolveGoals (substitute subb ann2) `catchError`
-                                  \ e -> return ann2
+                         ann2' <- resolveGoals (substitute subb ann2)--  `catchError`
+                                  -- \ e -> return ann2
                                   
                          when isDpm $ updateSubst ss
                          when (not isDpm) $ updateSubst subb

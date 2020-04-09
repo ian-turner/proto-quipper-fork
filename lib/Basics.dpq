@@ -40,7 +40,6 @@ snd x =
 
 
 
-
 infixl 13 &&
 infixl 13 ||
 

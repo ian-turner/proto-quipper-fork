@@ -117,13 +117,13 @@ initQubit b = case b of
 
 
 tgate_inv : ! (Qubit -> Qubit)
-tgate_inv x =  SGate (TGate (SGate x))
+tgate_inv x = iterN 7 TGate x
 
 sgate = SGate 
 
 tgate = TGate 
 
-measure = Meas
+meas = Meas
 
 toffoli : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
 toffoli c b a =
@@ -142,16 +142,17 @@ toffoli c b a =
       a = tgate a
       b = tgate_inv b
       (b, a) = CNot b a
-      -- a = tgate a
-      -- b = sgate b
   in (c, b, a)
 
 boxToffoli = box (Qubit * Qubit * Qubit) $ \ x -> uncurry (uncurry toffoli) x
 
 testTof =
-  let (x, y, z) = toffoli (initQubit True) (initQubit False) (initQubit True)
-  in (dynlift (measure x), dynlift (measure y), dynlift (measure z))
+  let (x, y, z) = toffoli (initQubit False) (initQubit False) (initQubit True)
+  in (dynlift (meas x), dynlift (meas y), dynlift (meas z))
 
 testCNot =
   let (x, y) = CNot (initQubit False) (initQubit True)
-  in (dynlift (measure x), dynlift (measure y))
+  in (dynlift (meas x), dynlift (meas y))
+
+cnotGate : ! (Bool -> Qubit -> Qubit -> Qubit * Qubit)
+cnotGate f x y = if f then CNot x y else let (x, y) = CNot x (QNot y) in (x, QNot y)

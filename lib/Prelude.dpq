@@ -72,7 +72,34 @@ withBasisChange a b circ1 circ2 =
   in box a (\ x -> let (r, _) = unbox circ3 (x, ()) in r)
 
 
+class Initialize b a where
+  init {1,0,1} : b -> a
 
--- runCirc : ! forall a b a' b' -> (SimpParam a a', SimpParam b b') => Circ(a, b) -> a' -> b'
--- runCirc circ a =
---   (unbox circ) (init)
+
+instance Initialize Bool Qubit where
+  init x = initQubit x
+
+instance forall a a' b b' -> (Initialize a a', Initialize b b') =>
+             Initialize (a * b) (a' * b') where
+  init x =
+    let (a, b) = x in (init a, init b)
+
+instance forall a a' (n : Nat) -> (Initialize a a') =>
+             Initialize (Vec a n) (Vec a' n) where
+  init x =
+    case x of
+      VNil -> VNil
+      VCons a as -> VCons (init a) (init as)
+
+class Measurement a b where
+  measure {0,0,0} : a -> b
+
+instance Measurement Qubit Bool where
+  measure x = dynlift (meas x)
+
+
+runCirc : ! forall a b a' b' ->
+             (Simple b, Simple a, Measurement b b', Initialize a' a) =>
+             Circ(a, b) -> a' -> b'
+runCirc circ a =
+  measure $ (unbox circ) (init a)

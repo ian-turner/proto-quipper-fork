@@ -64,7 +64,7 @@ instance BooleanLogic Qubit where
        
 
   bnot x =
-    let (r, x') = CNotGate False (Init0 ()) x
+    let (r, x') = cnotGate False (Init0 ()) x
     in dispose x' >> return r
 
   -- generate 3 garbage
