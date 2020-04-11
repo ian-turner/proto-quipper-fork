@@ -62,3 +62,10 @@ not b =
   False -> b
 
 
+
+-- idV : ! (Bool -> Bool)
+-- idV l = case l of
+--          True -> True
+
+-- g : Bool
+-- g = idV False

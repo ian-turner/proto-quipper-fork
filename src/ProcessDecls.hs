@@ -28,10 +28,11 @@ import Erasure
 import Substitution
 import TypeClass
 import Simplecheck
+import TopMonad
 import Nominal hiding ((.))
 
-import qualified Data.Map.Strict as Map
-import Data.Map.Strict (Map)
+import qualified Data.Map as Map
+import Data.Map (Map)
 import Data.List
 import Control.Monad.State
 import Control.Monad.Identity
@@ -41,19 +42,19 @@ import Debug.Trace
 import qualified Data.MultiSet as S
 
 -- | Process a top-level declaration
-process :: Decl -> Simulation ()
+process :: Decl -> Top ()
 process (Class pos d kd dict dictType mths) = 
   do let methodNames = map (\(_, s, _) -> s) mths
          tp = Info { classifier = erasePos kd,
                      identification = DictionaryType dict methodNames
                    }
-     liftS $ addNewId d tp
-     liftS $ checkVacuous pos dictType
-     (_, dictTypeAnn) <- liftS $ typeChecking True dictType Set 
+     tcTop $ addNewId d tp
+     tcTop $ checkVacuous pos dictType
+     (_, dictTypeAnn) <- tcTop $ typeChecking True dictType Set 
      let fp = Info{ classifier = abstractMode $ erasePos $ removeVacuousPi dictTypeAnn,
                     identification = DataConstr d
                  }
-     liftS $ addNewId dict fp              
+     tcTop $ addNewId dict fp              
      mapM_ (makeMethod dict methodNames) mths
        where makeMethod constr methodNames (pos, mname, mty) =
                do let names = map getName methodNames
@@ -63,87 +64,83 @@ process (Class pos d kd dict dictType mths) =
                                   (abst (PApp constr (map Right mVars))
                                    (Var $ mVars !! i)))
                       tyy = erasePos $ removeVacuousPi mty
-                  liftS $ checkVacuous pos tyy
-                  (_, tyy') <- liftS $ typeChecking True tyy Set 
-                  (tyy'', a) <- liftS $ typeChecking False (Pos pos mth) tyy'
-                  a' <- liftS $ erasure a
-                  v <- evaluation a'
-                  liftS $ proofChecking False a tyy''
+                  tcTop $ checkVacuous pos tyy
+                  (_, tyy') <- tcTop $ typeChecking True tyy Set 
+                  (tyy'', a) <- tcTop $ typeChecking False (Pos pos mth) tyy'
+                  v <- evaluation a
+                  tcTop $  proofChecking False a tyy''
                   let fp = Info{ classifier = abstractMode tyy',
                                  identification = DefinedMethod a v
                                }
-                           
-                  liftS $ addNewId mname fp
+                  tcTop $ addNewId mname fp
 
 process (Instance pos f ty mths) =
-  do liftS $ checkVacuous pos ty
+  do tcTop $ checkVacuous pos ty
      let (env, ty') = removePrefixes False ty
          (bds, h) = flattenArrows ty'
          d = flatten h
-     checkOverlap h `catchError` \ e -> throwError $ ErrPos pos e
+     tcTop $ checkOverlap h `catchError` \ e -> throwError $ ErrPos pos e
      case d of
-       Nothing -> throwError $ ErrPos pos $ TypeClassNotValid h
+       Nothing -> throwError $ CompileErr $ ErrPos pos $ TypeClassNotValid h
        Just (Right d', args) | getName d' == "Simple" ->
-         throwError $ ErrPos pos $ ErrDoc $
+         throwError $ CompileErr $ ErrPos pos $ ErrDoc $
          text "Simple class instance is not user-definable."
        Just (Right d', args) | getName d' == "SimpParam" ->
-         throwError $ ErrPos pos $ ErrDoc $
+         throwError $ CompileErr $ ErrPos pos $ ErrDoc $
          text "SimpParam class instance is not user-definable."
        Just (Right d', args) | getName d' == "Parameter" ->
-         throwError $ ErrPos pos $ ErrDoc $
+         throwError $ CompileErr $ ErrPos pos $ ErrDoc $
          text "Parameter class instance is not user-definable."         
        Just (Right d', args) ->
          elaborateInstance pos f ty mths
 
 
 process (Def pos f' ty' def') =
-  do liftS $ checkVacuous pos ty'
-     (_, ty) <- liftS $ typeChecking True ty' Set 
+  do tcTop $ checkVacuous pos ty'
+     (_, ty) <- tcTop $ typeChecking True ty' Set 
      let ty1 = erasePos $ removeVacuousPi ty
-     p <- liftS $ isParam ty1
+     p <- tcTop $ isParam ty1
      when (not p) $
-       throwError $ ErrPos pos (NotParam (Const f') ty')
+       throwError $ CompileErr $ ErrPos pos (NotParam (Const f') ty')
      let info1 = Info { classifier = ty1,
                         identification = DefinedFunction Nothing}
-     liftS $ addNewId f' info1
-     (ty1', ann) <- liftS $ typeChecking False (Pos pos def') ty1
+     tcTop $ addNewId f' info1
+     (ty1', ann) <- tcTop $ typeChecking False (Pos pos def') ty1
      -- note: need to do an erasure check before proof checking
-     a <- liftS $ erasure ann
-     st <- get
-     
-     liftS $ proofChecking False ann ty1'
-     v <- evaluation a
+     -- st <- get
+     tcTop $ proofChecking False ann ty1'
+     v <- evaluation ann
        -- trace (show $ dispRaw f' <+> dispRaw ty1' <+> dispRaw (modeSubstitution st) ) $ 
-     b <- liftS $ isBasicValue v
-     v' <- if b then
-             do x <- liftS $ typeChecking False (toExp v) ty1'
-                return $ Just (snd x)
-           else if isCirc v then return $ Just (Const f') else return Nothing
+
+     --b <- tcTop $  isBasicValue v
+     -- v' <- if b then
+     --         do x <- tcTop $  typeChecking False (toExp v) ty1'
+     --            return $ Just (snd x)
+--           else if isCirc v then return $ Just (Const f') else return Nothing
      let info2 = Info { classifier = ty1',
-                        identification = DefinedFunction (Just (ann, v, v'))}
-     liftS $ addNewId f' info2
+                        identification = DefinedFunction (Just (ann, v, Just ann))}
+     tcTop $ addNewId f' info2
 
 -- This definition without arguments can not be recursive.
 process (Defn pos f Nothing def) =
-  do (ty, a) <- liftS $ typeInfering False (Pos pos def)
+  do (ty, a) <- tcTop $ typeInfering False (Pos pos def)
      let fvs = getVars AllowEigen ty
-     when (not $ S.null fvs) $ throwError $ ErrPos pos $ TyAmbiguous (Just f) ty
-     liftS $ checkVacuous pos ty
-     p <- liftS $ isParam ty
+     when (not $ S.null fvs) $ throwError $ CompileErr $ ErrPos pos $ TyAmbiguous (Just f) ty
+     tcTop $ checkVacuous pos ty
+     p <- tcTop $ isParam ty
      when (not p && not (isConst def)) $
-       throwError (ErrPos pos $ NotParam (Const f) ty)
-     a' <- liftS $ erasure a
-     liftS $ proofChecking False a ty
-     v <- evaluation a' 
-     b <- liftS $ isBasicValue v
-     v' <- if b then
-             do x <- liftS $ typeChecking False (toExp v) ty
-                return $ Just (snd x)
-           else return Nothing
+       throwError $ CompileErr (ErrPos pos $ NotParam (Const f) ty)
+     tcTop $ proofChecking False a ty
+     v <- evaluation a
+     -- b <- tcTop $  isBasicValue v
+     -- v' <- if b then
+     --         do x <- tcTop $  typeChecking False (toExp v) ty
+     --            return $ Just (snd x)
+     --       else return Nothing
      let fp = Info {classifier = erasePos $ removeVacuousPi ty,
-                    identification = DefinedFunction (Just (a, v, v'))
+                    identification = DefinedFunction (Just (a, v, Just a))
                    }
-     liftS $ addNewId f fp
+     tcTop $ addNewId f fp
   where typeInfering b exp =
           do (ty', exp', _) <- typeInfer b exp
              exp'' <- resolveGoals exp'
@@ -154,40 +151,39 @@ process (Defn pos f Nothing def) =
              return (abstractMode $ booleanVarElim ty2, unEigen r)
 
 process (Defn pos f (Just tt) def) =
-  do (_, tt') <- liftS $ typeChecking True tt Set 
+  do (_, tt') <- tcTop $ typeChecking True tt Set 
                  `catchError` \ e -> throwError $ ErrPos pos e
      let (Forall (Abst [r] ty') Set) = tt'
          ty'' = erasePos ty'
      let info1 = Info { classifier = ty'',
                         identification = DefinedFunction Nothing}
-     liftS $ addNewId f info1
+     tcTop $ addNewId f info1
      -- the first check obtain the type information 
-     (tk', def0) <- liftS $ typeChecking''' False (Pos pos def) ty''
+     (tk', def0) <- tcTop $ typeChecking''' False (Pos pos def) ty''
      let tk1 = erasePos $ removeVacuousPi tk' 
      let fvs = getVars AllowEigen tk1
-     when (not $ S.null fvs) $ throwError $ ErrPos pos $ TyAmbiguous (Just f) tk1
-     liftS $ checkVacuous pos tk1
-     p <- liftS $ isParam tk1
+     when (not $ S.null fvs) $
+       throwError $ CompileErr $ ErrPos pos $ TyAmbiguous (Just f) tk1
+     tcTop $ checkVacuous pos tk1
+     p <- tcTop $ isParam tk1
      when (not p && not (isConst def)) $
-       throwError (ErrPos pos $ NotParam (Const f) tk1)
-
+       throwError $ CompileErr (ErrPos pos $ NotParam (Const f) tk1)
      let info2 = Info { classifier = tk1,
                         identification = DefinedFunction Nothing}
-     liftS $ addNewId f info2
+     tcTop $ addNewId f info2
      -- the second check
-     (tk', def') <- liftS $ typeChecking False (Pos pos def) tk1
-     a' <- liftS $ erasure def'
-     liftS $ proofChecking False def' tk'
-     v <- evaluation a'
-     b <- liftS $ isBasicValue v
-     v' <- if b then
-             do x <- liftS $ typeChecking False (toExp v) tk1
-                return $ Just (snd x)
-           else return Nothing
+     (tk', def') <- tcTop $  typeChecking False (Pos pos def) tk1
+     tcTop $ proofChecking False def' tk'
+     v <- evaluation def'
+     -- b <- tcTop $  isBasicValue v
+     -- v' <- if b then
+     --         do x <- tcTop $  typeChecking False (toExp v) tk1
+     --            return $ Just (snd x)
+     --       else return Nothing
      let fp = Info {classifier = tk',
-                   identification = DefinedFunction (Just (def', v, v'))
+                   identification = DefinedFunction (Just (def', v, Just def'))
                    }
-     liftS $ addNewId f fp
+     tcTop $ addNewId f fp
   where typeChecking''' b exp ty =
           do setInfer True
              (ty', exp', _) <- typeCheck b exp ty
@@ -200,18 +196,18 @@ process (Defn pos f (Just tt) def) =
 process (Data pos d kd cons) =
   do let constructors = map (\ (_, id, _) -> id) cons
          types = map (\ (_, _, t) -> t) cons
-     (_, kd') <- liftS $ typeChecking True kd Sort 
-     dc <- liftS $ determineClassifier d kd' constructors types
+     (_, kd') <- tcTop $  typeChecking True kd Sort 
+     dc <- tcTop $ determineClassifier d kd' constructors types
      let tp = Info { classifier = kd',
                      identification = DataType dc constructors Nothing
                    }
-     liftS $ addNewId d tp
-     res <- liftS $ mapM (\ t -> typeChecking True (Pos pos t) Set) types
+     tcTop $ addNewId d tp
+     res <- tcTop $ mapM (\ t -> typeChecking True (Pos pos t) Set) types
      let types' = map snd res
      let funcs = map (\ t -> Info{ classifier = erasePos $ removeVacuousPi t,
                                    identification = DataConstr d
                                 }) types'
-     liftS $ zipWithM_ addNewId constructors funcs
+     tcTop $ zipWithM_ addNewId constructors funcs
      generateParamInstance pos dc (Base d) kd' 
        where genEnv :: Int -> [(Maybe Variable, Exp)] -> [(Variable, Exp)]
              genEnv n ((Nothing, e):res) =
@@ -250,33 +246,36 @@ process (Object pos id) =
   do let tp = Info { classifier = Set,
                      identification = DataType Simple [] (Just (ELBase id))
                    }
-     liftS $ addNewId id tp
+     tcTop $ addNewId id tp
      let s = Base (Id "Simple")
          sp = Base (Id "SimpParam")
          instId = Id $ "instAt"++ hashPos pos ++ "Simple"
          instPS = Id $ "instAt"++ hashPos pos ++ "SimpParam"
-     elaborateInstance pos instId (App s (LBase id)) [] `catchError`
-       \ e -> throwError $ addErrPos pos e
-     elaborateInstance pos instPS (App (App sp (LBase id)) (Base (Id "Bool"))) [] `catchError`
-       \ e -> case e of
-                NoDef t | getName t == "Bool" ->
-                          throwError $ ErrPos pos SimpParamErr
-                _ -> throwError $ addErrPos pos e
+     elaborateInstance pos instId (App s (LBase id)) []
+       -- `catchError`
+       --                    \ e -> throwError $ addErrPos pos e
+
+     -- laborateInstance pos instPS (App (App sp (LBase id)) (Base (Id "Bool"))) []
+       -- `catchError`
+       -- \ e -> case e of
+       --          NoDef t | getName t == "Bool" ->
+       --                    throwError $ ErrPos pos SimpParamErr
+       --          _ -> throwError $ addErrPos pos e
                
 
 
 process (GateDecl pos id params t m@(M _ (BConst flag) _)) =
-  do liftS $ mapM_ checkParam params
+  do tcTop $ mapM_ checkParam params
      let (bds, h) = flattenArrows t
-     mapM_ checkStrictSimple (h:(map snd bds))
-     when (null bds) $ throwError (GateErr pos id)
+     tcTop $ mapM_ checkStrictSimple (h:(map snd bds))
+     when (null bds) $ throwError $ CompileErr (GateErr pos id)
      let ty = Bang (foldr Arrow t params) m
-     (_, tk) <- liftS $ typeChecking True ty Set
+     (_, tk) <- tcTop $ typeChecking True ty Set
      let gate = makeGate id (map erasePos params) (erasePos t) flag
      let fp = Info {classifier = erasePos tk,
                    identification = DefinedGate gate
                    }
-     liftS $ addNewId id fp
+     tcTop $ addNewId id fp
        where checkParam t =
                do p <- isParam t
                   when (not p) $ throwError $ ErrPos pos (NotAParam t)
@@ -290,40 +289,39 @@ process (GateDecl pos id params t m@(M _ (BConst flag) _)) =
              checkStrictSimple a = throwError (NotStrictSimple a)
 
 process (SimpData pos d n k0 eqs) = 
-  do (_, k2) <- liftS (typeChecking True k0 Sort `catchError`
+  do (_, k2) <- tcTop $ (typeChecking True k0 Sort `catchError`
                        \ e -> throwError $ collapsePos pos e)
      let k = foldr (\ x y -> Arrow Set y) k2 (take n [0 .. ])
      let constructors = map (\ (_, _, c, _) -> c) eqs
          pretypes = map (\ (_, _,_, t) -> t) eqs
          inds = map (\ (_, i,_, _) -> i) eqs
-     indx <- liftS $ checkIndices n d inds `catchError`
+     indx <- tcTop $ checkIndices n d inds `catchError`
              \ e -> throwError $ collapsePos pos e
-     info <- liftS $ mapM (\ (i, t) -> (preTypeToType n k2 i t) `catchError`
+     info <- tcTop $ mapM (\ (i, t) -> (preTypeToType n k2 i t) `catchError`
                                         \ e -> throwError $ collapsePos pos e)
              (zip inds pretypes)
      let (cs, tys) = unzip info
-     liftS (checkCoverage d cs `catchError` \ e -> throwError $ collapsePos pos e)
+     tcTop $ (checkCoverage d cs `catchError` \ e -> throwError $ collapsePos pos e)
      
      let tp1 = Info { classifier = erasePos k,
                       identification = DataType (SemiSimple indx) constructors Nothing
                    }
-     liftS $ addNewId d tp1     
-     p <- liftS $ mapM (\ ty -> typeChecking True ty Set) tys
+     tcTop $ addNewId d tp1     
+     p <- tcTop $ mapM (\ ty -> typeChecking True ty Set) tys
      let tys' = map snd p
      let funcs = map (\ t -> Info {classifier = erasePos $ unEigen t,
                                   identification = DataConstr d
                                  }
                      ) tys'
-     liftS $ zipWithM_ addNewId constructors funcs
+     tcTop $ zipWithM_ addNewId constructors funcs
 
      let s = Base $ Id "Simple"
          s1 = Base $ Id "Parameter"
-         sp = Base $ Id "SimpParam"
-     tvars <- liftS $ newNames $ take n (repeat "a")
-     tvars' <- liftS $ newNames $ take n (repeat "b")
+     tvars <- tcTop $  newNames $ take n (repeat "a")
+     tvars' <- tcTop $  newNames $ take n (repeat "b")
      let (bds1, _) = flattenArrows k2
          bds = map snd bds1
-     tmvars <- liftS $ newNames $ take (length bds) (repeat "x")
+     tmvars <- tcTop $  newNames $ take (length bds) (repeat "x")
      let insTy = freshNames tvars $ \ tvs ->
                     freshNames tmvars $ \ tmvs ->
            let env = map (\ t -> (t, Set)) tvs  ++ (zip tmvs bds)
@@ -340,31 +338,17 @@ process (SimpData pos d n k0 eqs) =
                     (map Var tmvs)
                ty = foldr (\ (x, t) y -> Forall (abst [x] y) t) (Imply pre hd) env
            in ty
-     let insTy'' =
-           freshNames tvars $ \ tvs ->
-           freshNames tvars' $ \ tvs' ->
-           freshNames tmvars $ \ tmvs ->
-           let env = map (\ t -> (t, Set)) tvs ++ map (\ t -> (t, Set)) tvs'  ++ (zip tmvs bds)
-               pre = map (\ (x, y) -> App (App sp (Var x)) (Var y)) $ zip tvs tvs'
-               hd = App (App sp (foldl App (foldl App (LBase d) (map Var tvs))
-                            (map Var tmvs)))
-                    (foldl App (foldl App (LBase d) (map Var tvs'))
-                      (map Var tmvs))
-               ty = foldr (\ (x, t) y -> Forall (abst [x] y) t) (Imply pre hd) env
-           in ty
      let instSimp = Id $ "instAt" ++ hashPos pos ++"Simp"
          instParam = Id $ "instAt" ++ hashPos pos ++"Parameter"
-         instPS = Id $ "instAt" ++ hashPos pos ++"SimpParam"
      elaborateInstance pos instSimp insTy []
      elaborateInstance pos instParam insTy' []
-     elaborateInstance pos instPS insTy'' []
-     tfunc <- liftS $ makeTypeFun n k2 (zip constructors (zip inds tys))
-     tfunc' <- liftS $ erasure tfunc
+     tfunc <- tcTop $ makeTypeFun n k2 (zip constructors (zip inds tys))
+     tfunc' <- tcTop $ erasure tfunc
      let tp = Info {classifier = erasePos k,
                    identification = DataType (SemiSimple indx) constructors
                                     (Just tfunc')
                    }
-     liftS $ addNewId d tp
+     tcTop $ addNewId d tp
 
 
 process (OperatorDecl pos op level fixity) = return ()
@@ -392,7 +376,7 @@ checkOverlap h =
 
 --elaborateInstance :: Position -> Id -> Exp -> [(Position, Id, Exp)] -> TCMonad ()
 elaborateInstance pos f' ty mths =
-  do annTy <- liftS $ typeChecking' True ty Set
+  do annTy <- tcTop $ typeChecking' True ty Set
      let (env, ty') = removePrefixes False annTy
          vars = map (\ x -> case x of
                         (Just y, _) -> y
@@ -402,12 +386,12 @@ elaborateInstance pos f' ty mths =
          names = zipWith (\ i b -> "inst"++(show i)) [0 .. ] bds0
      case flatten h of
        Just (Right d', args) ->
-         do dconst <- liftS $ lookupId d'
+         do dconst <- tcTop $  lookupId d'
             let DictionaryType c mm = identification dconst
                 mm' = map (\ (_, x, _) -> x) mths
             when (mm /=  mm') $
-             throwError $ ErrPos pos (MethodsErr mm mm')
-            funPac <- liftS $ lookupId c
+             throwError $ CompileErr $ ErrPos pos (MethodsErr mm mm')
+            funPac <- tcTop $  lookupId c
             let constTy = classifier funPac
             let constTy' = instantiateWith constTy args
             let (bds, _) = flattenArrows constTy'
@@ -416,23 +400,22 @@ elaborateInstance pos f' ty mths =
                  -- add the name of instance function and its type to the
                  -- global instance context, this enable recursive dictionary
                  -- construction.
-                 liftS $ addGlobalInst f' annTy
+                 tcTop $  addGlobalInst f' annTy
                  -- Type check and elaborate each method
-                 ms' <- zipWithM (helper env instEnv) mths (map snd bds)
+                 ms' <- tcTop $  zipWithM (helper env instEnv) mths (map snd bds)
                  -- construct the annotated version of the instance function.
                  let def = foldl App (foldl AppType (Const c) args) ms'
                      def' = unEigen $ if null ns then rebind env def
                                       else rebind env $ LamDict (abst ns def)
                      annTy' = erasePos annTy
-                 def'' <- liftS $ erasure def'
-                 v <- evaluation def''
+                 v <- evaluation def'
                  let fp = Info { classifier = annTy',
                                  identification = DefinedInstFunction def' v
                               }
-                 liftS $ addNewId f' fp
-                 liftS $ proofChecking False def' annTy'
+                 tcTop $ addNewId f' fp
+                 tcTop $ proofChecking False def' annTy'
                  
-       _ -> throwError $ ErrPos pos $ TypeClassNotValid h                 
+       _ -> throwError $ CompileErr $ ErrPos pos $ TypeClassNotValid h                 
        where instantiateWith (Forall (Abst vs b') t) xs =
                let xs' = drop (length vs) xs
                    b'' = apply (zip vs xs) b'
@@ -444,12 +427,12 @@ elaborateInstance pos f' ty mths =
                                         (Just y, a) -> (y, a)
                                   ) env
                in 
-                 do liftS $ mapM_ (\ (x, t) -> addVar x t) env'
-                    liftS $ mapM_ (\ (x, t) -> insertLocalInst x t) instEnv
-                    liftS $ updateParamInfo (map snd instEnv)
-                    (t', a) <- liftS $ typeChecking'' (map fst env') False (Pos p m) (erasePos t)
-                    liftS $ mapM_ (\ (x, t) -> removeVar x) env'
-                    liftS $ mapM_ (\ (x, t) -> removeLocalInst x) instEnv
+                 do mapM_ (\ (x, t) -> addVar x t) env'
+                    mapM_ (\ (x, t) -> insertLocalInst x t) instEnv
+                    updateParamInfo (map snd instEnv)
+                    (t', a) <- typeChecking'' (map fst env') False (Pos p m) (erasePos t)
+                    mapM_ (\ (x, t) -> removeVar x) env'
+                    mapM_ (\ (x, t) -> removeLocalInst x) instEnv
                     return a 
 
              rebind [] t = t
@@ -613,6 +596,6 @@ typeChecking b exp ty =
 
 proofChecking :: Bool -> Exp -> Exp -> TCMonad ()
 proofChecking b exp ty =
-  proofCheck b exp ty `catchError` \ e -> throwError $ PfErrWrapper exp e ty
+  proofCheck b exp ty `catchError` \ e -> throwError  $ PfErrWrapper exp e ty
 
 

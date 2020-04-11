@@ -44,7 +44,7 @@ main =
           case circ of
             Just (c, _) -> ioTop (print $ dispRaw c)
             Nothing ->
-              throwError $ Mess DummyPos (text "cannot find the main function in:" <+> text fn)
+              throwError $ Mess (text "cannot find the main function in:" <+> text fn)
 
         load fn = dispatch (Load False fn) >> return ()
           
@@ -54,7 +54,7 @@ main =
              case circ of
                Nothing ->
                  throwError $
-                 Mess DummyPos (text "cannot find the main function in:" <+> text file)
+                 Mess (text "cannot find the main function in:" <+> text file)
                Just (circ', t) ->
                    case t of
                      A.Circ _ _ _ ->
@@ -72,7 +72,7 @@ main =
           circ <- getMain
           case circ of
             Nothing ->
-              throwError $ Mess DummyPos (text "cannot find the main function in:" <+> text file)
+              throwError $ Mess (text "cannot find the main function in:" <+> text file)
             Just (circ', t) ->
                    case t of
                      A.Circ _ _ _ -> ioTop $ printCirc circ' target

@@ -426,4 +426,15 @@ instance Disp TypeError where
     text "when checking" $$ nest 2 (display flag tm) $$
     text "expected type:" <+> display flag ty1 $$
     text "actual type:" <+> display flag tym1
-  display flag a = error $ "from display TypeError:" ++ show a 
+
+  display flag (PfErrWrapper a e t) =
+    text "proof checking error:" $$
+    disp e $$
+    text "when checking the following annotated term:" $$
+    dispRaw a $$
+    text "against the type:" $$
+    dispRaw t $$
+    text "*************************" $$
+    text "this is a bug, please send bug report. Thanks!"
+
+

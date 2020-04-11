@@ -10,6 +10,7 @@ import TCMonad
 import Utils
 import Erasure
 import Evaluation
+import Simulation
 import Normalize
 import Parser
 import SyntacticOperations
@@ -29,8 +30,8 @@ import System.IO
 import System.Process
 
 import qualified Data.MultiSet as S
-import qualified Data.Map.Strict as Map
-import Data.Map.Strict (Map)
+import qualified Data.Map as Map
+import Data.Map (Map)
 import Control.Monad.Except
 import Text.PrettyPrint
 
@@ -81,24 +82,27 @@ dispatch (Eval e) =
      (t', e'') <- topTypeInfer e'
      if isKind t' then
          do liftIO $ putStrLn ("it has kind \n" ++ (show $ disp t'))
-            n <- tcTop $ liftS $ normalize e''
+            n <- tcTop $ normalize e''
             liftIO $ putStrLn ("it normalizes to \n" ++ (show $ disp n))
             return True
        else do
          let fvs = getVars AllowEigen t'
+         gl <- getCxt
+         et <- tcTop $ erasure e''
          when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
-         et <- tcTop $ liftS (erasure e'') >>= evaluation 
-         liftIO $ putStrLn ("it has type \n" ++ (show $ disp t'))
-         liftIO $ putStrLn ("it has value \n" ++ (show $ dispRaw et))
+         ioTop $ putStrLn ("it has type \n" ++ (show $ disp t'))
+         -- v <- evaluation e''
+         ioTop $ do{ (_, v) <- simulate $ getSt (eval et) (initES gl);
+                     putStrLn ("it has value \n" ++ (show $ dispRaw v))}
+         -- ioTop $ putStrLn ("it has value \n" ++ (show $ dispRaw v))
          return True
 
 dispatch (Display e) =
   do e' <- topResolve e
      (t', et) <- topTypeInfer e'
-     et <- tcTop $ liftS $ erasure et
      case t' of
        A.Circ _ _ _ ->
-         do res <- tcTop $ evaluation et
+         do res <- evaluation et
             tmpdir <- liftIO $ getTemporaryDirectory
             (pdffile, fd) <- liftIO $ openTempFile tmpdir "DPQ.pdf"
             ioTop $ printCirc_fd res fd
@@ -112,15 +116,14 @@ dispatch (Display e) =
 
 dispatch (Print e file) =
   do e' <- topResolve e
-     (t', et') <- topTypeInfer e'
-     et <- tcTop $ liftS $ erasure et'
+     (t', et) <- topTypeInfer e'
      case t' of
        A.Circ _ _ _ ->
-         do res <- tcTop $ evaluation et
+         do res <- evaluation et
             (ioTop $ printCirc res file)
             return True
        A.Exists (Abst n (A.Circ _ _ _)) _ ->
-         do res <- tcTop $ evaluation et
+         do res <- evaluation et
             case res of
               A.VPair n circ -> 
                 do -- liftIO $ print (text "input size:" $$ disp n)
@@ -132,11 +135,10 @@ dispatch (Print e file) =
 
 dispatch (GateCount name e) =
   do e' <- topResolve e
-     (t', et') <- topTypeInfer e'
-     et <- tcTop $ liftS $ erasure et'
+     (t', et) <- topTypeInfer e'
      case t' of
        A.Circ _ _ _ ->
-         do res <- tcTop $ evaluation et
+         do res <- evaluation et
             let n = gateCount name res
             case name of
               Nothing ->
@@ -146,7 +148,7 @@ dispatch (GateCount name e) =
                 do liftIO $ print (text (g++":") $$ text (show n))  
                    return True
        A.Exists (Abst n (A.Circ _ _ _)) _ ->
-         do res <- tcTop $ evaluation et
+         do res <- evaluation et
             case res of
               A.VPair m circ -> 
                 do let n = gateCount name res
@@ -164,10 +166,9 @@ dispatch (GateCount name e) =
 dispatch (DisplayEx e) =
   do e' <- topResolve e
      (t', et) <- topTypeInfer e'
-     et <- tcTop $ liftS $ erasure et
      case t' of
        A.Exists (Abst n (A.Circ _ _ _)) _ ->
-         do res <- tcTop $ evaluation et
+         do res <- evaluation et
             case res of
               A.VPair _ circ -> 
                 do tmpdir <- liftIO $ getTemporaryDirectory
@@ -187,7 +188,7 @@ dispatch (Annotation e) =
      env <- getCxt
      let dfs = env
      case Map.lookup id dfs of
-       Nothing -> throwError $ Mess DummyPos (text "undefined constant:" <+> disp id )
+       Nothing -> throwError $ Mess (text "undefined constant:" <+> disp id )
          -- error "from dispatch annotation"
        Just p ->
          case identification p of
@@ -213,11 +214,9 @@ dispatch (Load verbose file) =
      i <- getCounter
      d1 <- addBuiltin (BuiltIn i) "Simple" A.Base
      d2 <- addBuiltin (BuiltIn (i+1)) "Parameter" A.Base
-     d3 <- addBuiltin (BuiltIn (i+2)) "SimpParam" A.Base
      putCounter (i+3)
      initializeSimpleClass d1
      initializeParameterClass d2
-     initializeSimpParam d3
      putFilename file
      h <- ioTop $ openFile file ReadMode
      str <- ioTop $ hGetContents h
@@ -227,7 +226,7 @@ dispatch (Load verbose file) =
      (decls, pst') <- parserTop $ parseModule file str pst
      putPState pst'
      decls' <- resolution decls
-     tcTop $ mapM process decls'
+     mapM process decls'
      installMain
      ioTop $ hClose h
      when verbose $ liftIO $ putStrLn ("loaded: "++ takeFileName file)
@@ -272,7 +271,7 @@ dispatch (Load verbose file) =
                            (decls, pst') <- parserTop $ parseModule file str pst
                            putPState pst'
                            decls' <- resolution decls
-                           tcTop $ mapM process decls'
+                           mapM process decls'
                            addImported file
                            ioTop $ hClose h
                            return ()
@@ -291,11 +290,11 @@ initializeSimpleClass d =
      (instSimp, scope') <- scopeTop $ addConst (BuiltIn i) inst1 Const scope
      (instSimp2, scope'') <- scopeTop $ addConst (BuiltIn (i+1)) inst2 Const scope'
      putScope scope''
-     vpair <- tcTop $ elaborateInstance (BuiltIn i) instSimp (A.App s A.Unit) []
+     vpair <- elaborateInstance (BuiltIn i) instSimp (A.App s A.Unit) []
      let pt = freshNames ["a", "b"] $ \ [a, b] ->
            A.Forall (abst [a, b] $ A.Imply [A.App s (A.Var a), A.App s (A.Var b)]
                      (A.App s $ A.Tensor (A.Var a) (A.Var b))) A.Set
-     tcTop $ elaborateInstance (BuiltIn (i+1)) instSimp2 pt []
+     elaborateInstance (BuiltIn (i+1)) instSimp2 pt []
 
 -- | Initialize instances of SimpParam class for unit and tensor product.
 initializeSimpParam d = 
@@ -309,13 +308,13 @@ initializeSimpParam d =
      (instSimp, scope') <- scopeTop $ addConst (BuiltIn i) inst1 Const scope
      (instSimp2, scope'') <- scopeTop $ addConst (BuiltIn (i+1)) inst2 Const scope'
      putScope scope''
-     tcTop $ elaborateInstance (BuiltIn i) instSimp (A.App (A.App s A.Unit) A.Unit) []
+     elaborateInstance (BuiltIn i) instSimp (A.App (A.App s A.Unit) A.Unit) []
                            
      let pt = freshNames ["a", "b", "c", "d"] $ \ [a, b, c, d] ->
            A.Forall (abst [a, b, c, d] $ A.Imply [A.App (A.App s (A.Var a)) (A.Var c),
                                                   A.App (A.App s (A.Var b)) (A.Var d)]
                      (A.App (A.App s $ A.Tensor (A.Var a) (A.Var b)) (A.Tensor (A.Var c) (A.Var d)))) A.Set
-     tcTop $ elaborateInstance (BuiltIn (i+1)) instSimp2 pt []
+     elaborateInstance (BuiltIn (i+1)) instSimp2 pt []
 
 -- | Initialze instances of Parameter class for unit, bang type and tensor product.
 initializeParameterClass d = 
@@ -332,14 +331,14 @@ initializeParameterClass d =
      (instP2, scope'') <- scopeTop $ addConst (BuiltIn (i+1)) inst2 Const scope'
      (instP3, scope''') <- scopeTop $ addConst (BuiltIn (i+2)) inst3 Const scope''
      putScope scope'''
-     tcTop $ elaborateInstance (BuiltIn i) instP (A.App s A.Unit) []
+     elaborateInstance (BuiltIn i) instP (A.App s A.Unit) []
      let pt = freshNames ["a", "b"] $ \ [a, b] ->
            A.Forall (abst [a, b] $ A.Imply [A.App s (A.Var a), A.App s (A.Var b)]
                      (A.App s $ A.Tensor (A.Var a) (A.Var b))) A.Set
-     tcTop $ elaborateInstance (BuiltIn (i+1)) instP2 pt []
+     elaborateInstance (BuiltIn (i+1)) instP2 pt []
      let pt2 = freshNames ["a"] $ \ [a] ->
            A.Forall (abst [a] (A.App s $ A.Bang (A.Var a) identityMod)) A.Set
-     tcTop $ elaborateInstance (BuiltIn (i+2)) instP3 pt2 []
+     elaborateInstance (BuiltIn (i+2)) instP3 pt2 []
 
 
 -- | @'system_pdf_viewer' zoom pdffile@: Call a system-specific PDF
@@ -368,3 +367,15 @@ system_pdf_viewer zoom pdffile = do
 
 
 
+-- | Make a built-in class of the form @C x1 ... xn@. The input /d/
+-- is the class name,  /n/ is the number of arguments for /c/. 
+makeBuiltinClass :: Id -> Int -> Top ()
+makeBuiltinClass d n | n > 0 =
+  do i <- getCounter
+     dict <- addBuiltin (BuiltIn (i+1)) (getName d ++"Dict") A.Const
+     putCounter (i+3)
+     let names = map (\ i -> "x"++ show i) $ take n [0 .. ]
+         dictType = freshNames names $
+                    \ ns -> A.Forall (abst ns $ foldl A.App (A.Base d) (map A.Var ns)) A.Set
+         kd = foldr (\ x y -> A.Arrow A.Set y) A.Set names
+     process (A.Class (BuiltIn (i+2)) d kd dict dictType [])

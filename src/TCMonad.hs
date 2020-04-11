@@ -18,8 +18,8 @@ import Control.Monad.State
 import Control.Monad.Identity
 import Control.Monad.Except
 
-import qualified Data.Map.Strict as Map
-import Data.Map.Strict (Map)
+import qualified Data.Map as Map
+import Data.Map (Map)
 import Data.List
 import Text.PrettyPrint
 import Debug.Trace
@@ -118,31 +118,20 @@ instance MonadTrans TCMonadT where
 -- | The type checking monad.
 type TCMonad a = TCMonadT Identity a
 
-type Simulation a = TCMonadT IO a
-
-liftS :: TCMonad a -> Simulation a
-liftS ma =
-  do st <- get
-     let (r, st') = runIdentity $ runStateT (runExceptT (runTC ma)) st
-     put st'
-     case r of
-       Left e -> throwError e
-       Right r' -> return r'
-
-     
 
 -- | A state for 'TCMonad'.
-data TypeState = TS {
-                     lcontext :: LContext, -- ^ Current local typing context.
-                     subst :: Subst, -- ^ Substitution generated during the type checking.
-                     clock :: Int, -- ^ A counter.  
-                     instanceContext :: InstanceContext, -- ^ A local instance context.
-                     checkForallBound :: Bool, -- ^ Whether or not to check if a Forall variable
-                                              -- is well-quantified. It is unchecked when the
-                                              -- type is intended to be used as an instance type.
-                     infer :: Bool, -- ^ If it is in infer mode.
-                     modeSubstitution :: (ModeSubst, ModeSubst, ModeSubst)
-                    }
+data TypeState =
+  TS {
+    lcontext :: LContext, -- ^ Current local typing context.
+    subst :: Subst, -- ^ Substitution generated during the type checking.
+    clock :: Int, -- ^ A counter.  
+    instanceContext :: InstanceContext, -- ^ A local instance context.
+    checkForallBound :: Bool, -- ^ Whether or not to check if a Forall variable
+    -- is well-quantified. It is unchecked when the
+    -- type is intended to be used as an instance type.
+    infer :: Bool, -- ^ If it is in infer mode.
+    modeSubstitution :: (ModeSubst, ModeSubst, ModeSubst)
+    }
 
 -- | Initial type state from a global typing context and a
 -- global type class instance context.
@@ -238,7 +227,7 @@ isParam (EigenVar x) =
       let gamma = lcontext ts
           lg = localCxt gamma
       case Map.lookup x lg of
-        Nothing -> error "from isParam EigenVar"
+        Nothing -> return False
         Just lti ->
           case varIdentification lti of
             TypeVar b _ -> return b

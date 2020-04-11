@@ -119,6 +119,8 @@ runCirc circ a =
 idV : ! forall a (n : Nat) -> Vec a n -> Vec a n
 idV l = case l of
          VNil -> VNil
+         VCons x xs -> case xs of
+                          VNil -> VCons x VNil
 
--- g : Vec Nat 1
-g = idV [1]
+-- g : Vec Nat 3
+-- g = (3, (2, idV [1,2]))

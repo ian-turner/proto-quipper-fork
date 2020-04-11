@@ -52,8 +52,8 @@ import qualified Data.MultiSet as S
 import Data.MultiSet (MultiSet)
 import Text.PrettyPrint
 import Prelude hiding((<>))
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import Data.Map (Map)
+import qualified Data.Map as Map
 
 
 difference' s1 s2 =

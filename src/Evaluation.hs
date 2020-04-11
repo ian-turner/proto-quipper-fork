@@ -7,7 +7,7 @@
 -- It still has memory problem when generating super-large circuits.
 
 module Evaluation 
-       (evaluation, size, toVal, getAllWires) where
+       (eval, getSt, initES, size, toVal) where
 
 import Syntax
 import Erasure
@@ -15,41 +15,22 @@ import SyntacticOperations
 import Utils
 import Nominal
 import Simulation
-import TCMonad
-import TypeError
 
-
+import Control.Exception 
 import Control.Monad.State (State)
 import qualified Control.Monad.State as S
 import Control.Monad.Identity
 import Control.Monad.Except
 import Text.PrettyPrint
+import TCMonad 
 
-
-import qualified Data.Map.Strict as Map
-import Data.Map.Strict (Map)
+import qualified Data.Map as Map
+import Data.Map (Map)
 import Data.Set (Set)
 import Data.List
 import qualified Data.Set as S
 import Debug.Trace
 
-
-
-
--- * The evaluation functions for TCMonad.
-
--- | Evaluate a parameter term and return a value. 
-
-evaluation :: EExp -> Simulation Value
-evaluation e =
-  do st <- S.get
-     let gl = globalCxt $ lcontext st
-     lift $ simulate $ fmap snd $ getSt (eval e) ES{evalEnv = gl, localEvalEnv = Map.empty}
-                         
-                 
-     -- case r of
-     --   Left e -> throwError $ EvalErr e
-     --   Right r -> return r
 
 -- * The Eval monad and eval function.
 
@@ -61,16 +42,18 @@ type Eval a = QuantumState a
 -- a global context. 
 data EvalState =
   ES { evalEnv :: Context,  -- ^ The global evaluation context.
-       localEvalEnv :: Map Variable (Value, Integer, Integer, [Variable])
+       localEvalEnv :: Map Variable (Value, Integer, Integer, [Variable]),
        -- ^ The heap for evaluation, represented by a map.
        -- The first 'Integer' represents the approximate number of occurrences,
        -- the second 'Integer' represents its accurate reference count,
        -- the ['Variable'] is the variables that it refers to.
+       wires :: [Label]
 
      }
 
 newtype QuantumState a = QS {getSt :: EvalState -> ReadWrite (EvalState, a)}
 
+initES gl = ES{evalEnv = gl, localEvalEnv = Map.empty, wires = []}
 
 get :: Eval EvalState
 get = QS $ \ s -> return (s, s)
@@ -88,17 +71,18 @@ addGates :: [Gate] -> Eval ()
 addGates gs =
   QS $ \ s -> mapM_ gateRW gs >> return (s, ())
                          
-
+addWires ws =
+  do s <- get
+     let ws1 = wires s
+     put s{wires = ws ++ ws1}
 
 
 instance Monad QuantumState where
   return a = QS $ \ s -> return (s, a)
-  f >>= g = QS $ \ s ->
-    case f of
-      QS f' ->
-         do (s', r) <- f' s
-            let QS g' = g r
-            g' s'
+  f >>= g = QS h
+    where h s = do
+            (st, v) <- getSt f s
+            getSt (g v) st
           
 
 instance Applicative QuantumState where
@@ -129,8 +113,7 @@ eval a@(EConst k) =
            DataConstr _ -> return (VConst k)
            DefinedGate v -> return v
            DefinedFunction (Just (_, v, _)) -> return v
-           DefinedFunction Nothing -> error $ "undefined" ++ (show $ disp k)
-             -- throwError $ UndefinedId k
+           DefinedFunction Nothing -> throw $ userError ("undefined: " ++ (show $ disp k))
            DefinedMethod _ v -> return v
            DefinedInstFunction _ v -> return v
 
@@ -140,8 +123,7 @@ eval a@(ELBase k) =
   do st <- get
      let genv = evalEnv st
      case Map.lookup k genv of
-       Nothing -> error $ "undefined" ++ (show $ disp k)
-                  -- throwError $ UndefinedId k
+       Nothing -> throw $ userError ("undefined: " ++ (show $ disp k))
        Just e ->
          case identification e of
            DataType Simple _ (Just (ELBase id)) -> return (VLBase id)
@@ -161,7 +143,6 @@ eval (ETensor e1 e2) =
   do e1' <- eval e1
      e2' <- eval e2
      return $ VTensor e1' e2'
-
 
 eval a@(ELam ws body) = return (VLam ws body)
      
@@ -200,9 +181,6 @@ eval (ELetPair m (Abst xs n)) =
          mapM_ (\ (x, y) -> addDefinition x y)
                         (zip xs vs)
          eval n
-       -- Nothing -> 
-         -- throwError $ TupleMismatch (map fst xs) m'
-
 
 eval (ELetPat m bd) =
   do m' <- eval m
@@ -236,8 +214,7 @@ eval b@(ECase m (EB bd)) =
                   mapM_ (\ (x, v) -> addDefinition x v) subs
                   eval m
                | otherwise -> reduce id args bds
-        -- reduce id args [] = 
-          -- throwError $ MissBranch id b
+        reduce id args [] = throw $ userError ("missing a branch for: " ++ show (disp id))
 
 eval a = error $ "from eval: " ++ (show $ disp a)
 
@@ -296,11 +273,13 @@ evalApp (VForce VDynlift) (VLabel v) =
 evalApp (VForce (VApp VUnBox v)) w =
   case v of
     Wired bd ->
-      open bd $ \ wires m ->
+      open bd $ \ wiress m ->
       case m of
         f@(VCircuit (Morphism ins gs outs)) ->
-          let binding = makeBinding ins w 
-          in appendMorph binding (Morphism ins gs outs)
+          do let binding = makeBinding ins w
+                 wires' = wiress \\ getWires ins
+             addWires wires'
+             appendMorph binding (Morphism ins gs outs)
     a -> error $ "evalApp(Unbox ..) " ++ (show $ disp a)
 
 evalApp (VApp (VApp (VApp VBox q) _) _) v =
@@ -375,7 +354,7 @@ evalApp v w =
                      e' <- eval e
                      case e' of
                        VLam _ bd -> handleBody ws bd
-                       _ -> return $ foldl' VApp e' ws
+                       _ -> return $ foldl VApp e' ws
         
     _ -> return $ VApp v w
           
@@ -395,7 +374,7 @@ evalApp v w =
                       if null ws then eval m
                         else 
                         do m' <- eval m
-                           return $ foldl' VApp m' ws
+                           return $ foldl VApp m' ws
         -- Perform substitution on the variables in a circuit.
         updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Integer))]
         updateCirc sub lenv =
@@ -437,23 +416,24 @@ evalApp v w =
           in VApp a' b'
         applyValSubst c lc = 
           error $ "from applyValSubst" ++ (show $ disp c)
+
 -- | Evaluate a box term.
 evalBox :: Either Value EExp -> Value -> Eval Value               
 evalBox body uv =
   freshLabels (size uv) $ \ vs ->
-   do st <- get
+   do addWires vs
+      st <- get
       b <- case body of
                 Right body' -> eval body'
                 Left v -> return v
       let uv' = toVal uv vs
-          (gs, (_, res)) = boxGates $ getSt (evalApp b uv') st 
-      -- case res of
-        -- Left e -> throwError e
-        -- Right res' -> 
---          let -- Morphism ins gs _ = morph st'
+          bgs = boxGates $ getSt (evalApp b uv') st
+          gs = fst bgs
+          res = snd $ snd bgs
+          st' = fst $ snd bgs
           newMorph = Morphism uv' gs res
-          wires = getAllWires newMorph
-          morph' = Wired $ abst wires (VCircuit newMorph)
+          wires' = wires st'
+          morph' = Wired $ abst wires' (VCircuit newMorph)
       return morph'
 
 -- | Evaluate an existsBox term. Note that
@@ -465,20 +445,20 @@ evalBox body uv =
 evalExbox :: EExp -> Value -> Eval Value        
 evalExbox body uv =
   freshLabels (size uv) $ \ vs ->
-   do st <- get
+   do addWires vs
+      st <- get
       b <- eval body
       let uv' = toVal uv vs
           d = Morphism uv' [] uv'
-          (gs, (_, res)) = boxGates $ getSt (evalApp b uv') st
-      -- case res of
-      --   Left e -> throwError e
+          bgs = boxGates $ getSt (evalApp b uv') st
+          gs = fst bgs
+          res = snd $ snd bgs
+          ws = wires $ fst $ snd bgs
           (VPair n res') = res
---          let -- Morphism ins gs _ = morph st'
           newMorph = Morphism uv' gs res'
-          wires = getAllWires newMorph
-          morph' = Wired $ abst wires (VCircuit newMorph)
+          morph' = Wired $ abst ws (VCircuit newMorph)
       return (VPair n morph')        
-  --      Right a -> error $ "from eval_exBox\n" ++ (show $ disp a)
+
 
 
 
@@ -577,16 +557,17 @@ size (VTensor e1 e2) = size e1 + size e2
 size a = error $ "applying size function to an ill-formed template:" ++ (show $ disp a)     
 
 -- | Obtain all the labels from the circuit.
-getAllWires :: Morphism -> [Label]
-getAllWires (Morphism ins gs outs) =
-  let inWires = S.fromList $ getWires ins
-      outWires = S.fromList $ getWires outs
-      gsWires = S.unions $ map getGateWires gs
-  in S.toList (inWires `S.union` outWires `S.union` gsWires)
-  where getGateWires (Gate _ _ ins outs ctrls _) =
-          S.fromList (getWires ins) `S.union`
-          S.fromList (getWires outs) `S.union`
-          S.fromList (getWires ctrls)
+
+-- getAllWires :: Morphism -> [Label]
+-- getAllWires (Morphism ins gs outs) =
+--   let inWires = S.fromList $ getWires ins
+--       outWires = S.fromList $ getWires outs
+--       gsWires = S.unions $ map getGateWires gs
+--   in S.toList (inWires `S.union` outWires `S.union` gsWires)
+--   where getGateWires (Gate _ _ ins outs ctrls _) =
+--           S.fromList (getWires ins) `S.union`
+--           S.fromList (getWires outs) `S.union`
+--           S.fromList (getWires ctrls)
 
 
 -- | Decrease the reference count for a list of variables.

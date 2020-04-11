@@ -46,8 +46,9 @@ dynliftRW q = RW_Read q (\ans -> return ans)
 boxGates :: ReadWrite b -> ([Gate], b)
 boxGates (RW_Return b) = ([], b)
 boxGates (RW_Write x c) =
-  let (gs, b) = boxGates c
-  in (x : gs, b)
+  let r = boxGates c
+  in (x:fst r, snd r)
+
 boxGates (RW_Read q c) = error "from box Gate"
 
 data Response = Null

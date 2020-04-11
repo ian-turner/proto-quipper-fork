@@ -476,7 +476,9 @@ instance Disp Value where
   display flag (VLiftCirc (Abst vs (Abst env e))) = 
    text "vliftCirc" <+> hsep (map dispRaw vs) <+> text "->"
    <+> braces (dispRaw env) $$ nest 2 (display flag e)
-  display flag (Wired (Abst ls v)) = display flag v
+  display flag (Wired (Abst ls v)) = text "circ" 
+--    open bd $ \ ls v -> text "circ"
+--       display flag v
   display flag a@(VApp t t') = 
     case toNat a of
       Nothing ->
