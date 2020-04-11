@@ -42,18 +42,16 @@ type Eval a = QuantumState a
 -- a global context. 
 data EvalState =
   ES { evalEnv :: Context,  -- ^ The global evaluation context.
-       localEvalEnv :: Map Variable (Value, Integer, Integer, [Variable]),
+       localEvalEnv :: Map Variable (Value, Integer, Integer, [Variable])
        -- ^ The heap for evaluation, represented by a map.
        -- The first 'Integer' represents the approximate number of occurrences,
        -- the second 'Integer' represents its accurate reference count,
        -- the ['Variable'] is the variables that it refers to.
-       wires :: [Label]
-
      }
 
 newtype QuantumState a = QS {getSt :: EvalState -> ReadWrite (EvalState, a)}
 
-initES gl = ES{evalEnv = gl, localEvalEnv = Map.empty, wires = []}
+initES gl = ES{evalEnv = gl, localEvalEnv = Map.empty}
 
 get :: Eval EvalState
 get = QS $ \ s -> return (s, s)
@@ -71,10 +69,10 @@ addGates :: [Gate] -> Eval ()
 addGates gs =
   QS $ \ s -> mapM_ gateRW gs >> return (s, ())
                          
-addWires ws =
-  do s <- get
-     let ws1 = wires s
-     put s{wires = ws ++ ws1}
+-- addWires ws =
+--   do s <- get
+--      let ws1 = wires s
+--      put s{wires = ws ++ ws1}
 
 
 instance Monad QuantumState where
@@ -265,20 +263,20 @@ addRef (v:vs) lenv =
   
 -- | A helper function for evaluating various of applications.
 evalApp :: Value -> Value -> Eval Value
-evalApp VUnBox v | Wired _ <- v = return $ VApp VUnBox v
+evalApp VUnBox v | (VCircuit _) <- v = return $ VApp VUnBox v
 evalApp VUnBox v | otherwise = return VUnBox
 evalApp (VForce VDynlift) (VLabel v) =
   do b <- dynamicLift v
      if b then return $ VConst (Id "True") else return $ VConst (Id "False")
 evalApp (VForce (VApp VUnBox v)) w =
   case v of
-    Wired bd ->
-      open bd $ \ wiress m ->
-      case m of
-        f@(VCircuit (Morphism ins gs outs)) ->
+    -- Wired bd ->
+    --   open bd $ \ wiress m ->
+    --   case m of
+    f@(VCircuit (Morphism ins gs outs)) ->
           do let binding = makeBinding ins w
-                 wires' = wiress \\ getWires ins
-             addWires wires'
+             --     wires' = wiress \\ getWires ins
+             -- addWires wires'
              appendMorph binding (Morphism ins gs outs)
     a -> error $ "evalApp(Unbox ..) " ++ (show $ disp a)
 
@@ -297,17 +295,20 @@ evalApp (VApp (VApp (VApp (VApp VExBox q) _) _) _) v =
 
 evalApp (VApp (VApp VReverse _) _) m' =
   case m' of
-    Wired bd ->
-      open bd $ \ ws (VCircuit (Morphism ins gs outs)) ->
+    -- Wired bd ->
+    --   open bd $ \ ws (VCircuit (Morphism ins gs outs)) ->
+    (VCircuit (Morphism ins gs outs)) ->
       let gs' = revGates gs in
-        return $ Wired (abst ws (VCircuit $ Morphism outs gs' ins))
+        return $ (VCircuit $ Morphism outs gs' ins)
 
 evalApp (VApp (VApp (VApp VControlled _) _) _) m =
   case m of
-    Wired bd ->
-      open bd $ \ ws (VCircuit (Morphism ins gs outs)) ->
+    -- Wired bd ->
+    --   open bd $ \ ws (VCircuit (Morphism ins gs outs)) ->
+    (VCircuit (Morphism ins gs outs)) ->
       freshNames ["#ctrl", "#input", "#circ"] $ \ (ctrl:input:circ:[]) -> 
-      let mycirc = Wired $ abst ws (VCircuit $ Morphism ins (controlledGates ctrl gs) outs)
+      let -- mycirc = Wired $ abst ws (VCircuit $ Morphism ins (controlledGates ctrl gs) outs)
+          mycirc = VCircuit $ Morphism ins (controlledGates ctrl gs) outs
           env = Map.fromList [(circ, (mycirc, 1))] 
           exp = EPair (EApp (EForce $ EApp EUnBox (EVar circ)) (EVar input)) (EVar ctrl)
       in return $ VLiftCirc (abst [input, ctrl] $ abst env exp)
@@ -320,8 +321,8 @@ evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _)_)_) m =
   return $ VComputed m 
 
 evalApp (VComputed m1) m2 =
-  let (Wired (Abst ws1 (VCircuit (Morphism a gs1 (VPair b1 e))))) = m1
-      (Wired (Abst ws2 (VCircuit circ2@(Morphism (VPair b2 _) _ (VPair _ _))))) = m2
+  let (VCircuit (Morphism a gs1 (VPair b1 e))) = m1
+      (VCircuit circ2@(Morphism (VPair b2 _) _ (VPair _ _))) = m2
       gs1' = map negateCtrl gs1
       gs1'' = revGates gs1'
       circ1' = (Morphism (VPair b1 e) gs1'' a)
@@ -330,11 +331,11 @@ evalApp (VComputed m1) m2 =
       (Morphism (VPair _ c) gs2 (VPair b3 d)) = circ2'
       binding2 = makeBinding b1 b3
       (Morphism (VPair _ _) gs1''' a') = rename circ1' binding2
-      res = Wired (abst (ws1 ++ ws2) $ VCircuit (Morphism (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d)))
+      res = VCircuit (Morphism (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d))
   in return res
   where negateCtrl (Gate e1 e2 e3 e4 e5 b) = Gate e1 e2 e3 e4 e5 False
   
-evalApp a@(Wired _) w = return a
+evalApp a@(VCircuit _) w = return a
 
 evalApp v w = 
   let (h, res) = unwindVal v
@@ -379,18 +380,15 @@ evalApp v w =
         updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Integer))]
         updateCirc sub lenv =
              let (x, (circ, n)):[] = Map.toList lenv
-                 Wired (Abst wires (VCircuit (Morphism ins
-                                               gs outs)))
-                   = circ
+                 (VCircuit (Morphism ins gs outs)) = circ
+                   
                  params = map (\ (Gate _ p _ _ _ _) -> p) gs
                  ctrls = map (\ (Gate _ _ _ _ c _) -> c) gs
                  params' = map (\ p -> helper p sub) params
                  ctrls' = helper ctrls sub
                  gs' = zipWith3 (\ p c (Gate id _ inn oot _ flag) -> Gate id p inn oot c flag)
                        params' ctrls' gs
-                 circ' = Wired (abst wires
-                                 (VCircuit (Morphism ins
-                                             gs' outs))) 
+                 circ' = (VCircuit (Morphism ins gs' outs))
              in [(x, (circ', n))]
         -- Perfrom substitution.             
         helper :: [Value] -> [(Variable, Value)] -> [Value]
@@ -420,8 +418,9 @@ evalApp v w =
 -- | Evaluate a box term.
 evalBox :: Either Value EExp -> Value -> Eval Value               
 evalBox body uv =
-  freshLabels (size uv) $ \ vs ->
-   do addWires vs
+  -- freshLabels (size uv) $ \ vs ->
+   do let vs = freshLabels (size uv)
+      -- addWires vs
       st <- get
       b <- case body of
                 Right body' -> eval body'
@@ -430,10 +429,10 @@ evalBox body uv =
           bgs = boxGates $ getSt (evalApp b uv') st
           gs = fst bgs
           res = snd $ snd bgs
-          st' = fst $ snd bgs
+          -- st' = fst $ snd bgs
           newMorph = Morphism uv' gs res
-          wires' = wires st'
-          morph' = Wired $ abst wires' (VCircuit newMorph)
+          -- wires' = wires st'
+          morph' = (VCircuit newMorph)
       return morph'
 
 -- | Evaluate an existsBox term. Note that
@@ -444,8 +443,9 @@ evalBox body uv =
 -- So we define 'evalExbox' and 'evalBox' separately to enforce the assumptions.
 evalExbox :: EExp -> Value -> Eval Value        
 evalExbox body uv =
-  freshLabels (size uv) $ \ vs ->
-   do addWires vs
+  -- freshLabels (size uv) $ \ vs ->
+   do let vs = freshLabels (size uv)
+      -- addWires vs
       st <- get
       b <- eval body
       let uv' = toVal uv vs
@@ -453,10 +453,10 @@ evalExbox body uv =
           bgs = boxGates $ getSt (evalApp b uv') st
           gs = fst bgs
           res = snd $ snd bgs
-          ws = wires $ fst $ snd bgs
+          -- ws = wires $ fst $ snd bgs
           (VPair n res') = res
           newMorph = Morphism uv' gs res'
-          morph' = Wired $ abst ws (VCircuit newMorph)
+          morph' = (VCircuit newMorph)
       return (VPair n morph')        
 
 

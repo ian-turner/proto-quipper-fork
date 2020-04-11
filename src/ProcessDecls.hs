@@ -505,13 +505,14 @@ makeGate id ps t flag =
       inNames = size inExp
   in
       freshNames ns $ \ (y:xs) ->
-      freshLabels inNames $ \ ins ->
-      freshLabels outNames $ \ outs ->
-      let params = map VVar xs
+      let ins = freshLabels inNames -- $ \ ins ->
+          outs = freshLabels outNames -- $ \ outs ->
+          params = map VVar xs
           inExp' = toVal inExp ins
           outExp' = toVal outExp outs
           g = Gate id params inExp' outExp' VStar flag
-          morph = Wired $ abst (ins ++ outs) (VCircuit $ Morphism inExp' [g] outExp')
+          -- morph = Wired $ abst (ins ++ outs) (VCircuit $ Morphism inExp' [g] outExp')
+          morph = VCircuit $ Morphism inExp' [g] outExp'
           env = Map.fromList [(y, (morph, 1))] 
           unbox_morph = ELam [y] $ etaPair (length inss) (EForce $ EApp EUnBox (EVar y))
           res = VLiftCirc (abst xs (abst env unbox_morph))

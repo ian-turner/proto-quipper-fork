@@ -696,7 +696,7 @@ wirelist (Gate _ _ input output ctrl _ : gs) =
 --                                                                              
 -- The rendering takes place in the following user coordinate system:           
 --                                                                              
--- \[image coord.png]                                                           
+-- \[image coord.png]                                                            
 page_of_ocircuit :: FormatStyle -> Value -> Document ()
 page_of_ocircuit fs (Wired bd) =
   open bd $ \ ws (VCircuit (Morphism q1 ocirc q2)) ->

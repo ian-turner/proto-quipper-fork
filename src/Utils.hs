@@ -95,14 +95,21 @@ freshNames (n:ns) body =
           with_fresh $ \a -> k (Variable a (NoBind s))
 
 -- | Generate a list of fresh labels from a given length.
-freshLabels :: Int -> ([Label] -> t) -> t
-freshLabels n body | n == 0  = body []
-freshLabels n body | otherwise  =
-  freshLabel $ \ a ->
-  freshLabels (n-1) $ \ as ->
-  body (a:as)
-  where freshLabel k =
-          with_fresh $ \a -> k a
+freshLabels :: Int -> [Label]
+freshLabels n | n == 0 = []
+freshLabels n | n > 0 =
+  let xs = freshLabels (n-1)
+  in x:xs
+  where x = with_fresh id
+  
+-- freshLabels :: Int -> ([Label] -> t) -> t
+-- freshLabels n body | n == 0  = body []
+-- freshLabels n body | otherwise  =
+--   freshLabel $ \ a ->
+--   freshLabels (n-1) $ \ as ->
+--   body (a:as)
+--   where freshLabel k =
+--           with_fresh $ \a -> k a
 
 -- | Constant identifiers, they are used for top-level definitions and constructors.
 data Id = Id String
