@@ -86,80 +86,81 @@ interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
           | getName name == "Discard" =
             do let (VLabel w') = renameTemp (VLabel w) map
                hPutStrLn h ("D " ++ labelToNum w')
-               r <- hGetLine h
-               case read r of
-                 OK -> interaction c h map (w':ls)
+               interaction c h map (w':ls)
 interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
           | getName name == "Term0" =
             do let (VLabel w') = renameTemp (VLabel w) map
                hPutStrLn h ("M " ++ labelToNum w')
-               r <- hGetLine h
-               case read r of
-                 OK ->
-                   do hPutStrLn h ("R " ++ labelToNum w')
-                      r' <- hGetLine h
-                      case read r' of
+               hPutStrLn h ("R " ++ labelToNum w')
+               r' <- hGetLine h
+               case read r' of
                         Reply s | s == "0" -> interaction c h map (w':ls)
                         Reply s ->
                           error $ "termination error, expecting to terminate with 0, but get:" ++ s
           | getName name == "Term1" =
             do let (VLabel w') = renameTemp (VLabel w) map
                hPutStrLn h ("M " ++ labelToNum w')
-               r <- hGetLine h
-               case read r of
-                 OK ->
-                   do hPutStrLn h ("R " ++ labelToNum w')
-                      r' <- hGetLine h
-                      case read r' of
-                        Reply s | s == "1" -> interaction c h map (w':ls)
-                        Reply s ->
+               hPutStrLn h ("R " ++ labelToNum w')
+               r' <- hGetLine h
+               case read r' of
+                 Reply s | s == "1" -> interaction c h map (w':ls)
+                 Reply s ->
                           error $ "termination error, expecting to terminate with 1, but get:" ++ s
                 
 interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map []
           | getName name == "Init0" =
           do let cmd = ("Q " ++ labelToNum w)
              hPutStrLn h cmd
-             r <- hGetLine h
-             case read r of
-               OK -> interaction c h map []
-               a -> error $ "from interaction" ++ show a ++ ":" ++ cmd
+             interaction c h map []
+             -- r <- hGetLine h
+             -- case read r of
+             --   OK -> interaction c h map []
+             --   a -> error $ "from interaction" ++ show a ++ ":" ++ cmd
           | getName name == "Init1" =
           do hPutStrLn h ("Q " ++ labelToNum w ++ " 1")
-             r <- hGetLine h
-             case read r of
-               OK -> interaction c h map []
+             interaction c h map []
+             -- r <- hGetLine h
+             -- case read r of
+             --   OK -> interaction c h map []
 interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map (v:vs)
           | getName name == "Init0" =
           do let map' = map `Map.union` Map.fromList [(w, v)]
              hPutStrLn h ("Q " ++ labelToNum v)
-             r <- hGetLine h
-             case read r of
-               OK -> interaction c h map' vs
+             interaction c h map' vs
+             -- r <- hGetLine h
+             -- case read r of
+             --   OK -> interaction c h map' vs
           | getName name == "Init1" =
           do let map' = map `Map.union` Map.fromList [(w, v)]
              hPutStrLn h ("Q " ++ labelToNum v ++ " 1")
-             r <- hGetLine h
-             case read r of
-               OK -> interaction c h map' vs
+             interaction c h map' vs
+             -- r <- hGetLine h
+             -- case read r of
+             --   OK -> interaction c h map' vs
 interaction (RW_Write (Gate name [] (VLabel v) (VLabel w) VStar _) c) h map ls =
           do let (VLabel v') = renameTemp (VLabel v) map
                  map' = map `Map.union` Map.fromList [(w, v')]
                  g = toGateName (getName name)
              hPutStrLn h (g++ " "++ labelToNum v')
-             r <- hGetLine h
-             case read r of
-                OK -> interaction c h map' ls
+             interaction c h map' ls
+             -- r <- hGetLine h
+             -- case read r of
+             --    OK -> interaction c h map' ls
+             --    a -> error $ show a
 interaction (RW_Write (Gate name [] v@(VPair _ _) w@(VPair _ _) VStar _) res) h map ls =
           do let (VPair (VLabel a) (VLabel b)) = renameTemp v map
                  (VPair (VLabel c) (VLabel d)) = w
                  map' = map `Map.union` Map.fromList [(c, a), (d, b)]
                  g = toGateName (getName name)
              hPutStrLn h (g++ " "++ labelToNum a ++ " " ++ labelToNum b)
-             r <- hGetLine h
-             case read r of
-                OK -> interaction res h map' ls
+             interaction res h map' ls
+             -- r <- hGetLine h
+             -- case read r of
+             --    OK -> interaction res h map' ls
                    
-            
+interaction (RW_Write g res) h map ls =
+  error $ "from interaction:" ++ (show g)
+  
 labelToNum l =
   let r = tail (show l) in if null r then "0" else r
                                                    

@@ -175,18 +175,18 @@ eval a@(EExBox) = return VExBox
 eval (EApp m n) =
   do v <- eval m
      w <- eval n
-     v `seq` w `seq` evalApp v w
+     evalApp v w
 
 eval (EPair m n) = 
   do v <- eval m
      w <- eval n
-     v `seq` w `seq` return (VPair v w)
+     return (VPair v w)
 
 eval (ELet m bd) =
   do m' <- eval m
      open bd $ \ x n ->
        do addDefinition x m'
-          m' `seq` eval n
+          eval n
 
 
 eval (ELetPair m (Abst xs n)) =
@@ -371,7 +371,7 @@ evalApp v w =
                      e' <- eval e
                      case e' of
                        VLam _ bd -> handleBody ws bd
-                       _ -> return $ foldl VApp e' ws
+                       _ -> return $ foldl' VApp e' ws
         
     _ -> return $ VApp v w
           
@@ -391,7 +391,7 @@ evalApp v w =
                       if null ws then eval m
                         else 
                         do m' <- eval m
-                           m' `seq` ws `seq` return $ foldl' VApp m' ws
+                           return $ foldl' VApp m' ws
         -- Perform substitution on the variables in a circuit.
         updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Integer))]
         updateCirc sub lenv =
@@ -533,7 +533,8 @@ invertName id | getName id == "ToffoliGate_01" =  Id "ToffoliGate_01"
 invertName id | getName id == "ToffoliGate" =  Id "ToffoliGate"
 invertName id | getName id == "Mea" = error "cannot invert Mea gate"
 invertName id | getName id == "Discard" = error "cannot invert Discard gate"
-invertName id =  Id $ getName id ++ "*"
+invertName id | last (getName id) /= '*' =  Id $ getName id ++ "*"
+              | otherwise = Id $ init (getName id)
 
 
 -- | Rename /uv/ using fresh labels draw from /vs/.

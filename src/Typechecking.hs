@@ -694,7 +694,7 @@ typeCheck flag (LetPat m bd) goal =
           let matchEigen = isEigenVar m
               isDpm = (isSemi || matchEigen) && not inf
               eSub = map (\ x -> (x, EigenVar x)) eigen
-          (unifRes, (sub', bs)) <- patternUnif m isDpm index head t'
+          (unifRes, (sub', bs)) <- patternUnif m isSemi index head t'
           case unifRes of
             UnifError ->
               throwError $ withPosition m (UnifErr head t') 
@@ -779,7 +779,7 @@ typeCheck flag a@(Case tm (B brs)) goal =
                       -- infer mode over-write dependent pattern matching
                       isDpm = (isSemi || matchEigen) && not inf
                   ss <- getSubst
-                  (unifRes, (sub', bs)) <- patternUnif tm isDpm index head t
+                  (unifRes, (sub', bs)) <- patternUnif tm isSemi index head t
                   case unifRes of
                     UnifError -> throwError $ withPosition tm (UnifErr head t)
                     ModeError p1 p2 -> throwError $ ModalityGEqErr tm head t p1 p2
@@ -804,8 +804,8 @@ typeCheck flag a@(Case tm (B brs)) goal =
                          -- we need to restore the substitution to ss
                          -- because subb' may be influenced by dependent pattern matching.
                          let goal''' = substitute subb goal''
-                         ann2' <- resolveGoals (substitute subb ann2)--  `catchError`
-                                  -- \ e -> return ann2
+                         ann2' <- resolveGoals (substitute subb ann2) `catchError`
+                                  \ e -> return ann2
                                   
                          when isDpm $ updateSubst ss
                          when (not isDpm) $ updateSubst subb

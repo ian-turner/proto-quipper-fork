@@ -15,6 +15,7 @@ import SyntacticOperations
 import Control.Monad.Except
 import Control.Monad.State
 import qualified Data.MultiSet as S
+import Data.List
 
 -- | Resolve all the goals in an expression, this will substitute
 -- all the goal variables in an expression with the corresponding
@@ -122,7 +123,13 @@ match (Var x) t =
      case lookup x s of
        Nothing -> modify (\ s -> (x, t):s) >> return True
        Just t' | t == t' -> return True
+               | (varToEigen t) == (varToEigen t') ->
+                 let s' = (x, varToEigen t) : delete (x, t') s
+                 in put s' >> return True
                | otherwise -> return False
+  where varToEigen (EigenVar x) = EigenVar x
+        varToEigen (Var x) = EigenVar x
+        varToEigen a = a
 
 match (Force' t) (Force' t') = match t t'
 match (Lift t) (Lift t') = match t t'

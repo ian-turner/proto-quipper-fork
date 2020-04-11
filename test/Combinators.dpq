@@ -183,17 +183,17 @@ with_disjunction_aux qs body =
         let (a, as) = with_ancilla False body
         in T a as VNil
       VCons h t ->
-        let T a has t = with_disjunction_aux t (\ p ->
+        let T a has t' = with_disjunction_aux t (\ p ->
            let T a has p = with_ancilla False (\ q ->
             let T q p h = toT $ ToffoliGate False True q p h
-                (q, p) = CNotGate True q p
+                (q, p) = cnotGate True q p
                 T a as q = toT $ body q
-                (q, p) = CNotGate True q p
+                (q, p) = cnotGate True q p
       	        T q p h = toT $ ToffoliGate False True q p h
             in (T a (VCons h as) p, q) )
            in ((a, has), p) )
             VCons h as = has
-        in T a as (VCons h t)
+        in T a as (VCons h t')
               
 
 with_disjunction : ! forall a (n : Nat) -> Vec Qubit n ->
@@ -327,7 +327,7 @@ for_each_map3 xs ys zs s body =
 cnotGate_if : ! (Bool -> Qubit -> Qubit -> Bool -> Qubit * Qubit)
 cnotGate_if cond x y s =
   case cond of
-    True -> CNotGate s x y
+    True -> cnotGate s x y
     False -> (x, y)
 
 twos_complement : ! forall (n : Nat) -> Vec Bool n -> Vec Bool n

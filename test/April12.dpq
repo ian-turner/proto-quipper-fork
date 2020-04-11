@@ -3,9 +3,9 @@ import "lib/Prelude.dpq"
 
 -- controlled ZGate : Qubit -> Qubit
 
-gate {1,1,1} SGate : Qubit -> Qubit
+-- gate {1,1,1} SGate : Qubit -> Qubit
 
-gate {1,1,1} ZGate : Qubit -> Qubit
+-- gate {1,1,1} ZGate : Qubit -> Qubit
 
 z_gate : ! forall s -> (Simple s) => Qubit -> s -> Qubit * s
 z_gate q s = controlled (box Qubit ZGate) q s

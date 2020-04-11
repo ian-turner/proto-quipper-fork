@@ -20,16 +20,21 @@ main =
   do args <- getArgs
      p <- getEnv "DPQ" `catches` handlers 
      case args of
-       [filename, option, target] | option == "-p" ->
+       [filename, option, target] | option == "-p" -> do
          runTop p $ catchTop error_handler $ (printToFile filename target)
-       [filename, option] | option == "-m" ->
+         return ()
+       [filename, option] | option == "-m" -> do
          runTop p $ catchTop error_handler (printMain filename)
-       [filename, option] | option == "-g" ->
+         return ()
+       [filename, option] | option == "-g" -> do
          runTop p $ catchTop error_handler (gateCountMain Nothing filename)
-       [filename, option, name] | option == "-g" ->
-         runTop p $ catchTop error_handler (gateCountMain (Just name) filename)         
-       [filename] ->
+         return ()
+       [filename, option, name] | option == "-g" -> do
+         runTop p $ catchTop error_handler (gateCountMain (Just name) filename)
+         return ()
+       [filename] -> do
          runTop p $ catchTop error_handler (load filename)
+         return ()
        _ ->
          do print $ text "unknown command option"
             print $ text cmdUsage

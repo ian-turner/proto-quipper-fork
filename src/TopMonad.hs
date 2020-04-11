@@ -55,7 +55,7 @@ instance Disp Error where
   display flag (ScopeErr e) = display flag e
   display flag (CompileErr (PfErrWrapper a e t)) =
     text "proof checking error:" $$
-    dispRaw e $$
+    disp e $$
     text "when checking the following annotated term:" $$
     dispRaw a $$
     text "against the type:" $$
@@ -86,12 +86,12 @@ initTopState p = TopState {
   }
 
 -- | A run function for the 'Top' monad.
-runTop :: String -> Top a -> IO a
-runTop p body = 
-  do (r, s') <- runStateT (runExceptT (runT body)) (initTopState p)
-     case r of
-       Right a -> return a
-       Left e -> error ("from runTop: " ++ (show $ disp e)) 
+runTop :: String -> Top a -> IO (Either Error a, TopState)
+runTop p body = runStateT (runExceptT (runT body)) (initTopState p)
+  -- do (r, s') <- 
+  --    case r of
+  --      Right a -> return a
+  --      Left e -> error ("from runTop: " ++ (show $ disp e)) 
 
 
 -- | Interpreter's state.
@@ -152,15 +152,18 @@ tcTop m =
   do st <- getInterpreterState
      let cxt = context st
          inst = instCxt st
-     (res, s) <- ioTop $ runTCMonadT cxt inst m
-     case res of
-       Left e -> throwError $ CompileErr e
-       Right e ->
-         do let cxt' = globalCxt $ lcontext s
-                inst' = globalInstance $ instanceContext s
-            putCxt cxt'
-            putInstCxt inst'
-            return e
+     handle $ ioTop $ runTCMonadT cxt inst m
+     -- (res, s) <- ioTop $ runTCMonadT cxt inst m
+  where handle m =
+          do (res, s) <- m
+             case res of
+               Left e -> throwError $ CompileErr e
+               Right e ->
+                 do let cxt' = globalCxt $ lcontext s
+                        inst' = globalInstance $ instanceContext s
+                    putCxt cxt'
+                    putInstCxt inst'
+                    return e
 
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
 topTypeInfer :: A.Exp -> Top (A.Exp, A.Exp)

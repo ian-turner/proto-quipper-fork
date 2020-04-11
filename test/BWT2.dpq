@@ -92,8 +92,8 @@ parseNodeRoot : ! (List Qubit -> Qubit -> Qubit -> Nat -> List Qubit * Qubit * Q
 parseNodeRoot a root even n =
   let (a, re) = with_list_range (S Z) n a (\ a ->
        let (re, a) = with_disjunction a (\ q ->
-            let (root, q) = CNotGate False root q
-                (even, q) = CNotGate False even q
+            let (root, q) = cnotGate False root q
+                (even, q) = cnotGate False even q
             in ((root, even), q) )
            (root, even) = re
        in (a, (root, even)) )
@@ -118,12 +118,12 @@ parseNodeEven as even n =
                     T even flag a = toT $
                                       toffoliGate_if (isEven index) even
                                         (flag, False) (a, True)
-                    (flag, scratch) = CNotGate True flag scratch
+                    (flag, scratch) = cnotGate True flag scratch
                 in (((a, index), scratch), (flag, even)) )
             (flag, even) = fle
             (as, flag) = for_each_map scratches flag ( \ r flag ->
              let T a index scratch = toT r
-                 (flag, scratch) = CNotGate True flag scratch
+                 (flag, scratch) = cnotGate True flag scratch
                  T scratch flag a = toT $  ToffoliGate False True scratch flag a
                  unit = qterm False scratch
              in ((a, index), flag)  )
@@ -186,7 +186,7 @@ testIsParent a root even isparent color n really ismatch =
 testIsChild : ! (Qubit -> Qubit -> Qubit -> Bool * Bool -> Nat -> Qubit * Qubit * Qubit)
 testIsChild even ischild direction color n =
  let (a, b) = color 
-     (ischild, even) = CNotGate (not b) ischild even
+     (ischild, even) = cnotGate (not b) ischild even
      direction = qnot_if a direction
  in ((even, ischild), direction)
 
@@ -247,9 +247,9 @@ majority : ! (Qubit -> Qubit -> Qubit -> Bool -> Triple Qubit Qubit Qubit)
 majority q a b n =
   case n of
     True ->
-      let (q, a) = CNotGate True q a
+      let (q, a) = cnotGate True q a
           T q a b = toT $ ToffoliGate True True q a b
-          (q, b) = CNotGate True q b
+          (q, b) = cnotGate True q b
       in T q a b
     False ->
       let T q a b = toT $ ToffoliGate True True q a b
@@ -359,7 +359,7 @@ doWeld1 a b weldctrl g n =
        let T as an1 aafter = sf_list_index (S n) a
            T addsub weldctrl an1 = toT $ ToffoliGate True False addsub weldctrl an1
            T addsub b as = cAddNum addsub b as g n
-           (addsub, weldctrl) = CNotGate True addsub weldctrl
+           (addsub, weldctrl) = cnotGate True addsub weldctrl
            T addsub b as = cSubNum addsub b as g n
            T addsub weldctrl an1 = toT $ ToffoliGate True True addsub weldctrl an1
            a = appendL as $ Cons an1 aafter
@@ -378,7 +378,7 @@ setWeld a b childctrl direction f g n =
         let T weldctrl childctrl direction = toT $ ToffoliGate True False
                                                        weldctrl childctrl direction
             T a b weldctrl = doWeld0 a b weldctrl f n
-            (weldctrl, childctrl) = CNotGate True weldctrl childctrl
+            (weldctrl, childctrl) = cnotGate True weldctrl childctrl
             T a b weldctrl = doWeld1 a b weldctrl g n
             T weldctrl childctrl direction = toT $ ToffoliGate True True
                                                      weldctrl childctrl direction
@@ -388,8 +388,8 @@ setWeld a b childctrl direction f g n =
             Cons bn1 m = bs
             Nil = m
             T bn1 childctrl an1 = toT $ ToffoliGate True True bn1 childctrl an1
-            (bn, childctrl) = CNotGate True bn childctrl
-            (bn1, childctrl) = CNotGate True bn1 childctrl
+            (bn, childctrl) = cnotGate True bn childctrl
+            (bn1, childctrl) = cnotGate True bn1 childctrl
             b = appendL (appendL bbefore $ Cons bn (Cons bn1 Nil)) bafter
             a = appendL abefore $ Cons an1 aafter
         in (Q a b childctrl direction, weldctrl) )
@@ -434,7 +434,7 @@ setChild a b ischild direction f g n =
           in (an, (childctrl, ischild)) )
          (childctrl, ischild) = r
          Q a b childctrl direction = setWeld a b childctrl direction f g n
-         (childctrl, ischild) = CNotGate True childctrl ischild
+         (childctrl, ischild) = cnotGate True childctrl ischild
          Q a b childctrl direction = setChildInTree a b childctrl direction n
          (a, r) = with_list_index n a (\ an ->
                let T childctrl ischild an = toT $ ToffoliGate True False childctrl ischild an

@@ -176,9 +176,9 @@ with_disjunction_aux qs body =
         let T a has t = with_disjunction_aux t (\ p ->
            let T a has p = with_ancilla False (\ q ->
   	    let T q p h = toT $ ToffoliGate False True q p h
-                (q, p) = CNotGate True q p
+                (q, p) = cnotGate True q p
                 T a as q = toT $ body q
-                (q, p) = CNotGate True q p
+                (q, p) = cnotGate True q p
       	        T q p h = toT $ ToffoliGate False True q p h
             in (T a (Cons h as) p, q) )
            in ((a, has), p) )
@@ -302,7 +302,7 @@ for_each_map3 xs ys zs s body =
 cnotGate_if : ! (Bool -> Qubit -> Qubit -> Bool -> Qubit * Qubit)
 cnotGate_if cond x y s =
   case cond of
-    True -> CNotGate s x y
+    True -> cnotGate s x y
     False -> (x, y)
     
 twos_complement : ! (List Bool -> List Bool)

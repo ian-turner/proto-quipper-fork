@@ -529,7 +529,7 @@ proofCheck flag (LetPat m bd) goal  = open bd $ \ (PApp kid args) n ->
      let matchEigen = isEigenVar m
          eSub = map (\ x -> (x, EigenVar x)) eigen
          isDpm = isSemi || matchEigen
-     (unifRes, (sub', _)) <- dependentUnif index isDpm head tt
+     (unifRes, (sub', _)) <- dependentUnif index isSemi head tt
      ss <- getSubst
      case unifRes of
        UnifError -> throwError $ (UnifErr head tt)
@@ -589,7 +589,7 @@ proofCheck flag a@(Case tm (B brs)) goal =
                  eSub = map (\ x -> (x, EigenVar x)) eigen
                  isDpm = isSemi || matchEigen
              ss <- getSubst
-             (unifRes, (sub', _)) <- dependentUnif index isDpm head t
+             (unifRes, (sub', _)) <- dependentUnif index isSemi head t
              case unifRes of
                UnifError -> throwError $ (UnifErr head t)
                Success -> do
@@ -614,7 +614,7 @@ proofCheck flag a@(Case tm (B brs)) goal =
                                 removeVar x
                            _ -> return ()
                        ) vs
-                 updateSubst ss
+                 when isDpm $ updateSubst ss
 
 proofCheck flag a goal =
   do t <- proofInfer flag a

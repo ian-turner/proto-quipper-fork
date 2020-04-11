@@ -98,8 +98,26 @@ instance Measurement Qubit Bool where
   measure x = dynlift (meas x)
 
 
+instance forall a a' b b' -> (Measurement a a', Measurement b b') =>
+             Measurement (a * b) (a' * b') where
+  measure x = let (a, b) = x in (measure a, measure b)
+
+instance forall a a' (n : Nat) -> (Measurement a a') =>
+             Measurement (Vec a n) (Vec a' n) where
+  measure x =
+    case x of
+      VNil -> VNil
+      VCons a as -> VCons (measure a) (measure as)
+
 runCirc : ! forall a b a' b' ->
              (Simple b, Simple a, Measurement b b', Initialize a' a) =>
              Circ(a, b) -> a' -> b'
 runCirc circ a =
   measure $ (unbox circ) (init a)
+
+
+idV : ! forall a (n : Nat) -> Vec a n -> Vec a n
+idV l = case l of
+         VNil -> VNil
+
+-- g = idV [1]

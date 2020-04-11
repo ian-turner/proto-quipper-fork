@@ -2,18 +2,18 @@ module Design where
 import "lib/Prelude.dpq"
 
 
-toffoli : ! (Qubit -> Qubit * Qubit -> Qubit * Qubit * Qubit)
-toffoli x c =
-  let (c1, c2) = c in ToffoliGate True True x c1 c2
+-- toffoli : ! (Qubit -> Qubit * Qubit -> Qubit * Qubit * Qubit)
+-- toffoli x c =
+--   let (c1, c2) = c in ToffoliGate True True x c1 c2
 
-tgate_inv : ! (Qubit -> Qubit)
-tgate_inv x = (unbox $ reverse $ box Qubit TGate) x
+-- tgate_inv : ! (Qubit -> Qubit)
+-- tgate_inv x = (unbox $ reverse $ box Qubit TGate) x
 
 -- controlled SGate : Qubit -> Qubit
-gate {1,1,1} SGate : Qubit -> Qubit
+-- gate {1,1,1} SGate : Qubit -> Qubit
 
-sgate : ! (Qubit -> Qubit)
-sgate x = SGate x -- fst $ SGate x ()
+-- sgate : ! (Qubit -> Qubit)
+-- sgate x = SGate x -- fst $ SGate x ()
 
 makeToffoli : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
 makeToffoli a b c =
@@ -44,8 +44,8 @@ boxT = box (Qubit * Qubit * Qubit) $ \ x -> (uncurry $ uncurry makeToffoli) x
 if_then_else : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit * Qubit)
 if_then_else a x y = 
   let anc = initQubit False
-      (anc, x, a) = toffoli anc (x, a)     
-      (z, y, a) = toffoli anc (y, QNot a)
+      (anc, x, a) = toffoli anc x a
+      (z, y, a) = toffoli anc y (QNot a)
   in (QNot a, x , y , z)
 
 box_if : Circ(Qubit * Qubit * Qubit, Qubit * Qubit * Qubit * Qubit)
@@ -74,7 +74,7 @@ box_negateOn' = box (Qubit * Qubit * Qubit) $ \ x -> (uncurry $ uncurry negateOn
 negateAnd : ! (Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit * Qubit)
 negateAnd a x y =
   let (a, x1, x2, z) = negateOn a x
-      (r, y, z) = toffoli (initQubit False) (y, z)
+      (r, y, z) = toffoli (initQubit False) y z
   in (a, x1, x2, r, y, z)
 
 box_negateAnd : Circ(Qubit * Qubit * Qubit, Qubit * Qubit * Qubit * Qubit * Qubit * Qubit)
@@ -90,7 +90,7 @@ negateOn2 (a x : Qubit) =
 
 conjunction : ! (Qubit -> Qubit -> WithGarbage Qubit)
 conjunction x y = 
-  do let (r, x, y) = toffoli (initQubit False) (x, y)
+  do let (r, x, y) = toffoli (initQubit False) x y
      dispose x
      dispose y
      return r

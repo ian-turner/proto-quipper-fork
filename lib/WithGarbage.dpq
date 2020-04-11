@@ -46,13 +46,13 @@ instance BooleanLogic Qubit where
   -- generate 2 garbage
   band x y =
     let z = initQubit False
-        (z', y', x') =  ToffoliGate True True z y x
+        (z', y', x') =  toffoliGate True True z y x
     in dispose x' >> dispose y' >> return z'
        
   -- generate 2 garbage
   bor x y =
     let z = initQubit True
-        (z', y', x') = ToffoliGate False False z y x
+        (z', y', x') = toffoliGate False False z y x
     in dispose x' >> dispose y' >> return z'
         
 
@@ -69,10 +69,8 @@ instance BooleanLogic Qubit where
 
   -- generate 3 garbage
   bif q q1 q2 =
-       let (out1, cs) = not_g (Init0 ()) (q1, q)
-           (q1', q') = cs
-           (out2, cs')  = not_g out1 (q2, QNot q')
-           (q2', q'') = cs'
+       let (out1, q1', q') = toffoli (Init0 ()) q1 q
+           (out2, q2', q'')  = toffoli out1 q2 (QNot q')
      in  dispose (QNot q'') >> dispose q1' >> dispose q2' >> return out2
 
 instance forall a b -> (BooleanLogic a, BooleanLogic b) => BooleanLogic (a * b) where

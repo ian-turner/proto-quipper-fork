@@ -3,12 +3,12 @@ import "lib/Prelude.dpq"
 
 
 
-toffoli : ! (Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
-toffoli x y z = ToffoliGate True True x y z
+-- toffoli : ! (Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
+-- toffoli x y z = ToffoliGate True True x y z
 
 
 -- controlled CZ : Qubit -> Qubit
-gate {1,1,1} ZGate : Qubit -> Qubit
+-- gate {1,1,1} ZGate : Qubit -> Qubit
 
 cz : ! forall s -> (Simple s) => Qubit -> s -> Qubit * s
 cz q s = controlled (box Qubit ZGate) q s
