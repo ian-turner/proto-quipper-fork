@@ -120,4 +120,5 @@ idV : ! forall a (n : Nat) -> Vec a n -> Vec a n
 idV l = case l of
          VNil -> VNil
 
--- g = idV [1]
+-- g : Vec Nat 1
+g = idV [1]

@@ -26,8 +26,8 @@ import Control.Monad.Except
 import Text.PrettyPrint
 
 
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.List
 import qualified Data.Set as S
@@ -44,16 +44,17 @@ evaluation :: EExp -> Simulation Value
 evaluation e =
   do st <- S.get
      let gl = globalCxt $ lcontext st
-     (st', r) <- lift $ simulate $ getSt (runExceptT $ eval e)
-                 ES{evalEnv = gl, localEvalEnv = Map.empty}
-     case r of
-       Left e -> throwError $ EvalErr e
-       Right r -> return r
+     lift $ simulate $ fmap snd $ getSt (eval e) ES{evalEnv = gl, localEvalEnv = Map.empty}
+                         
+                 
+     -- case r of
+     --   Left e -> throwError $ EvalErr e
+     --   Right r -> return r
 
 -- * The Eval monad and eval function.
 
 -- | The evaluation monad.
-type Eval a = ExceptT EvalError QuantumState a
+type Eval a = QuantumState a
 
 
 -- | Evaluator state, it contains an underlying circuit and
@@ -72,20 +73,20 @@ newtype QuantumState a = QS {getSt :: EvalState -> ReadWrite (EvalState, a)}
 
 
 get :: Eval EvalState
-get = lift $ QS $ \ s -> return (s, s)
+get = QS $ \ s -> return (s, s)
 
 put :: EvalState -> Eval ()
-put s' = lift $ QS $ \ s -> return (s', ())
+put s' = QS $ \ s -> return (s', ())
 
 dynamicLift :: Label -> Eval Bool
-dynamicLift l = lift $ QS $ \ s ->
+dynamicLift l = QS $ \ s ->
   do b <- dynliftRW l
      return (s, b)
 
 
 addGates :: [Gate] -> Eval ()
 addGates gs =
-  lift (QS $ \ s -> mapM_ gateRW gs >> return (s, ()))
+  QS $ \ s -> mapM_ gateRW gs >> return (s, ())
                          
 
 
@@ -122,13 +123,14 @@ eval a@(EConst k) =
   do st <- get
      let genv = evalEnv st
      case Map.lookup k genv of
-       Nothing -> throwError $ UndefinedId k
+       Nothing -> error $ "undefined" ++ (show $ disp k) -- throwError $ UndefinedId k
        Just e ->
          case identification e of
            DataConstr _ -> return (VConst k)
            DefinedGate v -> return v
            DefinedFunction (Just (_, v, _)) -> return v
-           DefinedFunction Nothing -> throwError $ UndefinedId k
+           DefinedFunction Nothing -> error $ "undefined" ++ (show $ disp k)
+             -- throwError $ UndefinedId k
            DefinedMethod _ v -> return v
            DefinedInstFunction _ v -> return v
 
@@ -138,7 +140,8 @@ eval a@(ELBase k) =
   do st <- get
      let genv = evalEnv st
      case Map.lookup k genv of
-       Nothing -> throwError $ UndefinedId k
+       Nothing -> error $ "undefined" ++ (show $ disp k)
+                  -- throwError $ UndefinedId k
        Just e ->
          case identification e of
            DataType Simple _ (Just (ELBase id)) -> return (VLBase id)
@@ -197,7 +200,8 @@ eval (ELetPair m (Abst xs n)) =
          mapM_ (\ (x, y) -> addDefinition x y)
                         (zip xs vs)
          eval n
-       Nothing -> throwError $ TupleMismatch (map fst xs) m'
+       -- Nothing -> 
+         -- throwError $ TupleMismatch (map fst xs) m'
 
 
 eval (ELetPat m bd) =
@@ -232,8 +236,8 @@ eval b@(ECase m (EB bd)) =
                   mapM_ (\ (x, v) -> addDefinition x v) subs
                   eval m
                | otherwise -> reduce id args bds
-        reduce id args [] = 
-          throwError $ MissBranch id b
+        -- reduce id args [] = 
+          -- throwError $ MissBranch id b
 
 eval a = error $ "from eval: " ++ (show $ disp a)
 
@@ -442,15 +446,15 @@ evalBox body uv =
                 Right body' -> eval body'
                 Left v -> return v
       let uv' = toVal uv vs
-          (gs, (_, res)) = boxGates $ getSt (runExceptT $ evalApp b uv') st 
-      case res of
-        Left e -> throwError e
-        Right res' -> 
-          let -- Morphism ins gs _ = morph st'
-              newMorph = Morphism uv' gs res'
-              wires = getAllWires newMorph
-              morph' = Wired $ abst wires (VCircuit newMorph)
-          in return morph'
+          (gs, (_, res)) = boxGates $ getSt (evalApp b uv') st 
+      -- case res of
+        -- Left e -> throwError e
+        -- Right res' -> 
+--          let -- Morphism ins gs _ = morph st'
+          newMorph = Morphism uv' gs res
+          wires = getAllWires newMorph
+          morph' = Wired $ abst wires (VCircuit newMorph)
+      return morph'
 
 -- | Evaluate an existsBox term. Note that
 -- it is tempting to combine 'evalExbox' and 'evalBox' into one function,
@@ -465,16 +469,16 @@ evalExbox body uv =
       b <- eval body
       let uv' = toVal uv vs
           d = Morphism uv' [] uv'
-          (gs, (_, res)) = boxGates $ getSt (runExceptT $ evalApp b uv') st
-      case res of
-        Left e -> throwError e
-        Right (VPair n res') -> 
-          let -- Morphism ins gs _ = morph st'
-              newMorph = Morphism uv' gs res'
-              wires = getAllWires newMorph
-              morph' = Wired $ abst wires (VCircuit newMorph)
-          in return (VPair n morph')        
-        Right a -> error $ "from eval_exBox\n" ++ (show $ disp a)
+          (gs, (_, res)) = boxGates $ getSt (evalApp b uv') st
+      -- case res of
+      --   Left e -> throwError e
+          (VPair n res') = res
+--          let -- Morphism ins gs _ = morph st'
+          newMorph = Morphism uv' gs res'
+          wires = getAllWires newMorph
+          morph' = Wired $ abst wires (VCircuit newMorph)
+      return (VPair n morph')        
+  --      Right a -> error $ "from eval_exBox\n" ++ (show $ disp a)
 
 
 

@@ -26,8 +26,8 @@ import Control.Exception hiding (TypeError)
 import Text.Parsec hiding (count)
 import Text.PrettyPrint
 import Control.Monad.State
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 
 
 -- | Top-level error data type. 
