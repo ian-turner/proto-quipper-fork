@@ -157,8 +157,9 @@ tcTop m =
 evaluation :: A.Exp -> Top Value            
 evaluation exp =
   do gl <- getCxt
+     n <- getCounter
      exp' <- tcTop $ erasure exp
-     fmap snd $ ioTop $ simulate $ getSt (eval exp') (initES gl)
+     fmap snd $ ioTop $ simulate $ getSt (eval exp') (initES gl n)
      
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
 topTypeInfer :: A.Exp -> Top (A.Exp, A.Exp)
@@ -340,3 +341,11 @@ putMain v t = do
   s <- getInterpreterState
   let s' = s {mainExp = Just (v, t)}
   putInterpreterState s'
+
+
+freshLabels :: Int -> Top [Label]
+freshLabels n =
+  do c <- getCounter
+     let r = take n [c..]
+     putCounter (c+n)
+     return r

@@ -42,17 +42,26 @@ type Eval a = QuantumState a
 -- a global context. 
 data EvalState =
   ES { evalEnv :: Context,  -- ^ The global evaluation context.
-       localEvalEnv :: Map Variable (Value, Integer, Integer, [Variable])
+       localEvalEnv :: Map Variable (Value, Integer, Integer, [Variable]),
        -- ^ The heap for evaluation, represented by a map.
        -- The first 'Integer' represents the approximate number of occurrences,
        -- the second 'Integer' represents its accurate reference count,
        -- the ['Variable'] is the variables that it refers to.
+       number :: Int -- counter for fresh label
      }
 
 newtype QuantumState a = QS {getSt :: EvalState -> ReadWrite (EvalState, a)}
 
-initES gl = ES{evalEnv = gl, localEvalEnv = Map.empty}
+initES gl n = ES{evalEnv = gl, localEvalEnv = Map.empty, number = n}
 
+freshL :: Int -> Eval [Label]
+freshL n =
+  do s <- get
+     let m = number s
+         r = take n [m ..]
+     put s{number = m + n}
+     return r
+     
 get :: Eval EvalState
 get = QS $ \ s -> return (s, s)
 
@@ -419,7 +428,7 @@ evalApp v w =
 evalBox :: Either Value EExp -> Value -> Eval Value               
 evalBox body uv =
   -- freshLabels (size uv) $ \ vs ->
-   do let vs = freshLabels (size uv)
+   do vs <- freshL (size uv)
       -- addWires vs
       st <- get
       b <- case body of
@@ -444,7 +453,7 @@ evalBox body uv =
 evalExbox :: EExp -> Value -> Eval Value        
 evalExbox body uv =
   -- freshLabels (size uv) $ \ vs ->
-   do let vs = freshLabels (size uv)
+   do vs <- freshL (size uv)
       -- addWires vs
       st <- get
       b <- eval body

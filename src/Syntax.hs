@@ -403,7 +403,6 @@ data Value =
     -- and the control argument, LEnv binds a variable to a circuit value.
   | VCircuit Morphism
     -- ^ Unbound circuit (incomplete).
-  | Wired (Bind [Label] Value)
     -- ^ Complete circuit.
   | VApp Value Value -- ^ Applicative value. 
   | VForce Value -- ^ Value version of 'Force'.
@@ -476,7 +475,7 @@ instance Disp Value where
   display flag (VLiftCirc (Abst vs (Abst env e))) = 
    text "vliftCirc" <+> hsep (map dispRaw vs) <+> text "->"
    <+> braces (dispRaw env) $$ nest 2 (display flag e)
-  display flag (Wired (Abst ls v)) = text "circ" 
+--   display flag (Wired (Abst ls v)) = text "circ" 
 --    open bd $ \ ls v -> text "circ"
 --       display flag v
   display flag a@(VApp t t') = 

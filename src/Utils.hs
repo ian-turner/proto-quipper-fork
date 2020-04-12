@@ -10,7 +10,6 @@ module Utils
          getName,
          pattern Abst,
          freshNames,
-         freshLabels,
          Disp(..),
          Variable,
          Id(..),
@@ -25,7 +24,7 @@ module Utils
          nextCase,
          exitCase,
          hashPos
-         
+
        )
        where
 
@@ -37,7 +36,7 @@ import Text.Parsec.Error(ParseError,showErrorMessages,errorPos,errorMessages)
 import Prelude hiding((<>))
 import Nominal
 import Data.Char
-
+import System.IO.Unsafe
 -- | An empty data type for classifying variables. 
 data V
 
@@ -65,16 +64,21 @@ instance Disp Variable where
   display False (Variable x _) = text (show x)
   
 -- | An empty data type for labels.
-data L
-instance AtomKind L where
-  suggested_names _ = ["l"]
-  expand_names _ xs = xs ++ [ x ++ (show n) | n <- [1..], x <- xs ]
+
+-- data L
+
+-- instance AtomKind L where
+--   suggested_names _ = ["u"]
+--   expand_names _ xs = xs ++ [ x ++ (show n) | n <- [1..], x <- xs ]
 
 -- | Labels are used for representing the input/output of circuits. 
-type Label = AtomOfKind L
+type Label = Int
 
-instance Disp (AtomOfKind L) where
-  display _ t = text (show t)
+instance Disp Int where
+  display _ t = text $ show t
+  
+-- instance Disp (AtomOfKind L) where
+--   display _ t = text (show t)
 
 -- | A prefix pattern definition for opening a binder.  
 pattern Abst :: (Bindable a, Nominal t) => a -> t -> Bind a t
@@ -94,22 +98,6 @@ freshNames (n:ns) body =
   where freshName s k =
           with_fresh $ \a -> k (Variable a (NoBind s))
 
--- | Generate a list of fresh labels from a given length.
-freshLabels :: Int -> [Label]
-freshLabels n | n == 0 = []
-freshLabels n | n > 0 =
-  let xs = freshLabels (n-1)
-  in x:xs
-  where x = with_fresh id
-  
--- freshLabels :: Int -> ([Label] -> t) -> t
--- freshLabels n body | n == 0  = body []
--- freshLabels n body | otherwise  =
---   freshLabel $ \ a ->
---   freshLabels (n-1) $ \ as ->
---   body (a:as)
---   where freshLabel k =
---           with_fresh $ \a -> k a
 
 -- | Constant identifiers, they are used for top-level definitions and constructors.
 data Id = Id String

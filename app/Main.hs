@@ -1,5 +1,6 @@
 module Main where
 import ReadEvalPrint
+import Utils
 import Dispatch
 import TopMonad
 import ConcreteSyntax

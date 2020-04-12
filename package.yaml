@@ -58,6 +58,7 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     - -O3
+    - -fno-full-laziness
     dependencies:
     - dpq
 

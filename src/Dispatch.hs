@@ -91,10 +91,10 @@ dispatch (Eval e) =
          et <- tcTop $ erasure e''
          when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
          ioTop $ putStrLn ("it has type \n" ++ (show $ disp t'))
-         -- v <- evaluation e''
-         ioTop $ do{ (_, v) <- simulate $ getSt (eval et) (initES gl);
-                     putStrLn ("it has value \n" ++ (show $ dispRaw v))}
-         -- ioTop $ putStrLn ("it has value \n" ++ (show $ dispRaw v))
+         v <- evaluation e''
+         -- ioTop $ do{ (_, v) <- simulate $ getSt (eval et) (initES gl);
+         --             putStrLn ("it has value \n" ++ (show $ dispRaw v))}
+         ioTop $ putStrLn ("it has value \n" ++ (show $ dispRaw v))
          return True
 
 dispatch (Display e) =

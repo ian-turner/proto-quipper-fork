@@ -162,8 +162,8 @@ interaction (RW_Write (Gate name [] v@(VPair _ _) w@(VPair _ _) VStar _) res) h 
 interaction (RW_Write g res) h map ls =
   error $ "from interaction:" ++ (show g)
   
-labelToNum l =
-  let r = tail (show l) in if null r then "0" else r
+labelToNum l = show l
+--  let r = tail (show l) in if null r then "0" else r
                                                    
 toGateName "CNot" = "CNOT"
 toGateName "Meas" = "M"

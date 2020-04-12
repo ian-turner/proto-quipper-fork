@@ -531,7 +531,7 @@ isConst _ = False
 
 -- | Determine if a value is a circuit.
 isCirc :: Value -> Bool
-isCirc (Wired _) = True
+isCirc (VCircuit _) = True
 isCirc _ = False
 
 
@@ -968,8 +968,8 @@ toEigen t =
 
 -- | Count the number of gates in a circuit.
 gateCount :: Maybe String -> Value -> Integer
-gateCount Nothing (Wired (Abst _ (VCircuit (Morphism _ gs _)))) = genericLength gs
-gateCount (Just n) (Wired (Abst _ (VCircuit (Morphism _ gs _)))) =
+gateCount Nothing (VCircuit (Morphism _ gs _)) = genericLength gs
+gateCount (Just n) (VCircuit (Morphism _ gs _)) =
   helper n gs 0
   where helper n [] m = m
         helper n (Gate d _ _ _ _ _:s) m

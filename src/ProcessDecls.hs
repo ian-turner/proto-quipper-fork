@@ -271,7 +271,7 @@ process (GateDecl pos id params t m@(M _ (BConst flag) _)) =
      when (null bds) $ throwError $ CompileErr (GateErr pos id)
      let ty = Bang (foldr Arrow t params) m
      (_, tk) <- tcTop $ typeChecking True ty Set
-     let gate = makeGate id (map erasePos params) (erasePos t) flag
+     gate <- makeGate id (map erasePos params) (erasePos t) flag
      let fp = Info {classifier = erasePos tk,
                    identification = DefinedGate gate
                    }
@@ -494,7 +494,7 @@ determineClassifier d kd constructors types =
                           return $ and r
 
 -- | Construct a gate from a gate declaration.
-makeGate :: Id -> [Exp] -> Exp -> Bool -> Value
+makeGate :: Id -> [Exp] -> Exp -> Bool -> Top Value
 makeGate id ps t flag =
   let lp = length ps + 1
       ns = getName "x" lp
@@ -504,19 +504,19 @@ makeGate id ps t flag =
                 else foldl VTensor (head inss) (tail inss)
       inNames = size inExp
   in
-      freshNames ns $ \ (y:xs) ->
-      let ins = freshLabels inNames -- $ \ ins ->
-          outs = freshLabels outNames -- $ \ outs ->
-          params = map VVar xs
-          inExp' = toVal inExp ins
-          outExp' = toVal outExp outs
-          g = Gate id params inExp' outExp' VStar flag
+      freshNames ns $ \ (y:xs) -> do
+        ins <- freshLabels inNames -- $ \ ins ->
+        outs <- freshLabels outNames -- $ \ outs ->
+        let params = map VVar xs
+            inExp' = toVal inExp ins
+            outExp' = toVal outExp outs
+            g = Gate id params inExp' outExp' VStar flag
           -- morph = Wired $ abst (ins ++ outs) (VCircuit $ Morphism inExp' [g] outExp')
-          morph = VCircuit $ Morphism inExp' [g] outExp'
-          env = Map.fromList [(y, (morph, 1))] 
-          unbox_morph = ELam [y] $ etaPair (length inss) (EForce $ EApp EUnBox (EVar y))
-          res = VLiftCirc (abst xs (abst env unbox_morph))
-      in res
+            morph = VCircuit $ Morphism inExp' [g] outExp'
+            env = Map.fromList [(y, (morph, 1))] 
+            unbox_morph = ELam [y] $ etaPair (length inss) (EForce $ EApp EUnBox (EVar y))
+            res = VLiftCirc (abst xs (abst env unbox_morph))
+        return res
   where makeInOut (Arrow t t') =
           let (ins, outs) = makeInOut t'
           in (toV t:ins, outs)

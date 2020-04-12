@@ -698,8 +698,9 @@ wirelist (Gate _ _ input output ctrl _ : gs) =
 --                                                                              
 -- \[image coord.png]                                                            
 page_of_ocircuit :: FormatStyle -> Value -> Document ()
-page_of_ocircuit fs (Wired bd) =
-  open bd $ \ ws (VCircuit (Morphism q1 ocirc q2)) ->
+-- page_of_ocircuit fs (Wired bd) =
+--  open bd $ \ ws (VCircuit (Morphism q1 ocirc q2)) ->
+page_of_ocircuit fs (VCircuit (Morphism q1 ocirc q2)) =
   let sc = 10
       (gs, _) = refresh_gates Map.empty ocirc []
       ws = getWires q1 `List.union` wirelist gs
