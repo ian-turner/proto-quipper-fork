@@ -113,60 +113,53 @@ interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map []
           do let cmd = ("Q " ++ labelToNum w)
              hPutStrLn h cmd
              interaction c h map []
-             -- r <- hGetLine h
-             -- case read r of
-             --   OK -> interaction c h map []
-             --   a -> error $ "from interaction" ++ show a ++ ":" ++ cmd
           | getName name == "Init1" =
           do hPutStrLn h ("Q " ++ labelToNum w ++ " 1")
              interaction c h map []
-             -- r <- hGetLine h
-             -- case read r of
-             --   OK -> interaction c h map []
+
 interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map (v:vs)
           | getName name == "Init0" =
           do let map' = map `Map.union` Map.fromList [(w, v)]
              hPutStrLn h ("Q " ++ labelToNum v)
              interaction c h map' vs
-             -- r <- hGetLine h
-             -- case read r of
-             --   OK -> interaction c h map' vs
           | getName name == "Init1" =
           do let map' = map `Map.union` Map.fromList [(w, v)]
              hPutStrLn h ("Q " ++ labelToNum v ++ " 1")
              interaction c h map' vs
-             -- r <- hGetLine h
-             -- case read r of
-             --   OK -> interaction c h map' vs
+
 interaction (RW_Write (Gate name [] (VLabel v) (VLabel w) VStar _) c) h map ls =
           do let (VLabel v') = renameTemp (VLabel v) map
                  map' = map `Map.union` Map.fromList [(w, v')]
                  g = toGateName (getName name)
              hPutStrLn h (g++ " "++ labelToNum v')
              interaction c h map' ls
-             -- r <- hGetLine h
-             -- case read r of
-             --    OK -> interaction c h map' ls
-             --    a -> error $ show a
-interaction (RW_Write (Gate name [] v@(VPair _ _) w@(VPair _ _) VStar _) res) h map ls =
+
+-- binary unitary gate
+interaction (RW_Write (Gate name [] v@(VPair (VLabel _) _) w@(VPair _ _) VStar _) res) h map ls =
           do let (VPair (VLabel a) (VLabel b)) = renameTemp v map
                  (VPair (VLabel c) (VLabel d)) = w
                  map' = map `Map.union` Map.fromList [(c, a), (d, b)]
                  g = toGateName (getName name)
              hPutStrLn h (g++ " "++ labelToNum a ++ " " ++ labelToNum b)
              interaction res h map' ls
-             -- r <- hGetLine h
-             -- case read r of
-             --    OK -> interaction res h map' ls
-                   
+
+-- ternary unitary gate
+interaction (RW_Write (Gate name [] v@(VPair (VPair _ _) _) w@(VPair (VPair _ _) _) VStar _) res) h map ls =
+          do let (VPair (VPair (VLabel a) (VLabel b)) (VLabel e)) = renameTemp v map
+                 (VPair (VPair (VLabel c) (VLabel d)) (VLabel e')) = w
+                 map' = map `Map.union` Map.fromList [(c, a), (d, b), (e', e)]
+                 g = toGateName (getName name)
+             hPutStrLn h (g++ " "++ labelToNum a ++ " " ++ labelToNum b ++ " " ++ labelToNum e)
+             interaction res h map' ls
+
 interaction (RW_Write g res) h map ls =
   error $ "from interaction:" ++ (show g)
   
 labelToNum l = show l
---  let r = tail (show l) in if null r then "0" else r
                                                    
 toGateName "CNot" = "CNOT"
 toGateName "Meas" = "M"
+toGateName "Toffoli" = "TOF"
 toGateName "QNot" = "X"
 toGateName "H" = "H"
 toGateName "ZGate" = "Z"
@@ -176,7 +169,7 @@ toGateName "SGate" = "S"
 toGateName "TGate" = "T"
 toGateName "TGate*" = "T*"
 toGateName "Discard" = "D"
-
+toGateName a = error $ "from toGateName: " ++ a
 runTCPClient :: HostName -> ServiceName -> (Socket -> IO a) -> IO a
 runTCPClient host port client = withSocketsDo $ do
     addr <- resolve

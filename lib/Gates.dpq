@@ -62,6 +62,8 @@ gate {1,1,1} ToffoliGate_01 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
 -- controls the third qubit
 gate {1,1,1} ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
 
+gate {1,1,1} Toffoli : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+
 
 -- A controlled-not gate with a signed control, the second qubit is the controlling qubit
 
@@ -127,23 +129,23 @@ tgate = TGate
 meas = Meas
 
 toffoli : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
-toffoli c b a =
-  let 
-      c = H c
-      (c, b) = CNot c b
-      c = tgate_inv c
-      (c, a) = CNot c a
-      c = tgate c
-      (c, b) = CNot c b
-      c = tgate_inv c
-      (c, a) = CNot c a
-      c = H (TGate c)
-      b = tgate b
-      (b, a) = CNot b a
-      a = tgate a
-      b = tgate_inv b
-      (b, a) = CNot b a
-  in (c, b, a)
+toffoli c b a = Toffoli c b a
+  -- let 
+  --     c = H c
+  --     (c, b) = CNot c b
+  --     c = tgate_inv c
+  --     (c, a) = CNot c a
+  --     c = tgate c
+  --     (c, b) = CNot c b
+  --     c = tgate_inv c
+  --     (c, a) = CNot c a
+  --     c = H (TGate c)
+  --     b = tgate b
+  --     (b, a) = CNot b a
+  --     a = tgate a
+  --     b = tgate_inv b
+  --     (b, a) = CNot b a
+  -- in (c, b, a)
 
 boxToffoli = box (Qubit * Qubit * Qubit) $ \ x -> uncurry (uncurry toffoli) x
 
@@ -154,9 +156,9 @@ toffoliGate (a b : Bool) (x y z : Qubit) =
    else if b then let (x, y, z) = toffoli x (QNot y) z in (x, QNot y, z)
         else let (x, y, z) = toffoli x (QNot y) (QNot z) in (x, QNot y, QNot z)
         
--- testTof =
---   let (x, y, z) = toffoli (initQubit False) (initQubit False) (initQubit True)
---   in (dynlift (meas x), dynlift (meas y), dynlift (meas z))
+testTof =
+  let (x, y, z) = toffoli (initQubit True) (initQubit True) (initQubit False)
+  in (dynlift (meas x), dynlift (meas y), dynlift (meas z))
 
 -- testCNot =
 --   let (x, y) = CNot (initQubit False) (initQubit True)

@@ -490,6 +490,18 @@ render_gate fs (Gate name [v1, v2] (VPair (VPair (VLabel w) (VLabel c1)) (VLabel
       t4 = render_not fs x y
   in (s2, t3 >> t4)
 
+render_gate fs (Gate name [] (VPair (VPair (VLabel w) (VLabel c1)) (VLabel c2))
+                outs VStar _) x ys maxh
+  | getName name == "Toffoli" =
+  let ymap w = ys `mapLookup` w
+      y = ymap w
+      c1' = positive c1
+      c2' = positive c2
+      s2 = render_controlwire x ys [w, c1, c2] [c1', c2']
+      t3 = render_controldots fs x ys [c1', c2']
+      t4 = render_not fs x y
+  in (s2, t3 >> t4)
+
 render_gate fs (Gate name [] (VPair (VPair (VLabel w) (VLabel c1)) (VLabel c2)) outs VStar _)
   x ys maxh
   | getName name == "ToffoliGate_01" =
