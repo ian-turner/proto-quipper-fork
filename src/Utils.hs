@@ -71,10 +71,10 @@ instance Disp Variable where
 --   suggested_names _ = ["u"]
 --   expand_names _ xs = xs ++ [ x ++ (show n) | n <- [1..], x <- xs ]
 
--- | Labels are used for representing the input/output of circuits. 
-type Label = Int
+-- | Labels are integers used for representing the input/output of circuits. 
+type Label = Integer
 
-instance Disp Int where
+instance Disp Integer where
   display _ t = text $ show t
   
 -- instance Disp (AtomOfKind L) where

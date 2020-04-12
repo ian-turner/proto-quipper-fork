@@ -7,7 +7,7 @@
 -- It still has memory problem when generating super-large circuits.
 
 module Evaluation 
-       (eval, getSt, initES, size, toVal) where
+       (eval, number, getSt, initES, size, toVal) where
 
 import Syntax
 import Erasure
@@ -24,8 +24,8 @@ import Control.Monad.Except
 import Text.PrettyPrint
 import TCMonad 
 
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.List
 import qualified Data.Set as S
@@ -47,7 +47,7 @@ data EvalState =
        -- The first 'Integer' represents the approximate number of occurrences,
        -- the second 'Integer' represents its accurate reference count,
        -- the ['Variable'] is the variables that it refers to.
-       number :: Int -- counter for fresh label
+       number :: Integer -- counter for fresh label
      }
 
 newtype QuantumState a = QS {getSt :: EvalState -> ReadWrite (EvalState, a)}
@@ -59,7 +59,7 @@ freshL n =
   do s <- get
      let m = number s
          r = take n [m ..]
-     put s{number = m + n}
+     put s{number = m + toInteger n}
      return r
      
 get :: Eval EvalState
@@ -78,12 +78,6 @@ addGates :: [Gate] -> Eval ()
 addGates gs =
   QS $ \ s -> mapM_ gateRW gs >> return (s, ())
                          
--- addWires ws =
---   do s <- get
---      let ws1 = wires s
---      put s{wires = ws ++ ws1}
-
-
 instance Monad QuantumState where
   return a = QS $ \ s -> return (s, a)
   f >>= g = QS h
@@ -279,13 +273,10 @@ evalApp (VForce VDynlift) (VLabel v) =
      if b then return $ VConst (Id "True") else return $ VConst (Id "False")
 evalApp (VForce (VApp VUnBox v)) w =
   case v of
-    -- Wired bd ->
-    --   open bd $ \ wiress m ->
-    --   case m of
-    f@(VCircuit (Morphism ins gs outs)) ->
-          do let binding = makeBinding ins w
-             --     wires' = wiress \\ getWires ins
-             -- addWires wires'
+    f@(VCircuit morph) ->
+          do morph' <- refresh morph
+             let (Morphism ins gs outs) = morph'
+             let binding = makeBinding ins w
              appendMorph binding (Morphism ins gs outs)
     a -> error $ "evalApp(Unbox ..) " ++ (show $ disp a)
 
@@ -559,24 +550,27 @@ templateToVal a = error "applying templateToVal function to an ill-formed templa
 -- | Get the size of a simple data type.
 size :: Num a => Value -> a
 size (VLBase x) = 1
+size (VLabel x) = 1
 size (VConst _) = 0
 size VUnit = 0
+size VStar = 0
 size (VApp e1 e2) = size e1 + size e2
 size (VTensor e1 e2) = size e1 + size e2
+size (VPair e1 e2) = size e1 + size e2
 size a = error $ "applying size function to an ill-formed template:" ++ (show $ disp a)     
 
 -- | Obtain all the labels from the circuit.
 
--- getAllWires :: Morphism -> [Label]
--- getAllWires (Morphism ins gs outs) =
---   let inWires = S.fromList $ getWires ins
---       outWires = S.fromList $ getWires outs
---       gsWires = S.unions $ map getGateWires gs
---   in S.toList (inWires `S.union` outWires `S.union` gsWires)
---   where getGateWires (Gate _ _ ins outs ctrls _) =
---           S.fromList (getWires ins) `S.union`
---           S.fromList (getWires outs) `S.union`
---           S.fromList (getWires ctrls)
+getAllWires :: Morphism -> [Label]
+getAllWires (Morphism ins gs outs) =
+  let inWires = S.fromList $ getWires ins
+      outWires = S.fromList $ getWires outs
+      gsWires = S.unions $ map getGateWires gs
+  in S.toList (inWires `S.union` outWires `S.union` gsWires)
+  where getGateWires (Gate _ _ ins outs ctrls _) =
+          S.fromList (getWires ins) `S.union`
+          S.fromList (getWires outs) `S.union`
+          S.fromList (getWires ctrls)
 
 
 -- | Decrease the reference count for a list of variables.
@@ -591,7 +585,30 @@ decrRef (v:vs) m =
       in decrRef vs m'
         
 
-  
-
+refresh (Morphism ins gs outs) =
+  do insWires' <- freshL (size ins)
+     let insWires = getWires ins
+         m = Map.fromList (zip insWires insWires')
+     (gs', m') <- helper m gs
+     let outs' = renameTemp outs m'
+         ins' = renameTemp ins m
+     return (Morphism ins' gs' outs')
+  where helper m [] = return ([], m)
+        helper m ((Gate id ps input output ctrl flag):gs) =
+          do let inputWires = [ x | x <- getWires input, Map.lookup x m == Nothing]
+                 outputWires = [ x | x <- getWires output, Map.lookup x m == Nothing]
+                 ctrlWires = [ x | x <- getWires ctrl, Map.lookup x m == Nothing]
+             newInputWires <- freshL (length inputWires)
+             newOutputWires <- freshL (length outputWires)
+             newCtrlWires <- freshL (length ctrlWires)
+             let m' = Map.union (Map.fromList (zip inputWires newInputWires))
+                      (Map.fromList (zip outputWires newOutputWires))
+                 m'' = (m `Map.union` m') `Map.union`
+                       (Map.fromList (zip ctrlWires newCtrlWires))
+                 input' = renameTemp input m''
+                 output' = renameTemp output m''
+                 ctrl' = renameTemp ctrl m''
+             (gs', m''') <- helper m'' gs
+             return ((Gate id ps input' output' ctrl' flag):gs', m''')
 
 

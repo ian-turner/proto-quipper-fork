@@ -93,7 +93,8 @@ data InterpreterState = InterpreterState {
   parentFiles :: [String], -- ^ Parent files, for
                            -- preventing cyclic importing.
   importedFiles :: [String], -- ^ Imported files, for preventing double importing.
-  counter :: Int, -- ^ A counter. 
+  counter :: Int, -- ^ A counter.
+  currentWire :: Label, -- ^ Current fresh label
   path :: String -- ^ DPQ project path.
   }
 
@@ -157,9 +158,12 @@ tcTop m =
 evaluation :: A.Exp -> Top Value            
 evaluation exp =
   do gl <- getCxt
-     n <- getCounter
+     n <- getCurrentLabel
      exp' <- tcTop $ erasure exp
-     fmap snd $ ioTop $ simulate $ getSt (eval exp') (initES gl n)
+     (st, v) <- ioTop $ simulate $ getSt (eval exp') (initES gl n)
+     let n' = number st
+     n' `seq` putLabel n'
+     return v
      
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
 topTypeInfer :: A.Exp -> Top (A.Exp, A.Exp)
@@ -204,6 +208,7 @@ emptyState p = InterpreterState {
   parentFiles = [],
   importedFiles = [],
   counter = 0,
+  currentWire = 0,
   path = p
   }
 
@@ -225,6 +230,11 @@ getCounter :: Top Int
 getCounter = do
   s <- getInterpreterState
   return (counter s)
+
+getCurrentLabel :: Top Integer
+getCurrentLabel = do
+  s <- getInterpreterState
+  return (currentWire s)
 
 -- | Add a build in identifier according to the third argument.
 -- For example, @addBuiltin (BuiltIn i) "Simple" A.Base@.
@@ -254,6 +264,12 @@ putCounter :: Int -> Top ()
 putCounter i = do
   s <- getInterpreterState
   let s' = s {counter = i}
+  putInterpreterState s'
+
+putLabel :: Integer -> Top ()
+putLabel i = do
+  s <- getInterpreterState
+  let s' = s {currentWire = i}
   putInterpreterState s'
 
 -- | Update current file name.
@@ -345,7 +361,7 @@ putMain v t = do
 
 freshLabels :: Int -> Top [Label]
 freshLabels n =
-  do c <- getCounter
+  do c <- getCurrentLabel
      let r = take n [c..]
-     putCounter (c+n)
+     putLabel (c + toInteger n)
      return r
