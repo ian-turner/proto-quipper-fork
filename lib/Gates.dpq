@@ -48,19 +48,19 @@ gate {1,0,0} Meas : Qubit -> Bit
 -- A Toffoli gate specialized to one positive and one negative
 -- control-> The second argument is the positive control and the third
 -- argument is the negative one->
--- gate {1,1,1} ToffoliGate_10 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+gate {1,1,1} ToffoliGate_10 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
 
 -- A Toffoli gate specialized to one positive and one negative
 -- control-> The second argument is the negative control and the third
 -- argument is the positive one->
--- gate {1,1,1} ToffoliGate_01 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+gate {1,1,1} ToffoliGate_01 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
 
 -- A Toffoli gate with signed controls-> A sign of 'True' means the
 -- control fires when the qubit is 1; a sign of 'False' means the
 -- control fires when the qubit is 0->
 -- The first parameter controls the second qubit, the second parameter
 -- controls the third qubit
--- gate {1,1,1} ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+gate {1,1,1} ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
 
 
 -- A controlled-not gate with a signed control, the second qubit is the controlling qubit

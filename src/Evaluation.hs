@@ -271,9 +271,11 @@ evalApp VUnBox v | otherwise = return VUnBox
 evalApp (VForce VDynlift) (VLabel v) =
   do b <- dynamicLift v
      if b then return $ VConst (Id "True") else return $ VConst (Id "False")
+
+-- append gates
 evalApp (VForce (VApp VUnBox v)) w =
   case v of
-    f@(VCircuit morph) ->
+    VCircuit morph ->
           do morph' <- refresh morph
              let (Morphism ins gs outs) = morph'
              let binding = makeBinding ins w
@@ -293,19 +295,17 @@ evalApp (VApp (VApp (VApp (VApp VExBox q) _) _) _) v =
       evalExbox body q
 
 
-evalApp (VApp (VApp VReverse _) _) m' =
+evalApp (VApp (VApp VReverse _) _) (VCircuit m) = do
+  m' <- refresh m
   case m' of
-    -- Wired bd ->
-    --   open bd $ \ ws (VCircuit (Morphism ins gs outs)) ->
-    (VCircuit (Morphism ins gs outs)) ->
+    (Morphism ins gs outs) ->
       let gs' = revGates gs in
         return $ (VCircuit $ Morphism outs gs' ins)
 
-evalApp (VApp (VApp (VApp VControlled _) _) _) m =
+evalApp (VApp (VApp (VApp VControlled _) _) _) (VCircuit m) = do
+--  m' <- refresh m
   case m of
-    -- Wired bd ->
-    --   open bd $ \ ws (VCircuit (Morphism ins gs outs)) ->
-    (VCircuit (Morphism ins gs outs)) ->
+    (Morphism ins gs outs) ->
       freshNames ["#ctrl", "#input", "#circ"] $ \ (ctrl:input:circ:[]) -> 
       let -- mycirc = Wired $ abst ws (VCircuit $ Morphism ins (controlledGates ctrl gs) outs)
           mycirc = VCircuit $ Morphism ins (controlledGates ctrl gs) outs
@@ -320,10 +320,12 @@ evalApp (VApp (VApp (VApp VControlled _) _) _) m =
 evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _)_)_) m =
   return $ VComputed m 
 
-evalApp (VComputed m1) m2 =
-  let (VCircuit (Morphism a gs1 (VPair b1 e))) = m1
-      (VCircuit circ2@(Morphism (VPair b2 _) _ (VPair _ _))) = m2
-      gs1' = map negateCtrl gs1
+evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
+  m1' <- refresh m1
+  let (Morphism a gs1 (VPair b1 e)) = m1'
+  circ2 <- refresh m2
+  let (Morphism (VPair b2 _) _ (VPair _ _)) = circ2
+  let gs1' = map negateCtrl gs1
       gs1'' = revGates gs1'
       circ1' = (Morphism (VPair b1 e) gs1'' a)
       binding = makeBinding b2 b1
@@ -332,7 +334,7 @@ evalApp (VComputed m1) m2 =
       binding2 = makeBinding b1 b3
       (Morphism (VPair _ _) gs1''' a') = rename circ1' binding2
       res = VCircuit (Morphism (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d))
-  in return res
+  return res
   where negateCtrl (Gate e1 e2 e3 e4 e5 b) = Gate e1 e2 e3 e4 e5 False
   
 evalApp a@(VCircuit _) w = return a
@@ -350,7 +352,7 @@ evalApp v w =
                          sub = filter (\ (_ , (v, n)) -> n /= 0) $ zip vs (zip args ns)
                          sub' = zip vs args
                          ws = drop lvs args
-                         lenv' = updateCirc sub' lenv
+                         lenv'= updateCirc sub' lenv
                      mapM_ (\(x, (v, n)) -> addDefinition (x, n) v) (lenv' ++ sub)
                      e' <- eval e
                      case e' of
@@ -378,10 +380,10 @@ evalApp v w =
                            return $ foldl VApp m' ws
         -- Perform substitution on the variables in a circuit.
         updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Integer))]
-        updateCirc sub lenv =
+        updateCirc sub lenv = 
              let (x, (circ, n)):[] = Map.toList lenv
                  (VCircuit (Morphism ins gs outs)) = circ
-                   
+             -- (Morphism ins gs outs) <- refresh circ'      
                  params = map (\ (Gate _ p _ _ _ _) -> p) gs
                  ctrls = map (\ (Gate _ _ _ _ c _) -> c) gs
                  params' = map (\ p -> helper p sub) params
@@ -597,14 +599,11 @@ refresh (Morphism ins gs outs) =
         helper m ((Gate id ps input output ctrl flag):gs) =
           do let inputWires = [ x | x <- getWires input, Map.lookup x m == Nothing]
                  outputWires = [ x | x <- getWires output, Map.lookup x m == Nothing]
-                 ctrlWires = [ x | x <- getWires ctrl, Map.lookup x m == Nothing]
              newInputWires <- freshL (length inputWires)
              newOutputWires <- freshL (length outputWires)
-             newCtrlWires <- freshL (length ctrlWires)
              let m' = Map.union (Map.fromList (zip inputWires newInputWires))
                       (Map.fromList (zip outputWires newOutputWires))
-                 m'' = (m `Map.union` m') `Map.union`
-                       (Map.fromList (zip ctrlWires newCtrlWires))
+                 m'' = m `Map.union` m'
                  input' = renameTemp input m''
                  output' = renameTemp output m''
                  ctrl' = renameTemp ctrl m''

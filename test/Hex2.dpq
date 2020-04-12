@@ -407,10 +407,10 @@ testPositions =
 --   False, True, False, True, False,
 --    False, True, True, True, False]
 
-main = test_small_board (False, a_small_board_blue)
+-- main = test_small_board (False, a_small_board_blue)
 large_board (x : Unit) = box_checkwin_red (5 @ 7 - 1) 7 refl refl
 large_board' (x : Unit) = box_checkwin_red (9 @ 7 - 1) 9 refl refl
--- main = small_board ()
+main = small_board ()
 
 -- large_board ()
 -- large_board ()

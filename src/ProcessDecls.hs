@@ -112,13 +112,13 @@ process (Def pos f' ty' def') =
      v <- evaluation ann
        -- trace (show $ dispRaw f' <+> dispRaw ty1' <+> dispRaw (modeSubstitution st) ) $ 
 
-     --b <- tcTop $  isBasicValue v
-     -- v' <- if b then
-     --         do x <- tcTop $  typeChecking False (toExp v) ty1'
-     --            return $ Just (snd x)
---           else if isCirc v then return $ Just (Const f') else return Nothing
+     b <- tcTop $ isBasicValue v
+     v' <- if b then
+             do x <- tcTop $  typeChecking False (toExp v) ty1'
+                return $ Just (snd x)
+          else if isCirc v then return $ Just (Const f') else return Nothing
      let info2 = Info { classifier = ty1',
-                        identification = DefinedFunction (Just (ann, v, Just ann))}
+                        identification = DefinedFunction (Just (ann, v, v'))}
      tcTop $ addNewId f' info2
 
 -- This definition without arguments can not be recursive.
@@ -132,13 +132,13 @@ process (Defn pos f Nothing def) =
        throwError $ CompileErr (ErrPos pos $ NotParam (Const f) ty)
      tcTop $ proofChecking False a ty
      v <- evaluation a
-     -- b <- tcTop $  isBasicValue v
-     -- v' <- if b then
-     --         do x <- tcTop $  typeChecking False (toExp v) ty
-     --            return $ Just (snd x)
-     --       else return Nothing
+     b <- tcTop $ isBasicValue v
+     v' <- if b then
+             do x <- tcTop $  typeChecking False (toExp v) ty
+                return $ Just (snd x)
+           else return Nothing
      let fp = Info {classifier = erasePos $ removeVacuousPi ty,
-                    identification = DefinedFunction (Just (a, v, Just a))
+                    identification = DefinedFunction (Just (a, v, v'))
                    }
      tcTop $ addNewId f fp
   where typeInfering b exp =
@@ -175,13 +175,13 @@ process (Defn pos f (Just tt) def) =
      (tk', def') <- tcTop $  typeChecking False (Pos pos def) tk1
      tcTop $ proofChecking False def' tk'
      v <- evaluation def'
-     -- b <- tcTop $  isBasicValue v
-     -- v' <- if b then
-     --         do x <- tcTop $  typeChecking False (toExp v) tk1
-     --            return $ Just (snd x)
-     --       else return Nothing
+     b <- tcTop $ isBasicValue v
+     v' <- if b then
+             do x <- tcTop $  typeChecking False (toExp v) tk1
+                return $ Just (snd x)
+           else return Nothing
      let fp = Info {classifier = tk',
-                   identification = DefinedFunction (Just (def', v, Just def'))
+                   identification = DefinedFunction (Just (def', v, v'))
                    }
      tcTop $ addNewId f fp
   where typeChecking''' b exp ty =

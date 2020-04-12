@@ -155,7 +155,7 @@ testC q = let (z, r) = controlledNeg testH' () q in (r, z)
 f (x : Bool) = (x, x, x)
 
 f' (x : Unit) = let y = False in f y
--- testBoxC = box (Qubit * Qubit) testC 
+testBoxC = box (Qubit * Qubit) testC 
 
 {-
 testC' : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit)
