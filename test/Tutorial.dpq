@@ -192,7 +192,7 @@ qft v =
       in VCons q'' qs''
 
 qftBox : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
-qftBox n = box (Vec Qubit n) (\ x -> qft x)
+qftBox n = box (Vec Qubit n) (\x -> qft x)
 
 qftBoxLittle : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 qftBoxLittle n = box (Vec Qubit n) (λ v -> qft (reverse_vec Qubit n v))
