@@ -77,7 +77,7 @@ nAdderRev' (n : Nat) = boxCirc $ \ x ->
 --                                    -- Vec Qubit 4 * Qubit *
 -- 				   --   (Qubit * Vec Qubit 4 * Vec Qubit 4))
 nAdderRev_test1 = nAdderRev 4
-main = nAdderRev_test1
+-- main = nAdderRev_test1
 -- nAdderRev_test2 = nAdderRev nine
 
 adding :  Bool * Vec Bool 4 * Vec Bool 4
@@ -89,8 +89,8 @@ adding = (False, [True, False, False, True], [True, True, False, True])
 -- Due to the set up of runCirc, the call of runCirc always need annotation->
 -- Moreover, we don't want to turn type class into
 -- full blown prolog-> 
-testAdd : Vec Bool 4 * Bool * (Bool * Vec Bool 4 * Vec Bool 4)
-testAdd = runCirc nAdderRev_test1 adding
+main : Vec Bool 4 * Bool * (Bool * Vec Bool 4 * Vec Bool 4)
+main = runCirc nAdderRev_test1 adding
 
 binaryToNat : ! forall (n : Nat) -> Vec Bool n -> Nat
 binaryToNat v =
@@ -107,7 +107,7 @@ idCirc n = box (Vec Qubit n) $ \ x -> x
 
 
 res : Vec Bool 4
-res = fst $ fst testAdd
+res = fst $ fst main
 
 -- (binaryToNat res)
 

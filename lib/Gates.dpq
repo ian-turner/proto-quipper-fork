@@ -156,9 +156,9 @@ toffoliGate (a b : Bool) (x y z : Qubit) =
    else if b then let (x, y, z) = toffoli x (QNot y) z in (x, QNot y, z)
         else let (x, y, z) = toffoli x (QNot y) (QNot z) in (x, QNot y, QNot z)
         
-testTof =
-  let (x, y, z) = toffoli (initQubit True) (initQubit True) (initQubit False)
-  in (dynlift (meas x), dynlift (meas y), dynlift (meas z))
+-- testTof =
+--   let (x, y, z) = toffoli (initQubit True) (initQubit True) (initQubit False)
+--   in (dynlift (meas x), dynlift (meas y), dynlift (meas z))
 
 -- testCNot =
 --   let (x, y) = CNot (initQubit False) (initQubit True)
