@@ -116,11 +116,10 @@ runCirc circ a =
   measure $ (unbox circ) (init a)
 
 
-idV : ! forall a (n : Nat) -> Vec a n -> Vec a n
-idV l = case l of
-         VNil -> VNil
-         VCons x xs -> case xs of
-                          VNil -> VCons x VNil
+-- idV : ! (Nat -> Nat)
+-- idV l = idV l
 
--- g : Vec Nat 3
--- g = (3, (2, idV [1,2]))
+-- kill : ! forall a -> (Parameter a) => a -> Unit
+-- kill x = ()
+
+-- g = kill (idV 1)

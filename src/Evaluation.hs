@@ -47,7 +47,7 @@ data EvalState =
        -- The first 'Integer' represents the approximate number of occurrences,
        -- the second 'Integer' represents its accurate reference count,
        -- the ['Variable'] is the variables that it refers to.
-       number :: Integer -- counter for fresh label
+       number :: Integer -- ^ Current fresh label
      }
 
 newtype QuantumState a = QS {getSt :: EvalState -> ReadWrite (EvalState, a)}
@@ -108,7 +108,7 @@ eval a@(EConst k) =
   do st <- get
      let genv = evalEnv st
      case Map.lookup k genv of
-       Nothing -> error $ "undefined" ++ (show $ disp k) -- throwError $ UndefinedId k
+       Nothing -> error $ "undefined" ++ (show $ disp k) 
        Just e ->
          case identification e of
            DataConstr _ -> return (VConst k)
@@ -302,13 +302,11 @@ evalApp (VApp (VApp VReverse _) _) (VCircuit m) = do
       let gs' = revGates gs in
         return $ (VCircuit $ Morphism outs gs' ins)
 
-evalApp (VApp (VApp (VApp VControlled _) _) _) (VCircuit m) = do
---  m' <- refresh m
+evalApp (VApp (VApp (VApp VControlled _) _) _) (VCircuit m) = 
   case m of
     (Morphism ins gs outs) ->
       freshNames ["#ctrl", "#input", "#circ"] $ \ (ctrl:input:circ:[]) -> 
-      let -- mycirc = Wired $ abst ws (VCircuit $ Morphism ins (controlledGates ctrl gs) outs)
-          mycirc = VCircuit $ Morphism ins (controlledGates ctrl gs) outs
+      let mycirc = VCircuit $ Morphism ins (controlledGates ctrl gs) outs
           env = Map.fromList [(circ, (mycirc, 1))] 
           exp = EPair (EApp (EForce $ EApp EUnBox (EVar circ)) (EVar input)) (EVar ctrl)
       in return $ VLiftCirc (abst [input, ctrl] $ abst env exp)
@@ -357,7 +355,7 @@ evalApp v w =
                      e' <- eval e
                      case e' of
                        VLam _ bd -> handleBody ws bd
-                       _ -> return $ foldl VApp e' ws
+                       _ -> return $ foldl' VApp e' ws
         
     _ -> return $ VApp v w
           
@@ -377,13 +375,12 @@ evalApp v w =
                       if null ws then eval m
                         else 
                         do m' <- eval m
-                           return $ foldl VApp m' ws
+                           return $ foldl' VApp m' ws
         -- Perform substitution on the variables in a circuit.
         updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Integer))]
         updateCirc sub lenv = 
              let (x, (circ, n)):[] = Map.toList lenv
                  (VCircuit (Morphism ins gs outs)) = circ
-             -- (Morphism ins gs outs) <- refresh circ'      
                  params = map (\ (Gate _ p _ _ _ _) -> p) gs
                  ctrls = map (\ (Gate _ _ _ _ c _) -> c) gs
                  params' = map (\ p -> helper p sub) params
@@ -420,9 +417,7 @@ evalApp v w =
 -- | Evaluate a box term.
 evalBox :: Either Value EExp -> Value -> Eval Value               
 evalBox body uv =
-  -- freshLabels (size uv) $ \ vs ->
    do vs <- freshL (size uv)
-      -- addWires vs
       st <- get
       b <- case body of
                 Right body' -> eval body'
@@ -431,9 +426,7 @@ evalBox body uv =
           bgs = boxGates $ getSt (evalApp b uv') st
           gs = fst bgs
           res = snd $ snd bgs
-          -- st' = fst $ snd bgs
           newMorph = Morphism uv' gs res
-          -- wires' = wires st'
           morph' = (VCircuit newMorph)
       return morph'
 
@@ -445,9 +438,7 @@ evalBox body uv =
 -- So we define 'evalExbox' and 'evalBox' separately to enforce the assumptions.
 evalExbox :: EExp -> Value -> Eval Value        
 evalExbox body uv =
-  -- freshLabels (size uv) $ \ vs ->
    do vs <- freshL (size uv)
-      -- addWires vs
       st <- get
       b <- eval body
       let uv' = toVal uv vs
@@ -455,7 +446,6 @@ evalExbox body uv =
           bgs = boxGates $ getSt (evalApp b uv') st
           gs = fst bgs
           res = snd $ snd bgs
-          -- ws = wires $ fst $ snd bgs
           (VPair n res') = res
           newMorph = Morphism uv' gs res'
           morph' = (VCircuit newMorph)

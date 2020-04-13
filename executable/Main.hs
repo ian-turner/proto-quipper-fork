@@ -59,12 +59,12 @@ main =
                    case t of
                      A.Circ _ _ _ ->
                        do let n = gateCount name circ'
-                          liftIO $ print (n :: Integer)
+                          liftIO $ print n
                      A.Exists (Abst m (A.Circ _ _ _)) _ ->
                        case circ' of
                          A.VPair _ res -> 
                            do let n = gateCount name res
-                              liftIO $ print (n :: Integer)
+                              liftIO $ print n
                      ty -> liftIO $ print (text "main is not a circuit")
              
         printToFile file target = do

@@ -967,8 +967,8 @@ toEigen t =
   in apply sub t
 
 -- | Count the number of gates in a circuit.
-gateCount :: Maybe String -> Value -> Integer
-gateCount Nothing (VCircuit (Morphism _ gs _)) = genericLength gs
+gateCount :: Maybe String -> Value -> Int
+gateCount Nothing (VCircuit (Morphism _ gs _)) = length gs
 gateCount (Just n) (VCircuit (Morphism _ gs _)) =
   helper n gs 0
   where helper n [] m = m
