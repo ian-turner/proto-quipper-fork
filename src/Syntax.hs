@@ -391,7 +391,7 @@ data Value =
   | VUnit -- ^ Runtime unit type for generating unit value.
   | VLBase Id -- ^ Runtime simple types.
   | VBase Id -- ^ Runtime non-simple type. 
-  | VLam [Variable] (Bind [(Variable, Integer)] EExp)
+  | VLam [Variable] (Bind [(Variable, Int)] EExp)
     -- ^ Lambda forms a closure. ['Variable']
     -- is the list of variables that are referred by this closure.
   | VPair Value Value -- ^ Pair of values.
@@ -418,9 +418,9 @@ data Value =
 
 -- | Local variable environment for evaluation. It contains the
 -- approximate number of uses of for each variable. 
-type LEnv = Map Variable (Value, Integer)
+type LEnv = Map Variable (Value, Int)
 
-instance Bindable (Map Variable (Value, Integer)) where
+instance Bindable (Map Variable (Value, Int)) where
   binding loc = do
     loc' <- map_binding (Map.toList loc)
     pure $ Map.fromList loc'
@@ -442,7 +442,9 @@ type Gates = [Gate]
 
 -- | Morphism denotes an incomplete circuit, a completion would be
 -- using the Wired constructor to bind all the free labels in it.
-data Morphism = Morphism Value Gates Value
+data Morphism = Morphism {input :: Value,
+                          gates :: Gates,
+                          output :: Value}
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
            
   
@@ -468,16 +470,13 @@ instance Disp Value where
   display flag (VCircuit m) = display flag m
   display flag (VLam ws (Abst vs e)) = 
     sep [text "\\vlam" <+> brackets (hsep $ map dispRaw ws),
-         hsep (map (\ (x, y) -> parens (dispRaw x <> text ":" <> integer y)) vs)
+         hsep (map (\ (x, y) -> parens (dispRaw x <> text ":" <> int y)) vs)
          <+> text "->", nest 2 (display flag e)]
   display flag (VLift ws e) = 
    text "vlift" <+> (brackets $ hsep (map dispRaw ws)) <+> display flag e
   display flag (VLiftCirc (Abst vs (Abst env e))) = 
    text "vliftCirc" <+> hsep (map dispRaw vs) <+> text "->"
    <+> braces (dispRaw env) $$ nest 2 (display flag e)
---   display flag (Wired (Abst ls v)) = text "circ" 
---    open bd $ \ ls v -> text "circ"
---       display flag v
   display flag a@(VApp t t') = 
     case toNat a of
       Nothing ->
@@ -518,24 +517,25 @@ instance Disp Value where
   precedence (VApp _ _) = 10
   precedence _ = 0
 
-instance Disp (Map Variable (Value, Integer)) where
+instance Disp (Map Variable (Value, Int)) where
    display flag l =
      vcat $
-     map (\ (x, (y, n)) -> dispRaw x <> text ":" <> integer n
+     map (\ (x, (y, n)) -> dispRaw x <> text ":" <> int n
                            <+> text ":=" <+> display flag y) (Map.toList l)
 
-instance Disp (Map Variable (Value, Integer, Integer)) where
+instance Disp (Map Variable (Value, Int, Int)) where
    display flag l =
      vcat $
-     map (\ (x, (y, n, ref)) -> dispRaw x <> text ":" <> integer n
-                                <> text ":" <> integer ref <+> text ":=" <+> display flag y)
+     map (\ (x, (y, n, ref)) -> dispRaw x <> text ":" <> int n
+                                <> text ":" <> int ref <+> text ":=" <+> display flag y)
      (Map.toList l)
 
 instance Disp Morphism where
-  display flag (Morphism ins gs outs) =
-    (braces $ display flag ins) $$
-    nest 2 (vcat $ map (display flag) gs) $$
-    (braces $ display flag outs) 
+    display flag morph = vcat $ map (display flag) (gates morph) 
+--  display flag (Morphism ins gs outs) =
+--    (braces $ display flag ins) $$
+--    nest 2 (vcat $ map (display flag) gs) $$
+--    (braces $ display flag outs) 
 
 instance Disp Gate where
   display flag (Gate g params ins outs ctrls _) =
@@ -600,7 +600,7 @@ data EExp =
   | EPair EExp EExp
   | ETensor EExp EExp
   | EArrow EExp EExp     
-  | ELam [Variable] (Bind [(Variable, Integer)] EExp)
+  | ELam [Variable] (Bind [(Variable, Int)] EExp)
   | ELift [Variable] EExp
   | EForce EExp
   | EUnBox
@@ -610,8 +610,8 @@ data EExp =
   | EBox
   | EExBox
   | EDynlift
-  | ELet EExp (Bind (Variable, Integer) EExp)
-  | ELetPair EExp (Bind [(Variable, Integer)] EExp) 
+  | ELet EExp (Bind (Variable, Int) EExp)
+  | ELetPair EExp (Bind [(Variable, Int)] EExp) 
   | ELetPat EExp (Bind EPattern EExp) 
   | ECase EExp EBranches
   | EStar
@@ -623,7 +623,7 @@ data EBranches = EB [Bind EPattern EExp]
                deriving (Eq, Generic, Show, NominalSupport, NominalShow, Nominal)
 
 -- | Erased pattern.
-data EPattern = EPApp Id [(Variable, Integer)]
+data EPattern = EPApp Id [(Variable, Int)]
               deriving (Eq, Generic, NominalShow, NominalSupport, Nominal, Bindable, Show)
 
 
@@ -646,7 +646,7 @@ instance Disp EExp where
   display flag (EDynlift) = text "dynlift"
   display flag (ELam ws (Abst vs e)) = 
     sep [text "\\elam" <+> brackets (hsep $ map dispRaw ws),
-         hsep (map (\ (x, y) -> parens (dispRaw x <> text ":" <> integer y)) vs),
+         hsep (map (\ (x, y) -> parens (dispRaw x <> text ":" <> int y)) vs),
          text "->", nest 2 (display flag e)]
   display flag (ELift ws e) = 
    text "elift" <+> (brackets $ hsep (map dispRaw ws)) <+> display flag e
@@ -662,12 +662,12 @@ instance Disp EExp where
 
   display flag (ELet m bd) =
     open bd $ \ (x, n) b ->
-    fsep [text "elet" <+> dispRaw x <> text ":" <> integer n <+> text "=", display flag m,
+    fsep [text "elet" <+> dispRaw x <> text ":" <> int n <+> text "=", display flag m,
           text "in" <+> display flag b]
     
   display flag (ELetPair m bd) =
     open bd $ \ xs b ->
-    fsep [text "elet" <+> parens (hsep $ punctuate comma $ map (\ (x, n) -> dispRaw x <> text ":" <> integer n) xs),
+    fsep [text "elet" <+> parens (hsep $ punctuate comma $ map (\ (x, n) -> dispRaw x <> text ":" <> int n) xs),
           text "=", display flag m,
           text "in" <+> display flag b]
 
@@ -688,7 +688,7 @@ instance Disp EExp where
 instance Disp EPattern where
   display flag (EPApp id vs) =
     display flag id <+>
-    hsep (map (\ (x, n) -> parens (display False x <> text ":" <> integer n)) vs) 
+    hsep (map (\ (x, n) -> parens (display False x <> text ":" <> int n)) vs) 
 
 instance Disp BExp where
   display flag (BVar x) = dispRaw x

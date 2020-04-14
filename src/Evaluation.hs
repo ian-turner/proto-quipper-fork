@@ -17,15 +17,15 @@ import Nominal
 import Simulation
 
 import Control.Exception 
-import Control.Monad.State (State)
-import qualified Control.Monad.State as S
+import Control.Monad.State.Lazy (State)
+import qualified Control.Monad.State.Lazy as S
 import Control.Monad.Identity
 import Control.Monad.Except
 import Text.PrettyPrint
 import TCMonad 
 
-import qualified Data.Map.Strict as Map
-import Data.Map.Strict (Map)
+import qualified Data.Map.Lazy as Map
+import Data.Map.Lazy (Map)
 import Data.Set (Set)
 import Data.List
 import qualified Data.Set as S
@@ -42,12 +42,12 @@ type Eval a = QuantumState a
 -- a global context. 
 data EvalState =
   ES { evalEnv :: Context,  -- ^ The global evaluation context.
-       localEvalEnv :: Map Variable (Value, Integer, Integer, [Variable]),
+       localEvalEnv :: Map Variable (Value, Int, Int, [Variable]),
        -- ^ The heap for evaluation, represented by a map.
-       -- The first 'Integer' represents the approximate number of occurrences,
-       -- the second 'Integer' represents its accurate reference count,
+       -- The first 'Int' represents the approximate number of occurrences,
+       -- the second 'Int' represents its accurate reference count,
        -- the ['Variable'] is the variables that it refers to.
-       number :: Integer -- ^ Current fresh label
+       number :: Int -- ^ Current fresh label
      }
 
 newtype QuantumState a = QS {getSt :: EvalState -> ReadWrite (EvalState, a)}
@@ -59,7 +59,7 @@ freshL n =
   do s <- get
      let m = number s
          r = take n [m ..]
-     put s{number = m + toInteger n}
+     put s{number = m + n}
      return r
      
 get :: Eval EvalState
@@ -254,8 +254,8 @@ addDefinition (x, n) m =
      put st{localEvalEnv = lenv'}
 
 -- | Increase the reference count for given variables.
-addRef :: [Variable] -> Map Variable (Value, Integer, Integer, [Variable]) ->
-           Map Variable (Value, Integer, Integer, [Variable])               
+addRef :: [Variable] -> Map Variable (Value, Int, Int, [Variable]) ->
+           Map Variable (Value, Int, Int, [Variable])               
 addRef [] lenv = lenv
 addRef (v:vs) lenv =
   case Map.lookup v lenv of
@@ -270,17 +270,23 @@ evalApp VUnBox v | (VCircuit _) <- v = return $ VApp VUnBox v
 evalApp VUnBox v | otherwise = return VUnBox
 evalApp (VForce VDynlift) (VLabel v) =
   do b <- dynamicLift v
-     if b then return $ VConst (Id "True") else return $ VConst (Id "False")
+     if b then
+       return $ VConst (Id "True")
+       else return $ VConst (Id "False")
 
 -- append gates
-evalApp (VForce (VApp VUnBox v)) w =
-  case v of
-    VCircuit morph ->
-          do morph' <- refresh morph
-             let (Morphism ins gs outs) = morph'
-             let binding = makeBinding ins w
-             appendMorph binding (Morphism ins gs outs)
-    a -> error $ "evalApp(Unbox ..) " ++ (show $ disp a)
+evalApp (VForce (VApp VUnBox (VCircuit morph))) w =
+ do morph' <- refresh morph
+    let binding = makeBinding (input morph') w
+    appendMorph binding morph'
+  -- case v of
+  --   VCircuit morph ->
+  --         do morph' <- refresh morph
+  --            -- let (Morphism ins gs outs) = morph'
+  --            let binding = makeBinding (input morph') w
+  --            appendMorph binding morph'
+  --              -- (Morphism ins gs outs)
+  --   a -> error $ "evalApp(Unbox ..) " ++ (show $ disp a)
 
 evalApp (VApp (VApp (VApp VBox q) _) _) v =
   case v of
@@ -297,19 +303,26 @@ evalApp (VApp (VApp (VApp (VApp VExBox q) _) _) _) v =
 
 evalApp (VApp (VApp VReverse _) _) (VCircuit m) = do
   m' <- refresh m
-  case m' of
-    (Morphism ins gs outs) ->
-      let gs' = revGates gs in
-        return $ (VCircuit $ Morphism outs gs' ins)
+  let gs' = revGates (gates m')
+      ins = input m'
+      outs = output m'
+  return $ (VCircuit $ Morphism outs gs' ins)
+  -- case m' of
+  --   (Morphism ins gs outs) ->
+  --     let gs' = revGates gs in
+  --       return $ (VCircuit $ Morphism outs gs' ins)
 
 evalApp (VApp (VApp (VApp VControlled _) _) _) (VCircuit m) = 
-  case m of
-    (Morphism ins gs outs) ->
-      freshNames ["#ctrl", "#input", "#circ"] $ \ (ctrl:input:circ:[]) -> 
-      let mycirc = VCircuit $ Morphism ins (controlledGates ctrl gs) outs
+  -- case m of
+  --   (Morphism ins gs outs) ->
+  freshNames ["#ctrl", "#input", "#circ"] $ \ (ctrl:inp:circ:[]) -> 
+      let ins = input m
+          gs = gates m
+          outs = output m
+          mycirc = VCircuit $ Morphism ins (controlledGates ctrl gs) outs
           env = Map.fromList [(circ, (mycirc, 1))] 
-          exp = EPair (EApp (EForce $ EApp EUnBox (EVar circ)) (EVar input)) (EVar ctrl)
-      in return $ VLiftCirc (abst [input, ctrl] $ abst env exp)
+          exp = EPair (EApp (EForce $ EApp EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
+      in return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
   where controlledGates a gs = map (helper a) gs
         helper a (Gate id ps ins outs b False) = Gate id ps ins outs b False
         helper a (Gate id ps ins outs VStar flag) = Gate id ps ins outs (VVar a) flag
@@ -320,21 +333,34 @@ evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _)_)_) m =
 
 evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
   m1' <- refresh m1
-  let (Morphism a gs1 (VPair b1 e)) = m1'
+--  let (Morphism a gs1 (VPair b1 e)) = m1'
+  let gs1 = gates m1'
+      a = input m1'
+      b1 = fstVPair $ output m1'
+      e = sndVPair $ output m1'
   circ2 <- refresh m2
-  let (Morphism (VPair b2 _) _ (VPair _ _)) = circ2
+  -- let (Morphism (VPair b2 _) _ (VPair _ _)) = circ2
+  let b2 = fstVPair $ input circ2
   let gs1' = map negateCtrl gs1
       gs1'' = revGates gs1'
       circ1' = (Morphism (VPair b1 e) gs1'' a)
       binding = makeBinding b2 b1
       circ2' = rename circ2 binding
-      (Morphism (VPair _ c) gs2 (VPair b3 d)) = circ2'
+      -- (Morphism (VPair _ c) gs2 (VPair b3 d)) = circ2'
+      gs2 = gates circ2'
+      c = sndVPair $ input circ2'
+      b3 = fstVPair $ output circ2'
+      d = sndVPair $ output circ2'
       binding2 = makeBinding b1 b3
-      (Morphism (VPair _ _) gs1''' a') = rename circ1' binding2
+      -- (Morphism (VPair _ _) gs1''' a') = rename circ1' binding2
+      circ3 = rename circ1' binding2
+      gs1''' = gates circ3
+      a' = output circ3
       res = VCircuit (Morphism (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d))
   return res
   where negateCtrl (Gate e1 e2 e3 e4 e5 b) = Gate e1 e2 e3 e4 e5 False
-  
+        fstVPair (VPair a _) = a
+        sndVPair (VPair _ b) = b
 evalApp a@(VCircuit _) w = return a
 
 evalApp v w = 
@@ -377,10 +403,14 @@ evalApp v w =
                         do m' <- eval m
                            return $ foldl' VApp m' ws
         -- Perform substitution on the variables in a circuit.
-        updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Integer))]
+        updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Int))]
         updateCirc sub lenv = 
              let (x, (circ, n)):[] = Map.toList lenv
-                 (VCircuit (Morphism ins gs outs)) = circ
+                 (VCircuit morph) = circ
+                 -- (Morphism ins gs outs)
+                 ins = input morph
+                 gs = gates morph
+                 outs = output morph
                  params = map (\ (Gate _ p _ _ _ _) -> p) gs
                  ctrls = map (\ (Gate _ _ _ _ c _) -> c) gs
                  params' = map (\ p -> helper p sub) params
@@ -446,11 +476,14 @@ evalExbox body uv =
           bgs = boxGates $ getSt (evalApp b uv') st
           gs = fst bgs
           res = snd $ snd bgs
-          (VPair n res') = res
+          -- (VPair n res') = res
+          n = fstVPair res
+          res' = sndVPair res
           newMorph = Morphism uv' gs res'
           morph' = (VCircuit newMorph)
       return (VPair n morph')        
-
+  where fstVPair (VPair a _) = a
+        sndVPair (VPair _ b) = b
 
 
 
@@ -458,10 +491,10 @@ evalExbox body uv =
 -- For efficiency reason we try prepend instead of append, so 'evalBox' and 'evalExbox'
 -- have to reverse the list of gates as part of the post-processing. 
 appendMorph :: Binding -> Morphism -> Eval Value
-appendMorph binding f@(Morphism fins fs fouts) =
-  do let (Morphism fins' fs' fouts') = rename f binding
-     addGates fs'
-     return fouts'
+appendMorph binding f = -- f@(Morphism fins fs fouts) =
+  do let f' = rename f binding -- (Morphism fins' fs' fouts')
+     addGates (gates f')
+     return $ output f'
 
 
 
@@ -473,11 +506,13 @@ makeBinding :: Value -> Value -> Binding
 makeBinding w v =
   let ws = getWires w
       vs = getWires v
-  in if length ws /= length vs
-     then 
-       error ("binding mismatch!\n" ++ (show $ disp w) ++
-               "\n" ++ (show $ disp v))
-       else Map.fromList (zip ws vs)
+  in Map.fromList (zip ws vs)
+     
+   -- if length ws /= length vs
+     -- then 
+     --   error ("binding mismatch!\n" ++ (show $ disp w) ++
+     --           "\n" ++ (show $ disp v))
+       -- else Map.fromList (zip ws vs)
 
 
 
@@ -486,11 +521,16 @@ makeBinding w v =
 -- changes the name of a gate to its adjoint, the gates are
 -- already stored in reverse order due to the way we implement 'appendMorph'.
 revGates :: [Gate] -> [Gate]
-revGates xs = revGatesh xs [] 
-  where revGatesh [] gs = gs
-        revGatesh ((Gate id params ins outs ctrls flag):res) gs =
-          let id' = invertName id
-          in revGatesh res ((Gate id' params outs ins ctrls flag):gs)
+revGates xs = map invertGateName $ reverse xs
+  where invertGateName (Gate id params ins outs ctrls flag) =
+          Gate (invertName id) params outs ins ctrls flag
+
+--  revGatesh xs []
+
+  -- where revGatesh [] gs = gs
+  --       revGatesh ((Gate id params ins outs ctrls flag):res) gs =
+  --         let id' = invertName id
+  --         in revGatesh res ((Gate id' params outs ins ctrls flag):gs)
 
 -- | Change the name of a gate to its adjoint
 invertName :: Id -> Id             
@@ -541,7 +581,7 @@ templateToVal (VTensor e1 e2) =
 templateToVal a = error "applying templateToVal function to an ill-formed template"
 
 -- | Get the size of a simple data type.
-size :: Num a => Value -> a
+size :: Value -> Int
 size (VLBase x) = 1
 size (VLabel x) = 1
 size (VConst _) = 0
@@ -552,23 +592,10 @@ size (VTensor e1 e2) = size e1 + size e2
 size (VPair e1 e2) = size e1 + size e2
 size a = error $ "applying size function to an ill-formed template:" ++ (show $ disp a)     
 
--- | Obtain all the labels from the circuit.
-
-getAllWires :: Morphism -> [Label]
-getAllWires (Morphism ins gs outs) =
-  let inWires = S.fromList $ getWires ins
-      outWires = S.fromList $ getWires outs
-      gsWires = S.unions $ map getGateWires gs
-  in S.toList (inWires `S.union` outWires `S.union` gsWires)
-  where getGateWires (Gate _ _ ins outs ctrls _) =
-          S.fromList (getWires ins) `S.union`
-          S.fromList (getWires outs) `S.union`
-          S.fromList (getWires ctrls)
-
 
 -- | Decrease the reference count for a list of variables.
-decrRef :: [Variable] -> Map Variable (Value, Integer, Integer, [Variable]) ->
-           Map Variable (Value, Integer, Integer, [Variable])          
+decrRef :: [Variable] -> Map Variable (Value, Int, Int, [Variable]) ->
+           Map Variable (Value, Int, Int, [Variable])          
 decrRef [] m = m
 decrRef (v:vs) m =
   case Map.lookup v m of
@@ -578,8 +605,11 @@ decrRef (v:vs) m =
       in decrRef vs m'
         
 
-refresh (Morphism ins gs outs) =
-  do insWires' <- freshL (size ins)
+refresh morph = -- (Morphism ins gs outs) =
+  do let ins = input morph
+         gs = gates morph
+         outs = output morph
+     insWires' <- freshL (size ins)
      let insWires = getWires ins
          m = Map.fromList (zip insWires insWires')
      (gs', m') <- helper m gs

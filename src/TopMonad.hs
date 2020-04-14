@@ -27,9 +27,9 @@ import Control.Monad.Identity
 import Control.Exception hiding (TypeError)
 import Text.Parsec hiding (count)
 import Text.PrettyPrint
-import Control.Monad.State
-import qualified Data.Map as Map
-import Data.Map (Map)
+import Control.Monad.State.Lazy
+import qualified Data.Map.Lazy as Map
+import Data.Map.Lazy (Map)
 
 
 -- | Top-level error data type. 
@@ -162,7 +162,7 @@ evaluation exp =
      exp' <- tcTop $ erasure exp
      (st, v) <- ioTop $ simulate $ getSt (eval exp') (initES gl n)
      let n' = number st
-     n' `seq` putLabel n'
+     putLabel n'
      return v
      
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
@@ -231,7 +231,7 @@ getCounter = do
   s <- getInterpreterState
   return (counter s)
 
-getCurrentLabel :: Top Integer
+getCurrentLabel :: Top Int
 getCurrentLabel = do
   s <- getInterpreterState
   return (currentWire s)
@@ -266,7 +266,7 @@ putCounter i = do
   let s' = s {counter = i}
   putInterpreterState s'
 
-putLabel :: Integer -> Top ()
+putLabel :: Int -> Top ()
 putLabel i = do
   s <- getInterpreterState
   let s' = s {currentWire = i}
@@ -364,5 +364,5 @@ freshLabels :: Int -> Top [Label]
 freshLabels n =
   do c <- getCurrentLabel
      let r = take n [c..]
-     putLabel (c + toInteger n)
+     putLabel (c + n)
      return r

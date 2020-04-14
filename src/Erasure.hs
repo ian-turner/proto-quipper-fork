@@ -304,10 +304,10 @@ checkExplicit (Right x :xs) ann =
 -- | Count the number of occurrences for a list of variables. It is only
 -- an over-approximation, as there is no way to predict the real uses due to
 -- the way closure interacts with recursion and case branching. 
-countVar :: [Variable] -> EExp -> [Integer]
+countVar :: [Variable] -> EExp -> [Int]
 countVar xs e =
   map (helper e) xs
-  where helper :: EExp -> Variable -> Integer
+  where helper :: EExp -> Variable -> Int
         helper (EVar y) x | x == y = 1
                           | otherwise = 0
         helper (EConst _) x = 0
@@ -337,7 +337,7 @@ countVar xs e =
           helper e x + helper e2 x
         helper (ECase e (EB brs)) x =
           helper e x + helper2 brs x
-        helper2 :: [Bind EPattern EExp] -> Variable -> Integer  
+        helper2 :: [Bind EPattern EExp] -> Variable -> Int
         helper2 brs x =
           maximum $ map (\ b -> open b $ \ _ m -> helper m x) brs
 

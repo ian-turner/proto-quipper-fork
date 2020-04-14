@@ -968,9 +968,9 @@ toEigen t =
 
 -- | Count the number of gates in a circuit.
 gateCount :: Maybe String -> Value -> Int
-gateCount Nothing (VCircuit (Morphism _ gs _)) = length gs
-gateCount (Just n) (VCircuit (Morphism _ gs _)) =
-  helper n gs 0
+gateCount Nothing (VCircuit morph) = length (gates morph)
+gateCount (Just n) (VCircuit morph) =
+  helper n (gates morph) 0
   where helper n [] m = m
         helper n (Gate d _ _ _ _ _:s) m
           | getName d == n = helper n s (m+1)
@@ -1053,8 +1053,11 @@ toNum (VApp (VConst s) n) | getName s == "S" =
 
 -- | Rename the labels of a morphism according to a binding.
 rename :: Morphism -> Map Label Label -> Morphism            
-rename (Morphism ins gs outs) m =
-  let ins' = renameTemp ins m
+rename morph m = -- (Morphism ins gs outs)
+  let ins = input morph
+      outs = output morph
+      gs = gates morph
+      ins' = renameTemp ins m
       outs' = renameTemp outs m
       gs' = renameGs gs m
   in Morphism ins' gs' outs'

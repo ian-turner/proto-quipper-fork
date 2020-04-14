@@ -409,10 +409,21 @@ testPositions =
 
 -- main = test_small_board (False, a_small_board_blue)
 large_board (x : Unit) = box_checkwin_red (5 @ 7 - 1) 7 refl refl
+{-
+50567
+
+real	0m18.311s
+user	0m21.785s
+sys	0m3.794s
+-}
 large_board' (x : Unit) = box_checkwin_red (9 @ 7 - 1) 9 refl refl
+
+main = small_board ()
+{-
 main = large_board ()
 
--- large_board ()
+-}
+
 -- large_board ()
 
 -- some performance statistics:
