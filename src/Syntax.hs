@@ -531,11 +531,10 @@ instance Disp (Map Variable (Value, Int, Int)) where
      (Map.toList l)
 
 instance Disp Morphism where
-    display flag morph = vcat $ map (display flag) (gates morph) 
---  display flag (Morphism ins gs outs) =
---    (braces $ display flag ins) $$
---    nest 2 (vcat $ map (display flag) gs) $$
---    (braces $ display flag outs) 
+ display flag (Morphism ins gs outs) =
+   (braces $ display flag ins) $$
+   nest 2 (vcat $ map (display flag) gs) $$
+   (braces $ display flag outs) 
 
 instance Disp Gate where
   display flag (Gate g params ins outs ctrls _) =

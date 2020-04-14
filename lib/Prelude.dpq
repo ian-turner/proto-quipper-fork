@@ -122,4 +122,4 @@ runCirc circ a =
 -- kill : ! forall a -> (Parameter a) => a -> Unit
 -- kill x = ()
 
--- g = kill (idV 1)
+-- main = kill (idV 1)

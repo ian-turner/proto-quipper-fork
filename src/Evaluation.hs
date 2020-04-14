@@ -17,15 +17,15 @@ import Nominal
 import Simulation
 
 import Control.Exception 
-import Control.Monad.State.Lazy (State)
-import qualified Control.Monad.State.Lazy as S
+import Control.Monad.State (State)
+import qualified Control.Monad.State as S
 import Control.Monad.Identity
 import Control.Monad.Except
 import Text.PrettyPrint
 import TCMonad 
 
-import qualified Data.Map.Lazy as Map
-import Data.Map.Lazy (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.List
 import qualified Data.Set as S
@@ -77,7 +77,8 @@ dynamicLift l = QS $ \ s ->
 addGates :: [Gate] -> Eval ()
 addGates gs =
   QS $ \ s -> mapM_ gateRW gs >> return (s, ())
-                         
+
+
 instance Monad QuantumState where
   return a = QS $ \ s -> return (s, a)
   f >>= g = QS h
@@ -156,6 +157,13 @@ eval EControlled = return VControlled
 eval EWithComputed = return VWithComputed
 eval a@(EBox) = return VBox
 eval a@(EExBox) = return VExBox
+
+-- Note that because QuantumState is an example
+-- of state monad, sequencing is enforced. So each
+-- statement will be evaluated to weak head normal form in sequence.
+-- This means /w/ below will be evaluated to weak head normal form,
+-- hence making the implementation conforming the eager evaluation
+-- strategy. As a result, we do not get lazy circuit in the sense of Quipper.
 
 eval (EApp m n) =
   do v <- eval m
@@ -279,14 +287,6 @@ evalApp (VForce (VApp VUnBox (VCircuit morph))) w =
  do morph' <- refresh morph
     let binding = makeBinding (input morph') w
     appendMorph binding morph'
-  -- case v of
-  --   VCircuit morph ->
-  --         do morph' <- refresh morph
-  --            -- let (Morphism ins gs outs) = morph'
-  --            let binding = makeBinding (input morph') w
-  --            appendMorph binding morph'
-  --              -- (Morphism ins gs outs)
-  --   a -> error $ "evalApp(Unbox ..) " ++ (show $ disp a)
 
 evalApp (VApp (VApp (VApp VBox q) _) _) v =
   case v of
@@ -307,14 +307,8 @@ evalApp (VApp (VApp VReverse _) _) (VCircuit m) = do
       ins = input m'
       outs = output m'
   return $ (VCircuit $ Morphism outs gs' ins)
-  -- case m' of
-  --   (Morphism ins gs outs) ->
-  --     let gs' = revGates gs in
-  --       return $ (VCircuit $ Morphism outs gs' ins)
 
 evalApp (VApp (VApp (VApp VControlled _) _) _) (VCircuit m) = 
-  -- case m of
-  --   (Morphism ins gs outs) ->
   freshNames ["#ctrl", "#input", "#circ"] $ \ (ctrl:inp:circ:[]) -> 
       let ins = input m
           gs = gates m
@@ -333,26 +327,22 @@ evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _)_)_) m =
 
 evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
   m1' <- refresh m1
---  let (Morphism a gs1 (VPair b1 e)) = m1'
   let gs1 = gates m1'
       a = input m1'
       b1 = fstVPair $ output m1'
       e = sndVPair $ output m1'
   circ2 <- refresh m2
-  -- let (Morphism (VPair b2 _) _ (VPair _ _)) = circ2
   let b2 = fstVPair $ input circ2
   let gs1' = map negateCtrl gs1
       gs1'' = revGates gs1'
       circ1' = (Morphism (VPair b1 e) gs1'' a)
       binding = makeBinding b2 b1
       circ2' = rename circ2 binding
-      -- (Morphism (VPair _ c) gs2 (VPair b3 d)) = circ2'
       gs2 = gates circ2'
       c = sndVPair $ input circ2'
       b3 = fstVPair $ output circ2'
       d = sndVPair $ output circ2'
       binding2 = makeBinding b1 b3
-      -- (Morphism (VPair _ _) gs1''' a') = rename circ1' binding2
       circ3 = rename circ1' binding2
       gs1''' = gates circ3
       a' = output circ3
@@ -407,7 +397,6 @@ evalApp v w =
         updateCirc sub lenv = 
              let (x, (circ, n)):[] = Map.toList lenv
                  (VCircuit morph) = circ
-                 -- (Morphism ins gs outs)
                  ins = input morph
                  gs = gates morph
                  outs = output morph
@@ -476,7 +465,6 @@ evalExbox body uv =
           bgs = boxGates $ getSt (evalApp b uv') st
           gs = fst bgs
           res = snd $ snd bgs
-          -- (VPair n res') = res
           n = fstVPair res
           res' = sndVPair res
           newMorph = Morphism uv' gs res'
@@ -491,8 +479,8 @@ evalExbox body uv =
 -- For efficiency reason we try prepend instead of append, so 'evalBox' and 'evalExbox'
 -- have to reverse the list of gates as part of the post-processing. 
 appendMorph :: Binding -> Morphism -> Eval Value
-appendMorph binding f = -- f@(Morphism fins fs fouts) =
-  do let f' = rename f binding -- (Morphism fins' fs' fouts')
+appendMorph binding f = 
+  do let f' = rename f binding
      addGates (gates f')
      return $ output f'
 
@@ -508,11 +496,6 @@ makeBinding w v =
       vs = getWires v
   in Map.fromList (zip ws vs)
      
-   -- if length ws /= length vs
-     -- then 
-     --   error ("binding mismatch!\n" ++ (show $ disp w) ++
-     --           "\n" ++ (show $ disp v))
-       -- else Map.fromList (zip ws vs)
 
 
 
@@ -525,12 +508,6 @@ revGates xs = map invertGateName $ reverse xs
   where invertGateName (Gate id params ins outs ctrls flag) =
           Gate (invertName id) params outs ins ctrls flag
 
---  revGatesh xs []
-
-  -- where revGatesh [] gs = gs
-  --       revGatesh ((Gate id params ins outs ctrls flag):res) gs =
-  --         let id' = invertName id
-  --         in revGatesh res ((Gate id' params outs ins ctrls flag):gs)
 
 -- | Change the name of a gate to its adjoint
 invertName :: Id -> Id             
@@ -605,7 +582,7 @@ decrRef (v:vs) m =
       in decrRef vs m'
         
 
-refresh morph = -- (Morphism ins gs outs) =
+refresh morph =
   do let ins = input morph
          gs = gates morph
          outs = output morph

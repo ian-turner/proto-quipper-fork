@@ -10,16 +10,16 @@ import qualified Control.Exception as E
 import Network.Socket
 import System.IO
 
-import qualified Data.Map.Lazy as Map
-import Data.Map.Lazy (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import Control.Monad
 import Text.PrettyPrint
 
 import Debug.Trace
 
 data ReadWrite a = RW_Return a
-                 | RW_Write Gate (ReadWrite a)
-                 | RW_Read Label (Bool -> ReadWrite a)
+                 | RW_Write Gate! (ReadWrite a)
+                 | RW_Read Label! (Bool -> ReadWrite a)
 
 instance Monad ReadWrite where
   return a = RW_Return a

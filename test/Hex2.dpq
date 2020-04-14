@@ -418,7 +418,7 @@ sys	0m3.794s
 -}
 large_board' (x : Unit) = box_checkwin_red (9 @ 7 - 1) 9 refl refl
 
-main = small_board ()
+main = large_board ()
 {-
 main = large_board ()
 

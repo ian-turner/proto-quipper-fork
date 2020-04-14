@@ -160,8 +160,8 @@ evaluation exp =
   do gl <- getCxt
      n <- getCurrentLabel
      exp' <- tcTop $ erasure exp
-     (st, v) <- ioTop $ simulate $ getSt (eval exp') (initES gl n)
-     let n' = number st
+     (n', v) <- ioTop $ simulate $ do {(st, v) <- getSt (eval exp') (initES gl n);
+                                      return (number st, v)}
      putLabel n'
      return v
      
