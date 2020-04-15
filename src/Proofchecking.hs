@@ -565,7 +565,7 @@ proofCheck flag a@(Case tm (B brs)) goal =
   do t <- proofInfer flag tm
      let t' = flatten t 
      when (t' == Nothing) $ throwError (DataErr t tm)
-     let Just (Left id, _) = t'
+     let Just (Right id, _) = t'
      id' <- lookupId id
      case identification id' of
           DataType Simple _ _ -> throwError (DataErr t tm)
