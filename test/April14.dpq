@@ -1,0 +1,69 @@
+module Test4 where
+
+import "lib/Prelude.dpq"
+
+bell00 : Bool * Bool
+bell00 = let x = Init0 ()
+             y = Init0 ()
+             x  = H x
+             (y, x) = CNot y x
+         in (dynlift (Meas y), dynlift (Meas x))
+
+
+test1 (u : Unit) =
+  (iterN 3 (\ x -> (TGate (H x))) (Init0 ()), initVec 3 False)
+
+test1Box = box Unit test1
+
+main : Bool * Vec Bool 3
+main = runCirc test1Box ()
+
+f : ! forall (n : Nat) -> Qubit -> Vec Qubit n -> Qubit * Vec Qubit n
+f x y = case y of
+            -- VNil -> (TGate x, VNil)
+            -- VCons a as ->
+            --  let (x, as) = f x as
+            --      (a, x) = CNot a x
+            --  in (TGate x, VCons a as) 
+          VNil -> (H x, VNil)
+          VCons a as ->
+            let (x, as) = f x as
+                (a, x) = CNot a x
+             in (H x, VCons a as) 
+
+boxF = box (Qubit * Vec Qubit 1000) (\ x -> uncurry f x)
+
+-- main1 : Bool * Vec Bool 1000
+-- main1 = runCirc boxF (False, nVec 1000 False)
+
+main2 = let (a, b) = test1 ()
+        in (measure a : Bool, map dynlift $ map Meas b)
+
+
+circ4 : ! forall (n : Nat) -> Vec Qubit n -> Qubit -> Vec Qubit n * Qubit
+circ4 l x =
+  runState x $
+     do l'' <- mapM (\ q -> applyS (\ x -> CNot q (H x))   
+                     )
+                    l
+        return l''
+
+box_circ4 = box (Vec Qubit 4 * Qubit) $ \ x -> uncurry circ4 x
+
+-- multiH : Vec Bool 100
+-- multiH = measure (map H (initVec 100 False))
+-- main : Vec Bool 100 * Bool
+-- main = let (ls, q) = circ4 (initVec 100 False) (Init0 ()) in (measure ls, measure q)
+
+-- main1 =  let x = dynlift (Meas (H (Init0 ())))
+--          in if x then box Unit Init0 else box Unit Init1
+
+
+-- main1 (u : Unit) =
+--   let x = Init0 ()
+--       y = Init0 ()
+--       x = dynlift (Meas x)
+--   in if x then (QNot y) else y
+
+-- main2 = dynlift (Meas (main1 ()))
+
