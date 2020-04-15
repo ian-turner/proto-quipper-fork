@@ -18,6 +18,11 @@ initVec n b = case n of
                 Z -> VNil 
 		S n' -> VCons (initQubit b) (initVec n' b)
 
+nVec : ! forall a -> (Parameter a) => (n : Nat) -> a -> Vec a n
+nVec n b = case n of
+                Z -> VNil 
+		S n' -> VCons b (nVec n' b)
+
 disB : ! forall (n : Nat) -> Vec Bit n -> Unit
 disB l = case l of
               VNil -> ()
@@ -72,6 +77,7 @@ withBasisChange a b circ1 circ2 =
   in box a (\ x -> let (r, _) = unbox circ3 (x, ()) in r)
 
 
+-- Warning: noted the result type is not directly related to input.
 class Initialize b a where
   init {1,0,1} : b -> a
 
@@ -95,6 +101,7 @@ instance forall a a' (n : Nat) -> (Initialize a a') =>
       VNil -> VNil
       VCons a as -> VCons (init a) (init as)
 
+-- Warning: noted the result type is not directly related to input.
 class Measurement a b where
   measure {0,0,0} : a -> b
 
@@ -116,8 +123,7 @@ instance forall a a' (n : Nat) -> (Measurement a a') =>
       VNil -> VNil
       VCons a as -> VCons (measure a) (measure as)
 
--- Note that runCirc cannot be used directly in infer mode. Because its
--- type is too general.
+-- Warning: noted the result type is not directly related to input.
 runCirc : ! forall a b a' b' ->
              (Simple b, Simple a, Measurement b b', Initialize a' a) =>
              Circ(a, b) -> a' -> b'
