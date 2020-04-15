@@ -568,7 +568,7 @@ proofCheck flag a@(Case tm (B brs)) goal =
      let Just (Left id, _) = t'
      id' <- lookupId id
      case identification id' of
-          DataType Simple _ _ -> throwError (DataErr at tm)
+          DataType Simple _ _ -> throwError (DataErr t tm)
           DataType _ _ _ -> return ()         
      updateCountWith (\ x -> enterCase x id)
      checkBrs t brs goal

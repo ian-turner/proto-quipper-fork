@@ -20,16 +20,16 @@ main = runCirc test1Box ()
 
 f : ! forall (n : Nat) -> Qubit -> Vec Qubit n -> Qubit * Vec Qubit n
 f x y = case y of
-            -- VNil -> (TGate x, VNil)
-            -- VCons a as ->
-            --  let (x, as) = f x as
-            --      (a, x) = CNot a x
-            --  in (TGate x, VCons a as) 
-          VNil -> (H x, VNil)
-          VCons a as ->
-            let (x, as) = f x as
-                (a, x) = CNot a x
-             in (H x, VCons a as) 
+            VNil -> (TGate x, VNil)
+            VCons a as ->
+             let (x, as) = f x as
+                 (a, x) = CNot a x
+             in (TGate x, VCons a as) 
+          -- VNil -> (H x, VNil)
+          -- VCons a as ->
+          --   let (x, as) = f x as
+          --       (a, x) = CNot a x
+          --    in (H x, VCons a as) 
 
 boxF = box (Qubit * Vec Qubit 1000) (\ x -> uncurry f x)
 
@@ -59,11 +59,11 @@ box_circ4 = box (Vec Qubit 4 * Qubit) $ \ x -> uncurry circ4 x
 --          in if x then box Unit Init0 else box Unit Init1
 
 
--- main1 (u : Unit) =
---   let x = Init0 ()
---       y = Init0 ()
---       x = dynlift (Meas x)
---   in if x then (QNot y) else y
+main1 (u : Unit) =
+  let x = Init0 ()
+      y = Init0 ()
+      x = dynlift (Meas x)
+  in if x then (QNot y) else (H y)
 
 -- main2 = dynlift (Meas (main1 ()))
 
