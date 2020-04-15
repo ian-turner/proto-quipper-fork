@@ -118,6 +118,12 @@ tele_generic n q = let (a, b) = bell_generic n
 teleBox : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 teleBox n = box (Vec Qubit n) $ \ x -> tele_generic n x
 
+
+-- main = let x = unbox (teleBox 100) ((initVec 50 True))
+--            y = map Meas x
+--            z = map dynlift y
+--         in z
+
 teleBox_t1 : Circ (Vec Qubit 9, Vec Qubit 9)
 teleBox_t1 = teleBox 9
 

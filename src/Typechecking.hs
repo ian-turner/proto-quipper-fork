@@ -741,8 +741,13 @@ typeCheck flag a@(Case tm (B brs)) goal =
   do (t, ann, mode1) <- typeInfer flag tm
      at <- updateWithSubst t
      let t' = flatten at
-     when (t' == Nothing) $ throwError (DataErr at tm) 
+     when (t' == Nothing) $ throwError (DataErr at tm)
+
      let Just (Right id, _) = t'
+     id' <- lookupId id
+     case identification id' of
+          DataType Simple _ _ -> throwError (DataErr at tm)
+          DataType _ _ _ -> return ()
      updateCountWith (\ c -> enterCase c id)
      r <- checkBrs at brs goal
      let brss = map (\ (x, y, z) -> y) r

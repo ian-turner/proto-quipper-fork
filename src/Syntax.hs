@@ -237,14 +237,29 @@ instance Disp Exp where
           <+> text "->", nest 5 $ display flag b]
 
   display flag a@(App t t') =
-     fsep [dParen flag (precedence a - 1) t, dParen flag (precedence a) t']
-
+    fsep [dParen flag (precedence a - 1) t, dParen flag (precedence a) t']
+    
   display flag a@(AppType t t') =
     fsep [dParen flag (precedence a - 1) t <> dispAt flag "AppType",
           dParen flag (precedence a) t']
-
+    
   display flag a@(App' t t') =
-    fsep [dParen flag (precedence a - 1) t <> dispAt flag "App'", dParen flag (precedence a) t']
+    case toNat a of
+      Nothing ->
+            fsep [dParen flag (precedence a - 1) t, dParen flag (precedence a) t']
+      Just i -> int i
+    where toNat (App' (Const id) t') =
+            if getName id == "S" then
+              do n <- toNat t'
+                 return $ 1+n
+              else Nothing
+          toNat (Const id) = 
+            if getName id == "Z" then
+                 return 0
+            else Nothing
+          toNat (Pos _ e) = toNat e
+          toNat _ = Nothing
+
 
   display flag a@(AppDep t t') =
        fsep [dParen flag (precedence a - 1) t <> dispAt flag "AppDep",
@@ -364,6 +379,8 @@ instance Disp Exp where
   precedence (App' _ _) = 10  
   precedence (AppType _ _) = 10
   precedence (AppDep _ _) = 10
+  precedence (AppDep' _ _) = 10
+
   precedence (AppDict _ _) = 10
   precedence (AppTm _ _) = 10
   precedence (Pair _ _) = 11

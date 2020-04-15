@@ -79,6 +79,10 @@ class Initialize b a where
 instance Initialize Bool Qubit where
   init x = initQubit x
 
+instance Initialize Unit Unit where
+  init x = x
+
+
 instance forall a a' b b' -> (Initialize a a', Initialize b b') =>
              Initialize (a * b) (a' * b') where
   init x =
@@ -97,6 +101,9 @@ class Measurement a b where
 instance Measurement Qubit Bool where
   measure x = dynlift (meas x)
 
+instance Measurement Unit Unit where
+  measure x = x
+
 
 instance forall a a' b b' -> (Measurement a a', Measurement b b') =>
              Measurement (a * b) (a' * b') where
@@ -109,6 +116,8 @@ instance forall a a' (n : Nat) -> (Measurement a a') =>
       VNil -> VNil
       VCons a as -> VCons (measure a) (measure as)
 
+-- Note that runCirc cannot be used directly in infer mode. Because its
+-- type is too general.
 runCirc : ! forall a b a' b' ->
              (Simple b, Simple a, Measurement b b', Initialize a' a) =>
              Circ(a, b) -> a' -> b'
