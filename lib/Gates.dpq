@@ -129,23 +129,23 @@ tgate = TGate
 meas = Meas
 
 toffoli : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
-toffoli c b a = -- Toffoli c b a
-  let 
-      c = H c
-      (c, b) = CNot c b
-      c = tgate_inv c
-      (c, a) = CNot c a
-      c = tgate c
-      (c, b) = CNot c b
-      c = tgate_inv c
-      (c, a) = CNot c a
-      c = H (TGate c)
-      b = tgate b
-      (b, a) = CNot b a
-      a = tgate a
-      b = tgate_inv b
-      (b, a) = CNot b a
-  in (c, b, a)
+toffoli c b a = Toffoli c b a
+  -- let 
+  --     c = H c
+  --     (c, b) = CNot c b
+  --     c = tgate_inv c
+  --     (c, a) = CNot c a
+  --     c = tgate c
+  --     (c, b) = CNot c b
+  --     c = tgate_inv c
+  --     (c, a) = CNot c a
+  --     c = H (TGate c)
+  --     b = tgate b
+  --     (b, a) = CNot b a
+  --     a = tgate a
+  --     b = tgate_inv b
+  --     (b, a) = CNot b a
+  -- in (c, b, a)
 
 boxToffoli = box (Qubit * Qubit * Qubit) $ \ x -> uncurry (uncurry toffoli) x
 
