@@ -685,10 +685,12 @@ reverseExp = reserved "reverse" >> return Reverse
 controlExp :: Parser Exp
 controlExp = reserved "controlled" >> return Controlled
 
--- circExp :: Parser Exp
--- circExp = do
---   t <- braces $ term
-  
+circExp :: Parser Exp
+circExp = do
+  input <- braces $ term
+  block gates
+  output <- braces $ term
+  return $ Circuit input gs output
 
 withComputedExp :: Parser Exp
 withComputedExp = reserved "withComputed" >> return WithComputed

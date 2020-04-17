@@ -57,4 +57,16 @@ st (u : Unit) =
 measSt : Bool
 measSt = measure (st ())
 
+g : !(Qubit -> Qubit)
+g x = g x
+
+f : !(Qubit -> Qubit)
+f x =
+  let y = H (H (H (H x)))
+     -- _ = dynlift (Meas y)
+  in y --(Init0 ()) 
+  
+
+
+
 -- testTerm = Term0 (Init1 ())

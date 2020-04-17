@@ -44,7 +44,10 @@ data Exp =
   | Wild -- ^ Wildcard. 
   | Pos Position Exp -- ^ Position wrapper.
   | WithAnn Exp Exp -- ^ Type annotation: @t : T@.
+  | Circuit Exp [Gate] Exp
   deriving (Show, Eq)
+
+data Gate = Gate Id [Exp] Exp Exp Exp Bool
 
 -- | Branches for case expression. We currently do not support
 -- nested patterns.

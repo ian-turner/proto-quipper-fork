@@ -453,7 +453,6 @@ instance Bindable (Map Variable (Value, Int)) where
 -- are input, output, control and controllable flag.          
 data Gate = Gate Id [Value] Value Value Value Bool
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
-
 -- | A list of gates.
 type Gates = [Gate]
 
