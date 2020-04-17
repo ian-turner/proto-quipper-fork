@@ -466,7 +466,7 @@ data Morphism = Morphism {input :: Value,
            
   
 instance Disp Value where
-  display flag (VLabel l) = text $ show l
+  display flag (VLabel l) = display flag l
   display flag (VVar l) = text $ show l
   display flag (VLBase id) = display flag id
   display flag (VBase id) = display flag id

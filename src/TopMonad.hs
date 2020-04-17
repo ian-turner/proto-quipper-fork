@@ -207,7 +207,7 @@ emptyState p = InterpreterState {
   parentFiles = [],
   importedFiles = [],
   counter = 0,
-  currentWire = 0,
+  currentWire = L 0,
   path = p
   }
 
@@ -230,7 +230,7 @@ getCounter = do
   s <- getInterpreterState
   return (counter s)
 
-getCurrentLabel :: Top Int
+getCurrentLabel :: Top Label
 getCurrentLabel = do
   s <- getInterpreterState
   return (currentWire s)
@@ -265,7 +265,7 @@ putCounter i = do
   let s' = s {counter = i}
   putInterpreterState s'
 
-putLabel :: Int -> Top ()
+putLabel :: Label -> Top ()
 putLabel i = do
   s <- getInterpreterState
   let s' = s {currentWire = i}
@@ -362,6 +362,6 @@ putMain v t = do
 freshLabels :: Int -> Top [Label]
 freshLabels n =
   do c <- getCurrentLabel
-     let r = take n [c..]
-     putLabel (c + n)
+     let r = map L $ take n [l c..]
+     putLabel $ L (l c + n)
      return r

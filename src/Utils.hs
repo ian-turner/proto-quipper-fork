@@ -14,7 +14,6 @@ module Utils
          Variable,
          Id(..),
          Position(..),
-         Label,
          dParen,
          initCount,
          ZipCount,
@@ -23,7 +22,8 @@ module Utils
          enterCase,
          nextCase,
          exitCase,
-         hashPos
+         hashPos,
+         Label(..),
        )
        where
 
@@ -71,13 +71,13 @@ instance Disp Variable where
 --   expand_names _ xs = xs ++ [ x ++ (show n) | n <- [1..], x <- xs ]
 
 -- | Labels are integers used for representing the input/output of circuits. 
-type Label = Int
+newtype Label = L {l :: Int} deriving (NominalSupport, Nominal, Generic, NominalShow, Ord, Eq)
 
-instance Disp Int where
-  display _ t = int t
+instance Disp Label where
+  display _ (L t) = text $ "l"++ show t
   
--- instance Disp (AtomOfKind L) where
---   display _ t = text (show t)
+instance Show Label where
+  show (L t) = show t
 
 -- | A prefix pattern definition for opening a binder.  
 pattern Abst :: (Bindable a, Nominal t) => a -> t -> Bind a t

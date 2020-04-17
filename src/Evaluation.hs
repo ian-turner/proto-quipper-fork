@@ -58,7 +58,7 @@ freshL :: Int -> Eval [Label]
 freshL n =
   do s <- get
      let m = number s
-         r = take n [m ..]
+         r = map L $ take n [m ..]
      put s{number = m + n}
      return r
      

@@ -685,6 +685,10 @@ reverseExp = reserved "reverse" >> return Reverse
 controlExp :: Parser Exp
 controlExp = reserved "controlled" >> return Controlled
 
+-- circExp :: Parser Exp
+-- circExp = do
+--   t <- braces $ term
+  
 
 withComputedExp :: Parser Exp
 withComputedExp = reserved "withComputed" >> return WithComputed
