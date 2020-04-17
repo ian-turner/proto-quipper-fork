@@ -302,10 +302,10 @@ evalApp (VApp (VApp (VApp (VApp VExBox q) _) _) _) v =
 
 
 evalApp (VApp (VApp VReverse _) _) (VCircuit m) = do
-  m' <- refresh m
-  let gs' = revGates (gates m')
-      ins = input m'
-      outs = output m'
+--  m' <- refresh m
+  let gs' = revGates (gates m)
+      ins = input m
+      outs = output m
   return $ (VCircuit $ Morphism outs gs' ins)
 
 evalApp (VApp (VApp (VApp VControlled _) _) _) (VCircuit m) = 
@@ -335,14 +335,15 @@ evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
   let b2 = fstVPair $ input circ2
   let gs1' = map negateCtrl gs1
       gs1'' = revGates gs1'
-      circ1' = (Morphism (VPair b1 e) gs1'' a)
+  circ1' <- refresh (Morphism (VPair b1 e) gs1'' a) 
+  let (Morphism (VPair b1' _) _ _) = circ1'
       binding = makeBinding b2 b1
       circ2' = rename circ2 binding
       gs2 = gates circ2'
       c = sndVPair $ input circ2'
       b3 = fstVPair $ output circ2'
       d = sndVPair $ output circ2'
-      binding2 = makeBinding b1 b3
+      binding2 = makeBinding b1' b3
       circ3 = rename circ1' binding2
       gs1''' = gates circ3
       a' = output circ3
@@ -589,23 +590,19 @@ refresh morph =
      insWires' <- freshL (size ins)
      let insWires = getWires ins
          m = Map.fromList (zip insWires insWires')
+         ins' = renameTemp ins m
      (gs', m') <- helper m gs
      let outs' = renameTemp outs m'
-         ins' = renameTemp ins m
      return (Morphism ins' gs' outs')
   where helper m [] = return ([], m)
         helper m ((Gate id ps input output ctrl flag):gs) =
-          do let inputWires = [ x | x <- getWires input, Map.lookup x m == Nothing]
-                 outputWires = [ x | x <- getWires output, Map.lookup x m == Nothing]
-             newInputWires <- freshL (length inputWires)
-             newOutputWires <- freshL (length outputWires)
-             let m' = Map.union (Map.fromList (zip inputWires newInputWires))
-                      (Map.fromList (zip outputWires newOutputWires))
-                 m'' = m `Map.union` m'
-                 input' = renameTemp input m''
-                 output' = renameTemp output m''
-                 ctrl' = renameTemp ctrl m''
-             (gs', m''') <- helper m'' gs
-             return ((Gate id ps input' output' ctrl' flag):gs', m''')
+          do newOutputWires <- freshL (size output)
+             let outputWires = getWires output
+                 m' = Map.fromList (zip outputWires newOutputWires)
+                 input' = renameTemp input m
+                 output' = renameTemp output m'
+                 ctrl' = renameTemp ctrl m
+             (gs', m'') <- helper (m `Map.union` m') gs
+             return ((Gate id ps input' output' ctrl' flag):gs', m'')
 
 

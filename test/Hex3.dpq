@@ -221,9 +221,9 @@ box_checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
 small_board (x : Unit) = box_checkwin_red (mul 2 7) 5 refl refl
 
 
--- test_small_board : ! (Bool * Vec Bool (S (mul 2 7)) ->
---                         Bool * Vec Bool (S (mul 2 7)))
--- test_small_board x = runCirc (small_board ()) x
+test_small_board : ! (Bool * Vec Bool (S (mul 2 7)) ->
+                        Bool * Vec Bool (S (mul 2 7)))
+test_small_board x = runCirc (small_board ()) x
 
 a_small_board_blue =
   VCons False $ VCons False $ VCons False $ VCons False $ VCons False
@@ -241,11 +241,11 @@ a_small_board_red =
 -- box_checkwin_red (9 @ 7 - 1) 7 refl refl
 
 
-main = box_checkwin_red (5 @ 7 - 1) 7 refl refl
+-- main = box_checkwin_red (5 @ 7 - 1) 7 refl refl
 -- mem 28%, 5m. 
 -- box_checkwin_red (9 @ 7 - 1) 9 refl refl
 -- 
--- test_small_board (False, a_small_board_blue)
+-- main = test_small_board (False, a_small_board_blue)
 
   
         

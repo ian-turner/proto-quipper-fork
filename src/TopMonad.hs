@@ -158,12 +158,11 @@ tcTop m =
 evaluation :: A.Exp -> Top Value            
 evaluation exp =
   do gl <- getCxt
-     n <- getCurrentLabel
      exp' <- tcTop $ erasure exp
-     (n', v) <- ioTop $ simulate $ do {(st, v) <- getSt (eval exp') (initES gl n);
-                                      return (number st, v)}
-     putLabel n'
-     return v
+     ioTop $ simulate $ do {(st, v) <- getSt (eval exp') (initES gl 0);
+                            return v}
+
+     
      
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
 topTypeInfer :: A.Exp -> Top (A.Exp, A.Exp)

@@ -557,7 +557,7 @@ instance Disp Gate where
   display flag (Gate g params ins outs ctrls _) =
     display flag g <+> brackets (hsep $ punctuate comma (map (display flag) params))
     <+> (braces $ (display flag ins)) <+> (braces $ (display flag outs))
-    <+> (brackets $ display flag ctrls)
+    <+> (display flag ctrls)
 
 -- | Convert a /basic value/ from the value domain to an expression,
 -- so that the type checker can take advantage of cbv.   
