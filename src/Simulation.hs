@@ -93,7 +93,7 @@ interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
                case read r' of
                         Reply s | s == "0" -> interaction c h map (w':ls)
                         Reply s ->
-                          E.throw $ userError $ "Wire termination error: expecting to terminate with 0, but get: " ++ s
+                          error $ "Wire termination error: expecting to terminate with 0, but get: " ++ s
           | getName name == "Term1" =
             do let (VLabel w') = renameTemp (VLabel w) map
                hPutStrLn h ("M " ++ show w')
@@ -102,7 +102,7 @@ interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
                case read r' of
                  Reply s | s == "1" -> interaction c h map (w':ls)
                  Reply s ->
-                          E.throw $ userError $ "termination error, expecting to terminate with 1, but get: " ++ s
+                          error $ "termination error, expecting to terminate with 1, but get: " ++ s
                 
 interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map []
           | getName name == "Init0" =
@@ -151,7 +151,7 @@ interaction (RW_Write (Gate name [] v@(VPair (VPair _ _) _)
              interaction res h map' ls
 
 interaction (RW_Write g res) h map ls =
-  E.throw $ userError $ "Unsupported gate: " ++ (show g)
+  error $ "Unsupported gate: " ++ (show g)
 
                                                    
 toGateName "CNot" = "CNOT"

@@ -102,14 +102,7 @@ command =
   do whiteSpace 
      quit <|> help <|> typing <|> reload <|> load <|> printing <|>
        displaying <|> displayEx <|> annotation <|>
-       showCirc <|> gateC <|> eval
-
--- | Parse show top-level circuit command.
-showCirc :: Parser Command     
-showCirc =
-  do reserved ":s"
-     eof
-     return ShowCirc
+       gateC <|> eval
 
 -- | Parse quit command.
 quit :: Parser Command

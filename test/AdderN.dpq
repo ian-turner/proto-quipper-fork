@@ -87,7 +87,7 @@ repeat n b =
    S n' -> VCons b (repeat n' b)
    
 adding :  Bool * Vec Bool 100 * Vec Bool 100
-adding = (False, repeat 100 True, repeat 100 True)
+adding = (False, repeat 100 True, repeat 100 False)
 
 -- (VCons True $ VCons False $ VCons True $ VCons False VNil)
 --                    (VCons False $ VCons True $ VCons False $ VCons True VNil)

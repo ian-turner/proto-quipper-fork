@@ -206,7 +206,7 @@ dispatch (Annotation e) =
              do liftIO $ putStrLn ("there is nothing to show \n")
                 return True
 
-
+  
 -- A load command will first initialize the Simple and Parameter class instances,
 -- then proceed to load file. 
 dispatch (Load verbose file) =
