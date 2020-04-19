@@ -94,7 +94,13 @@ process (Instance pos f ty mths) =
        Just (Right d', args) ->
          elaborateInstance pos f ty mths
 
-
+process (CircuitDecl pos f ty m) =
+  do (_, ty') <- tcTop $ typeChecking True ty Set
+     let info = Info { classifier = ty',
+                       identification = DefinedFunction
+                                        (Just (Const f, VCircuit m, Just (Const f)))}
+     tcTop $ addNewId f info
+     
 process (Def pos f' ty' def') =
   do tcTop $ checkVacuous pos ty'
      (_, ty) <- tcTop $ typeChecking True ty' Set 

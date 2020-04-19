@@ -371,7 +371,6 @@ resolveDecl scope (C.GateDecl p gn params t (a, b, c)) =
      return (GateDecl p id params' e
                  (M (BConst a) (BConst b) (BConst c)), scope')
      
-
 resolveDecl scope (C.Object p x) =
   do (id, scope') <- addConst p x LBase scope
      return (Object p id, scope')
@@ -414,6 +413,10 @@ resolveDecl scope (C.Defn p f qs args def) | not $ null args =
            toForall (Right (vs, t):xs) m =
              C.Forall [(vs, t)] (toForall xs m)
 
+resolveDecl scope (C.CircuitDecl p d t m) =
+  do (id, scope') <- addConst p d Const scope
+     ty <- resolve (toLScope scope) t
+     return $ (CircuitDecl p id ty m, scope')
 
 resolveDecl scope (C.Data p d ts vs constrs) =
   do (id, scope') <- addConst p d Base scope

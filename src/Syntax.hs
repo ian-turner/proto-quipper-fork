@@ -451,7 +451,14 @@ instance Bindable (Map Variable (Value, Int)) where
 
 -- | Gate, ['Value'] is a list of parameters, the last three values
 -- are input, output, control and controllable flag.          
-data Gate = Gate Id [Value] Value Value Value Bool
+data Gate = Gate{
+  gateName :: Id,
+  params :: [Value],
+  inputVal :: Value,
+  outputVal :: Value,
+  ctrl :: Value,
+  ctrlFlag :: Bool
+  }
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 -- | A list of gates.
 type Gates = [Gate]
@@ -554,9 +561,9 @@ instance Disp Morphism where
 
 instance Disp Gate where
   display flag (Gate g params ins outs ctrls b) =
-    display flag g <+> brackets (hsep $ punctuate comma (map (display flag) params))
-    <+> (braces $ (display flag ins)) <+> (braces $ (display flag outs))
-    <+> (display flag ctrls) <+> text (show b)
+    display flag g <> comma <+> brackets (hsep $ punctuate comma (map (display flag) params))
+    <> comma <+> (display flag ins) <> comma <+> (display flag outs) <> comma
+    <+> (display flag ctrls) <> comma <+> text (show b)
 
 -- | Convert a /basic value/ from the value domain to an expression,
 -- so that the type checker can take advantage of cbv.   
@@ -592,6 +599,7 @@ data Decl = Object Position Id -- ^ Declaration for qubit or bit.
           | Def Position Id Exp Exp
             -- ^ Function declaration. 'Id': name, 'Exp': type, 'Exp': definition
           | GateDecl Position Id [Exp] Exp Modality
+          | CircuitDecl Position Id Exp Morphism
             -- ^ Gate declaration. 'Id': name, ['Exp']: parameters, 'Exp': input/output.
           | ImportDecl Position String
             -- ^ Importation.

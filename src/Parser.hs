@@ -11,6 +11,7 @@ module Parser
        where
 
 import ConcreteSyntax
+import qualified Syntax as A
 import Utils
 
 
@@ -203,7 +204,7 @@ decls = do
         (simpleDecl <|> importDecl
         <|> classDecl <|> instanceDecl
         <|>  gateDecl <|>  objectDecl <|>  dataDecl
-        <|> operatorDecl
+        <|> operatorDecl <|> circuitDecl
         <|> funDecl <|> funDef <?> "top level declaration") 
   st <- getState
   eof
@@ -317,6 +318,17 @@ gateDecl =
      reservedOp ":"
      ty <- typeExp
      return $ GateDecl (P p) g args ty m
+
+circuitDecl :: Parser Decl
+circuitDecl =
+  do reserved "circuit"
+     p <- getPosition
+     name <- var
+     reservedOp ":"
+     circType <- typeExp
+     reservedOp "="
+     m <- morphism
+     return $ CircuitDecl (P p) name circType m
 
 -- | Parse a data type declaration. We allow data type without any constructor,
 -- in that case, one should not use '='. The syntax is similar to Haskell 98
@@ -685,13 +697,59 @@ reverseExp = reserved "reverse" >> return Reverse
 controlExp :: Parser Exp
 controlExp = reserved "controlled" >> return Controlled
 
-circExp :: Parser Exp
-circExp = do
-  input <- braces $ term
-  block gates
-  output <- braces $ term
-  return $ Circuit input gs output
+morphism :: Parser A.Morphism
+morphism = do
+  input <- braces value
+  gs <- block gate
+  output <- braces value
+  return $ A.Morphism input gs output
 
+gate = do
+  name <- const
+  comma
+  ps <- brackets $ sepBy value comma 
+  comma
+  ins <- value
+  comma
+  outs <- value
+  comma 
+  ctrl <- value
+  comma
+  b <- const
+  return $ A.Gate (Id name) ps ins outs ctrl (read b)
+
+vlabel = do
+  l <- naturals
+  return (A.VLabel (L $ fromIntegral l))
+
+vconst = do
+  c <- const
+  return (A.VConst (Id c))
+
+vstar = reservedOp "()" >> return A.VStar
+
+vpair =
+  parens $ do
+    v1 <- value
+    comma
+    v2 <- value
+    return $ A.VPair v1 v2
+
+vvector :: Parser A.Value
+vvector =
+  do elems <- brackets (value `sepBy` comma)
+     return $ foldr (\ x y -> A.VApp (A.VApp (A.VConst (Id "VCons")) x) y) (A.VConst (Id "VNil")) elems
+
+value = 
+  manyLines (do{ head <- headExp;
+                 return $ foldl (\ z x -> A.VApp z x) head}) arg
+  where headExp = try vstar <|> try vlabel <|> try vconst <|> try vpair
+                  <|> try vvector <|> parens value 
+
+        arg = try vlabel <|> try vconst <|> try vstar <|> try vpair <|> try vvector
+                         <|> parens value
+
+              
 withComputedExp :: Parser Exp
 withComputedExp = reserved "withComputed" >> return WithComputed
 
@@ -911,7 +969,7 @@ dpqStyle = Token.LanguageDef
                     "data", "import", "class", "instance",
                     "simple",
                     "reverse", "box", "unbox", "existsBox", "controlled",
-                    "withComputed", "dynlift",
+                    "withComputed", "dynlift", "circuit",
                     "object", "Circ", "Unit", "do",
                     "where", "module", "infix","infixr", "infixl",
                     "Type", "forall", "if", "then", "else",

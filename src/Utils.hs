@@ -74,7 +74,7 @@ instance Disp Variable where
 newtype Label = L {l :: Int} deriving (NominalSupport, Nominal, Generic, NominalShow, Ord, Eq)
 
 instance Disp Label where
-  display _ (L t) = text $ "l"++ show t
+  display _ (L t) = text $ show t
   
 instance Show Label where
   show (L t) = show t

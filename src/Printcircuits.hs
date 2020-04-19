@@ -389,7 +389,7 @@ render_gate fs (Gate name [] (VPair (VLabel w) (VLabel c)) output ctrl _) x ys m
   in (s2, t2 >> t3)
 
 render_gate fs (Gate name [v] ws@(VPair (VLabel w) (VLabel c)) output VStar _) x ys maxh
-  | getName name == "R" || getName name == "R*" =
+  | getName name == "R" || getName name == "R_inv" =
   let
       r = getName name
       c' = positive c
@@ -399,7 +399,7 @@ render_gate fs (Gate name [v] ws@(VPair (VLabel w) (VLabel c)) output VStar _) x
   in (s2, t2 >> t3)
 
 render_gate fs (Gate name [v] ws@(VPair (VLabel w) (VLabel c)) output ctrl _) x ys maxh
-  | getName name == "R" || getName name == "R*" =
+  | getName name == "R" || getName name == "R_inv" =
   let
       r = getName name
       c' = positive c

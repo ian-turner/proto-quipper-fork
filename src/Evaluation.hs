@@ -528,8 +528,8 @@ invertName id | getName id == "ToffoliGate" =  Id "ToffoliGate"
 invertName id | getName id == "Toffoli" =  Id "Toffoli"
 invertName id | getName id == "Mea" = error "cannot invert Mea gate"
 invertName id | getName id == "Discard" = error "cannot invert Discard gate"
-invertName id | last (getName id) /= '*' =  Id $ getName id ++ "*"
-              | otherwise = Id $ init (getName id)
+invertName id | "_inv" `isSuffixOf` (getName id)  =  Id $ getName id \\ "_inv"
+              | otherwise = Id $ getName id ++ "_inv"
 
 
 -- | Rename /uv/ using fresh labels draw from /vs/.

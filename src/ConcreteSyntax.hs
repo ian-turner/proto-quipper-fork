@@ -5,6 +5,7 @@
 
 module ConcreteSyntax where
 import Utils
+import Syntax (Morphism(..))
 import Text.PrettyPrint
 import Text.Parsec.Pos
 import Data.List
@@ -44,10 +45,10 @@ data Exp =
   | Wild -- ^ Wildcard. 
   | Pos Position Exp -- ^ Position wrapper.
   | WithAnn Exp Exp -- ^ Type annotation: @t : T@.
-  | Circuit Exp [Gate] Exp
+--  | Circuit Exp [Gate] Exp
   deriving (Show, Eq)
 
-data Gate = Gate Id [Exp] Exp Exp Exp Bool
+-- data Gate = Gate Id [Exp] Exp Exp Exp Bool  deriving (Show, Eq)
 
 -- | Branches for case expression. We currently do not support
 -- nested patterns.
@@ -64,7 +65,8 @@ data Binding =
 -- | Top-level declarations.
 data Decl = GateDecl Position String [Exp] Exp (Bool, Bool, Bool)
             -- ^ Gate declaration, ['Exp'] are the parameters for the gate, 'Exp' is
-            -- a type expression specifying the input and output of the gate. 
+            -- a type expression specifying the input and output of the gate.
+          | CircuitDecl Position String Exp Morphism
           | Object Position String
             -- ^  Object declaration for simple types such as @Qubit@ or @Bit@.
           | Def Position String Exp [String] Exp

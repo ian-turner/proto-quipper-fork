@@ -164,7 +164,7 @@ toGateName "C_X" = "X"
 toGateName "C_Z" = "Z"
 toGateName "SGate" = "S"
 toGateName "TGate" = "T"
-toGateName "TGate*" = "T*"
+toGateName "TGate_inv" = "T*"
 toGateName "Discard" = "D"
 toGateName a = E.throw $ userError $ "unsupported gate: " ++ a
 

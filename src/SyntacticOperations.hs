@@ -1045,11 +1045,12 @@ toBool (VConst x) | getName x == "False" = False
 
 -- | Convert a value to a natural number. It is an error to call this
 -- with a value that is not a Peano number.
-toNum :: (Num p) => Value -> p
+
+-- toNum :: (Num p) => Value -> p
 toNum (VConst x) | getName x == "Z" = 0
 toNum (VApp (VConst s) n) | getName s == "S" =
   toNum n + 1
-
+toNum (VLabel n) = l n
 
 -- | Rename the labels of a morphism according to a binding.
 rename :: Morphism -> Map Label Label -> Morphism            
