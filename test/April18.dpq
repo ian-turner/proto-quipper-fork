@@ -54,17 +54,17 @@ st (u : Unit) =
       x = dynlift (Meas (H x))
   in if x then (QNot y) else (y)
 
-measSt : Bool
-measSt = measure (st ())
+-- measSt : Bool
+-- measSt = measure (st ())
 
 g : !(Qubit -> Qubit)
 g x = g x
 
 f : !(Qubit -> Qubit)
 f x =
-  let y = H (H (H (H x)))
-     -- _ = dynlift (Meas y)
-  in y --(Init0 ()) 
+  let y = H x
+      -- _ = dynlift (Meas y)
+  in f y -- (Init0 ()) 
   
 
 

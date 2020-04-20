@@ -18,8 +18,8 @@ import Text.PrettyPrint
 import Debug.Trace
 
 data ReadWrite a = RW_Return a
-                 | RW_Write Gate! (ReadWrite a)
-                 | RW_Read Label! (Bool -> ReadWrite a)
+                 | RW_Write !Gate (ReadWrite a)
+                 | RW_Read !Label (Bool -> ReadWrite a)
 
 instance Monad ReadWrite where
   return a = RW_Return a
@@ -72,6 +72,7 @@ withoutSimulator a = E.throw $ userError "qserver is not up, can't run simulator
                                                       
 interaction :: ReadWrite a -> Handle -> Map Label Label -> [Label] -> IO a
 interaction (RW_Return a) h map ls = return a
+
 interaction (RW_Read l k) h map ls =
           do let (VLabel l') = renameTemp (VLabel l) map
              hPutStrLn h ("R "++ show l')
@@ -79,11 +80,13 @@ interaction (RW_Read l k) h map ls =
              case read r of
                Reply str | str == "0" -> interaction (k False) h map (l':ls)
                Reply str | str == "1" -> interaction (k True) h map (l':ls)
+
 interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
           | getName name == "Discard" =
             do let (VLabel w') = renameTemp (VLabel w) map
                hPutStrLn h ("D " ++ show w')
                interaction c h map (w':ls)
+
 interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
           | getName name == "Term0" =
             do let (VLabel w') = renameTemp (VLabel w) map
@@ -91,9 +94,9 @@ interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
                hPutStrLn h ("R " ++ show w')
                r' <- hGetLine h
                case read r' of
-                        Reply s | s == "0" -> interaction c h map (w':ls)
-                        Reply s ->
-                          error $ "Wire termination error: expecting to terminate with 0, but get: " ++ s
+                 Reply s | s == "0" -> interaction c h map (w':ls)
+                 Reply s ->
+                   error $ "Wire termination error: expecting to terminate with 0, but get: " ++ s
           | getName name == "Term1" =
             do let (VLabel w') = renameTemp (VLabel w) map
                hPutStrLn h ("M " ++ show w')
@@ -109,6 +112,7 @@ interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map []
           do let cmd = ("Q " ++ show w)
              hPutStrLn h cmd
              interaction c h map []
+
           | getName name == "Init1" =
           do hPutStrLn h ("Q " ++ show w ++ " 1")
              interaction c h map []
