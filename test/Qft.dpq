@@ -280,8 +280,8 @@ circuit main1 : Circ(Vec Qubit 9 * Vec Qubit 9,
 --
 circuit ha : Circ(Qubit, Qubit) =
 {1}
-H, [], 1, 2, (), True
-{2}
+H, [], 1, 1, (), True
+{1}
 
 
-testHa = withBasisChange ha (box Qubit H)
+testHa = withBasisChange ha (box Qubit ZGate)

@@ -1,7 +1,7 @@
 module Hex3 where
 
 import "lib/Prelude.dpq"
-
+import "test/Hex3Dump.dpq"
 
 -- update_focus generates garbage size 1
 -- type ZipperMaps : Nat -> Nat -> Type where
@@ -236,7 +236,7 @@ a_small_board_red =
   $ VCons True $ VCons True $ VCons True $ VCons True $ VCons True VNil
 
 
--- main = box_checkwin_red (3 @ 7 - 1) 7 refl refl
+main = box_checkwin_red (3 @ 7 - 1) 7 refl refl
 
 -- box_checkwin_red (9 @ 7 - 1) 7 refl refl
 
