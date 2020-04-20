@@ -57,7 +57,7 @@ dispatch Help =
                ":r                      reload the most recent file, clear circuit state\n" ++
                ":q                      exit interpreter\n" ++
                ":h                      show this list of commands\n" ++
-               ":g <expr>               gate count" ++
+               ":g [gate-name] <expr>   gate count" ++
                "\n" 
 
 

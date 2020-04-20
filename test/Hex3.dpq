@@ -236,12 +236,15 @@ a_small_board_red =
   $ VCons True $ VCons True $ VCons True $ VCons True $ VCons True VNil
 
 
-main = box_checkwin_red (3 @ 7 - 1) 7 refl refl
 
+{- main = box_checkwin_red (3 @ 7 - 1) 7 refl refl 
+   dpq test/Hex3.dpq -g  173.37s user 21.19s system 125% cpu 2:34.84 total
+
+-}
 -- box_checkwin_red (9 @ 7 - 1) 7 refl refl
 
 
--- main = box_checkwin_red (5 @ 7 - 1) 7 refl refl
+main = box_checkwin_red (5 @ 7 - 1) 7 refl refl
 -- mem 28%, 5m. 
 -- box_checkwin_red (9 @ 7 - 1) 9 refl refl
 -- 
