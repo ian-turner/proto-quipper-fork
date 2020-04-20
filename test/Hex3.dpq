@@ -238,6 +238,8 @@ a_small_board_red =
 
 main1 (x : Unit) = uncurry (real_checkwin_red 34 7 refl refl) (init (False, nVec 35 True))
 
+main2 (x : Unit) = uncurry (real_checkwin_red 20 7 refl refl) (init (False, nVec 21 True))
+
 main = box_checkwin_red (3 @ 7 - 1) 7 refl refl 
 {- main = box_checkwin_red (3 @ 7 - 1) 7 refl refl 
    dpq test/Hex3.dpq -g  173.37s user 21.19s system 125% cpu 2:34.84 total
