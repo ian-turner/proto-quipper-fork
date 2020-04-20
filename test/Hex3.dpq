@@ -1,7 +1,7 @@
 module Hex3 where
 
 import "lib/Prelude.dpq"
-import "test/Hex3Dump.dpq"
+-- import "test/Hex3Dump.dpq"
 
 -- update_focus generates garbage size 1
 -- type ZipperMaps : Nat -> Nat -> Type where
@@ -221,22 +221,24 @@ box_checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
 small_board (x : Unit) = box_checkwin_red (mul 2 7) 5 refl refl
 
 
+
 test_small_board : ! (Bool * Vec Bool (S (mul 2 7)) ->
                         Bool * Vec Bool (S (mul 2 7)))
 test_small_board x = runCirc (small_board ()) x
 
 a_small_board_blue =
-  VCons False $ VCons False $ VCons False $ VCons False $ VCons False
-  $ VCons False $ VCons False $ VCons False $ VCons False $ VCons False
-  $ VCons False $ VCons False $ VCons False $ VCons False $ VCons False VNil
+  VCons True $ VCons False $ VCons False $ VCons False $ VCons False
+  $ VCons True $ VCons True $ VCons True $ VCons True $ VCons False
+  $ VCons False $ VCons False $ VCons False $ VCons True $ VCons True VNil
 
 a_small_board_red =
   VCons True $ VCons True $ VCons True $ VCons True $ VCons True
   $ VCons True $ VCons True $ VCons True $ VCons True $ VCons True
   $ VCons True $ VCons True $ VCons True $ VCons True $ VCons True VNil
 
+main1 (x : Unit) = uncurry (real_checkwin_red 14 5 refl refl) (init (False, a_small_board_blue))
 
-
+main = box_checkwin_red (3 @ 7 - 1) 7 refl refl 
 {- main = box_checkwin_red (3 @ 7 - 1) 7 refl refl 
    dpq test/Hex3.dpq -g  173.37s user 21.19s system 125% cpu 2:34.84 total
 
@@ -244,7 +246,9 @@ a_small_board_red =
 -- box_checkwin_red (9 @ 7 - 1) 7 refl refl
 
 
-main = box_checkwin_red (5 @ 7 - 1) 7 refl refl
+-- main = box_checkwin_red (5 @ 7 - 1) 7 refl refl
+-- 475119
+-- dpq test/Hex3.dpq -g  1654.73s user 205.41s system 122% cpu 25:15.20 total 
 -- mem 28%, 5m. 
 -- box_checkwin_red (9 @ 7 - 1) 9 refl refl
 -- 

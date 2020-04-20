@@ -102,8 +102,8 @@ command :: Parser Command
 command =
   do whiteSpace 
      quit <|> help <|> typing <|> reload <|> load <|> printing <|>
-       displaying <|> displayEx <|> annotation <|>
-       gateC <|> eval
+       displaying <|> displayEx <|> annotation <|> showCirc <|>
+       gateC <|> topGateC <|> eval
 
 -- | Parse quit command.
 quit :: Parser Command
@@ -189,6 +189,19 @@ gateC =
      t <- term
      eof
      return $ GateCount name t
+
+topGateC =
+  do reserved ":tg"
+     name <- option Nothing $ (stringLiteral >>= \ x -> return $ Just x)
+     t <- option Nothing $ (term >>= \ x -> return $ Just x)
+     eof
+     return $ TopGateCount name t
+
+showCirc =
+  do reserved ":s"
+     r <- option Nothing $ (term >>= \ x -> return $ Just x)
+     eof
+     return $ ShowCirc r
 
 
 -- * Parsers for various of declarations

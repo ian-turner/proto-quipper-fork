@@ -505,10 +505,11 @@ makeBinding w v =
 -- changes the name of a gate to its adjoint, the gates are
 -- already stored in reverse order due to the way we implement 'appendMorph'.
 revGates :: [Gate] -> [Gate]
-revGates xs = map invertGateName $ reverse xs
+revGates xs = map invertGateName $ reverse' xs
   where invertGateName (Gate id params ins outs ctrls flag) =
           Gate (invertName id) params outs ins ctrls flag
-
+        reverse' [] = []
+        reverse' (x:xs) = reverse' xs ++ [x]
 
 -- | Change the name of a gate to its adjoint
 invertName :: Id -> Id             

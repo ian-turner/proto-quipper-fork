@@ -45,7 +45,9 @@ dynliftRW q = RW_Read q (\ans -> return ans)
 boxGates :: ReadWrite b -> ([Gate], b)
 boxGates (RW_Return b) = ([], b)
 boxGates (RW_Write x c) = (x:xs, r)
-  where (xs, r) = boxGates c
+  where c'= boxGates c
+        r = snd c'
+        xs = fst c'
         
 boxGates (RW_Read q c) = error "modality violation, please send bug report"
 
@@ -57,44 +59,55 @@ data Response = Null
               | InternalError String
               deriving (Eq, Show, Read)
 
-simulate :: ReadWrite a -> IO a
+simulate :: ReadWrite a -> IO (a, [Gate])
 simulate m =
   (runTCPClient "127.0.0.1" "1901" $ \s -> do
       h <- socketToHandle s ReadWriteMode
       hGetLine h
       res <- interaction m h Map.empty []
       hPutStrLn h "quit"
-      return res) `E.catch` \ (e :: E.IOException) -> withoutSimulator m
+      return res)
+  `E.catch` \ (e :: E.IOException) -> withoutSimulator m
 
-withoutSimulator :: ReadWrite a -> IO a
-withoutSimulator (RW_Return a) = return a
-withoutSimulator a = E.throw $ userError "qserver is not up, can't run simulator"
+withoutSimulator :: ReadWrite a -> IO (a, [Gate])
+withoutSimulator (RW_Return a) = return (a, [])
+withoutSimulator (RW_Write g r) = do
+  -- putStrLn (show $ dispRaw g)
+  (a, gs) <- withoutSimulator r
+  return (a, g:gs)
+withoutSimulator (RW_Read _ _) = E.throw $ userError "qserver is not up, can't dynamic lift"
                                                       
-interaction :: ReadWrite a -> Handle -> Map Label Label -> [Label] -> IO a
-interaction (RW_Return a) h map ls = return a
+interaction :: ReadWrite a -> Handle -> Map Label Label -> [Label] -> IO (a, [Gate])
+interaction (RW_Return a) h map ls = return (a, [])
 
 interaction (RW_Read l k) h map ls =
           do let (VLabel l') = renameTemp (VLabel l) map
              hPutStrLn h ("R "++ show l')
              r <- hGetLine h
              case read r of
-               Reply str | str == "0" -> interaction (k False) h map (l':ls)
-               Reply str | str == "1" -> interaction (k True) h map (l':ls)
+               Reply str | str == "0" -> do
+                 (r, gs) <- interaction (k False) h map (l':ls)
+                 return (r, Gate (Id "Dynlift") [] (VLabel l) (VConst (Id "False")) VStar False : gs)
+               Reply str | str == "1" -> do
+                 (r, gs) <- interaction (k True) h map (l':ls)
+                 return (r, Gate (Id "Dynlift") [] (VLabel l) (VConst (Id "True")) VStar False : gs)
 
-interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
+interaction (RW_Write g@(Gate name []  (VLabel w) VStar VStar _) c) h map ls
           | getName name == "Discard" =
             do let (VLabel w') = renameTemp (VLabel w) map
                hPutStrLn h ("D " ++ show w')
-               interaction c h map (w':ls)
-
-interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
+               (r, gs) <- interaction c h map (w':ls)
+               return (r, g:gs)
+interaction (RW_Write g@(Gate name []  (VLabel w) VStar VStar _) c) h map ls
           | getName name == "Term0" =
             do let (VLabel w') = renameTemp (VLabel w) map
                hPutStrLn h ("M " ++ show w')
                hPutStrLn h ("R " ++ show w')
                r' <- hGetLine h
                case read r' of
-                 Reply s | s == "0" -> interaction c h map (w':ls)
+                 Reply s | s == "0" -> do
+                   (r, gs) <- interaction c h map (w':ls)
+                   return (r, g:gs)
                  Reply s ->
                    error $ "Wire termination error: expecting to terminate with 0, but get: " ++ s
           | getName name == "Term1" =
@@ -103,56 +116,62 @@ interaction (RW_Write (Gate name []  (VLabel w) VStar VStar _) c) h map ls
                hPutStrLn h ("R " ++ show w')
                r' <- hGetLine h
                case read r' of
-                 Reply s | s == "1" -> interaction c h map (w':ls)
+                 Reply s | s == "1" -> do
+                   (r, gs) <- interaction c h map (w':ls)
+                   return (r, g:gs)
                  Reply s ->
                           error $ "termination error, expecting to terminate with 1, but get: " ++ s
                 
-interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map []
+interaction (RW_Write g@(Gate name [] VStar (VLabel w) VStar _) c) h map []
           | getName name == "Init0" =
           do let cmd = ("Q " ++ show w)
              hPutStrLn h cmd
-             interaction c h map []
-
+             (r, gs) <- interaction c h map []
+             return (r, g:gs)
           | getName name == "Init1" =
           do hPutStrLn h ("Q " ++ show w ++ " 1")
-             interaction c h map []
-
-interaction (RW_Write (Gate name [] VStar (VLabel w) VStar _) c) h map (v:vs)
+             (r, gs) <- interaction c h map []
+             return (r, g:gs)
+             
+interaction (RW_Write g@(Gate name [] VStar (VLabel w) VStar _) c) h map (v:vs)
           | getName name == "Init0" =
           do let map' = map `Map.union` Map.fromList [(w, v)]
              hPutStrLn h ("Q " ++ show v)
-             interaction c h map' vs
+             (r, gs) <- interaction c h map' vs
+             return (r, g:gs)
           | getName name == "Init1" =
           do let map' = map `Map.union` Map.fromList [(w, v)]
              hPutStrLn h ("Q " ++ show v ++ " 1")
-             interaction c h map' vs
+             (r, gs) <- interaction c h map' vs
+             return (r, g:gs)
 
-interaction (RW_Write (Gate name [] (VLabel v) (VLabel w) VStar _) c) h map ls =
+interaction (RW_Write g@(Gate name [] (VLabel v) (VLabel w) VStar _) c) h map ls =
           do let (VLabel v') = renameTemp (VLabel v) map
                  map' = map `Map.union` Map.fromList [(w, v')]
-                 g = toGateName (getName name)
-             hPutStrLn h (g++ " "++ show v')
-             interaction c h map' ls
-
+                 gn = toGateName (getName name)
+             hPutStrLn h (gn ++ " "++ show v')
+             (r, gs) <- interaction c h map' ls
+             return (r, g:gs)
 -- binary unitary gate
-interaction (RW_Write (Gate name [] v@(VPair (VLabel _) (VLabel _))
-                       w@(VPair _ _) VStar _) res) h map ls =
+interaction (RW_Write g@(Gate name [] v@(VPair (VLabel _) (VLabel _))
+                         w@(VPair _ _) VStar _) res) h map ls =
           do let (VPair (VLabel a) (VLabel b)) = renameTemp v map
                  (VPair (VLabel c) (VLabel d)) = w
                  map' = map `Map.union` Map.fromList [(c, a), (d, b)]
-                 g = toGateName (getName name)
-             hPutStrLn h (g++ " "++ show a ++ " " ++ show b)
-             interaction res h map' ls
-
+                 gn = toGateName (getName name)
+             hPutStrLn h (gn++ " "++ show a ++ " " ++ show b)
+             (r, gs) <- interaction res h map' ls
+             return (r, g:gs)
 -- ternary unitary gate
-interaction (RW_Write (Gate name [] v@(VPair (VPair _ _) _)
-                       w@(VPair (VPair _ _) _) VStar _) res) h map ls =
+interaction (RW_Write g@(Gate name [] v@(VPair (VPair _ _) _)
+                         w@(VPair (VPair _ _) _) VStar _) res) h map ls =
           do let (VPair (VPair (VLabel a) (VLabel b)) (VLabel e)) = renameTemp v map
                  (VPair (VPair (VLabel c) (VLabel d)) (VLabel e')) = w
                  map' = map `Map.union` Map.fromList [(c, a), (d, b), (e', e)]
-                 g = toGateName (getName name)
-             hPutStrLn h (g++ " "++ show a ++ " " ++ show b ++ " " ++ show e)
-             interaction res h map' ls
+                 gn = toGateName (getName name)
+             hPutStrLn h (gn++ " "++ show a ++ " " ++ show b ++ " " ++ show e)
+             (r, gs) <- interaction res h map' ls
+             return (r, g:gs)
 
 interaction (RW_Write g res) h map ls =
   error $ "Unsupported gate: " ++ (show g)

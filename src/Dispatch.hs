@@ -57,7 +57,8 @@ dispatch Help =
                ":r                      reload the most recent file, clear circuit state\n" ++
                ":q                      exit interpreter\n" ++
                ":h                      show this list of commands\n" ++
-               ":g [gate-name] <expr>   gate count" ++
+               ":g [gate-name] <expr>   gate count of a boxed circuit\n" ++
+               ":tg [gate-name] [<expr>] top level gate count" ++
                "\n" 
 
 
@@ -92,8 +93,6 @@ dispatch (Eval e) =
          when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
          ioTop $ putStrLn ("it has type \n" ++ (show $ disp t'))
          v <- evaluation e''
-         -- ioTop $ do{ (_, v) <- simulate $ getSt (eval et) (initES gl);
-         --             putStrLn ("it has value \n" ++ (show $ dispRaw v))}
          ioTop $ putStrLn ("it has value \n" ++ (show $ dispRaw v))
          return True
 
@@ -181,6 +180,59 @@ dispatch (DisplayEx e) =
        ty -> 
          do liftIO $ print (text "not an existential circuit")
             return True
+
+dispatch (ShowCirc Nothing) = do
+  gs <- getGates
+  liftIO $ putStrLn ("current gates: \n" ++ (show $ vcat $ map dispRaw gs))  
+  return True
+  
+dispatch (ShowCirc (Just e)) = 
+  do e' <- topResolve e
+     (t', e'') <- topTypeInfer e'
+     let fvs = getVars AllowEigen t'
+     gl <- getCxt
+     et <- tcTop $ erasure e''
+     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
+     ioTop $ putStrLn "generated gates:"
+     resetTopGates
+     evaluation e''
+     gs <- getGates 
+     ioTop $ putStrLn (show $ vcat $ map dispRaw gs)
+     return True
+
+dispatch (TopGateCount Nothing Nothing) =
+  do gs <- getGates
+     ioTop $ putStrLn ("total top gates: \n" ++ (show $ length gs))
+     return True
+
+dispatch (TopGateCount Nothing (Just e)) =
+  do e' <- topResolve e
+     (t', e'') <- topTypeInfer e'
+     let fvs = getVars AllowEigen t'
+     gl <- getCxt
+     et <- tcTop $ erasure e''
+     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
+     resetTopGates
+     evaluation e''
+     gs <- getGates 
+     ioTop $ putStrLn ("total top gates: \n" ++ (show $ length gs))
+     return True
+
+dispatch (TopGateCount (Just n) (Just e)) =
+  do e' <- topResolve e
+     (t', e'') <- topTypeInfer e'
+     let fvs = getVars AllowEigen t'
+     gl <- getCxt
+     et <- tcTop $ erasure e''
+     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
+     resetTopGates
+     evaluation e''
+     gs <- getGates
+     let rs = [g | g <- gs, (getName $ gateName g) == n]
+     ioTop $ putStrLn (n++":\n" ++ (show $ length rs))
+     return True
+
+
 
 dispatch (Annotation e) =
   do cid <- topResolve e

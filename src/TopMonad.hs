@@ -95,7 +95,8 @@ data InterpreterState = InterpreterState {
   importedFiles :: [String], -- ^ Imported files, for preventing double importing.
   counter :: Int, -- ^ A counter.
   currentWire :: Label, -- ^ Current fresh label
-  path :: String -- ^ DPQ project path.
+  path :: String, -- ^ DPQ project path.
+  topGates :: [Gate]
   }
 
 
@@ -159,9 +160,12 @@ evaluation :: A.Exp -> Top Value
 evaluation exp =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
-     ioTop $ simulate $ do {(st, v) <- getSt (eval exp') (initES gl 0);
-                            return v}
-
+     (res, gs) <- ioTop $ simulate $
+                  do {(st, v) <- getSt (eval exp') (initES gl 0);
+                      return v}
+     gs' <- getGates
+     putGates (gs'++gs)
+     return res
      
      
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
@@ -197,6 +201,11 @@ clearInterpreterState =
   do p <- getPath
      putInterpreterState $ emptyState p
 
+resetTopGates :: Top ()
+resetTopGates = putGates []
+  
+     
+
 -- | The empty interpreter state.
 emptyState p = InterpreterState {
   scope = emptyScope,
@@ -208,7 +217,8 @@ emptyState p = InterpreterState {
   importedFiles = [],
   counter = 0,
   currentWire = L 0,
-  path = p
+  path = p,
+  topGates = []
   }
 
 -- | Get the DPQ path.
@@ -265,6 +275,12 @@ putCounter i = do
   let s' = s {counter = i}
   putInterpreterState s'
 
+putGates :: [Gate] -> Top ()
+putGates gs = do
+  s <- getInterpreterState
+  let s' = s {topGates = gs}
+  putInterpreterState s'
+
 putLabel :: Label -> Top ()
 putLabel i = do
   s <- getInterpreterState
@@ -283,6 +299,11 @@ getPState :: Top ParserState
 getPState = do
   s <- getInterpreterState
   return (parserState s)
+
+getGates :: Top [Gate]
+getGates = do
+  s <- getInterpreterState
+  return (topGates s)
 
 -- | Update infix operator table.
 putPState :: ParserState -> Top ()

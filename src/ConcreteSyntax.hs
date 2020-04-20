@@ -141,9 +141,13 @@ data Command =
   | DisplayEx Exp -- ^ Displaying existential circuit.
   | Annotation Exp -- ^ Print the fully annotated program.
   | GateCount (Maybe String) Exp
+  | TopGateCount (Maybe String) (Maybe Exp)
+  | ShowCirc (Maybe Exp)
     -- ^ The number of a gate in a circuit expression if name is supplied,
     -- otherwise the total gate. 
   deriving (Show)
+
+
 
 -- | A Proto-Quipper-D program is a list of declarations.
 type Program = [Decl] 
