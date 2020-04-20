@@ -743,10 +743,10 @@ vvector =
 value = 
   manyLines (do{ head <- headExp;
                  return $ foldl (\ z x -> A.VApp z x) head}) arg
-  where headExp = try vstar <|> try vlabel <|> try vconst <|> try vpair
-                  <|> try vvector <|> parens value 
+  where headExp = vlabel <|> try vpair <|> vvector <|> try vstar <|> try vconst
+                  <|> parens value 
 
-        arg = try vlabel <|> try vconst <|> try vstar <|> try vpair <|> try vvector
+        arg =  vlabel <|> try vpair <|> try vstar <|> try vvector <|> try vconst
                          <|> parens value
 
               

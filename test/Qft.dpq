@@ -1,5 +1,6 @@
 module Qft where
 import "lib/Prelude.dpq"
+import "test/Tele.dpq"
 
 
 rotate : ! forall (y : Nat) -> Qubit -> Nat -> Vec Qubit y -> Vec Qubit y * Qubit
@@ -108,8 +109,8 @@ qft_both_Box_ctrl n = box (Vec Qubit n * Vec Qubit n) $ \ i ->
 main2 = qft_both_Box_ctrl 9
 
 
-circuit main1 : Circ(Vec Qubit 9 * Vec Qubit 9,
-                      Vec Qubit 9 * Vec Qubit 9)
+circuit main1 : Circ{1,1,1}(Vec Qubit 9 * Vec Qubit 9,
+                             Vec Qubit 9 * Vec Qubit 9)
 =
 {([0, 1, 2, 3, 4, 5, 6, 7, 8] , [9, 10, 11, 12, 13, 14, 15, 16, 17])}
   H, [], 8, 36, [9, 10, 11, 12, 13, 14, 15, 16, 17], True
@@ -278,10 +279,20 @@ circuit main1 : Circ(Vec Qubit 9 * Vec Qubit 9,
   [9, 10, 11, 12, 13, 14, 15, 16, 17])}                  
 
 --
-circuit ha : Circ(Qubit, Qubit) =
+circuit ha : Circ{1,1,1}(Qubit, Qubit) =
 {1}
 H, [], 1, 1, (), True
 {1}
 
+circuit ss : Circ{1,1,1}(Qubit, Qubit) =
+{1}
+S, [], 1, 1, (), True
+{1}
 
-testHa = withBasisChange ha (box Qubit ZGate)
+-- t : ! (Circ(Qubit, Qubit) -> Circ(Qubit, Qubit))
+-- t x = x
+
+testHa = withBasisChange ha ss
+
+test2 = boxCirc $ \ x -> tele (unbox testHa x)
+

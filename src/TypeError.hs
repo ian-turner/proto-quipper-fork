@@ -69,7 +69,7 @@ data TypeError = Unhandle Exp
                | ArityExistsErr Exp [Variable]
                | ModalityErr Modality Modality Exp
                | ModalityGEqErr Exp Exp Exp (Modality, Exp) (Modality, Exp)
-
+               | CircuitErr Exp
                deriving Show
 
 -- | A data type for evaluation errors.
@@ -427,6 +427,10 @@ instance Disp TypeError where
     text "expected type:" <+> display flag ty1 $$
     text "actual type:" <+> display flag tym1
 
+  display flag (CircuitErr ty) =
+    text "expecting a circuit type with modality annotation." $$
+    text "actual type:" $$
+    nest 2 (display flag ty)
   display flag (PfErrWrapper a e t) =
     text "proof checking error:" $$
     disp e $$

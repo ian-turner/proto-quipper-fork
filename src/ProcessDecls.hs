@@ -96,7 +96,11 @@ process (Instance pos f ty mths) =
 
 process (CircuitDecl pos f ty m) =
   do (_, ty') <- tcTop $ typeChecking True ty Set
-     let info = Info { classifier = ty',
+     let ty'' = erasePos ty'
+     case ty'' of
+       Circ _ _ (M (BConst _) (BConst _) (BConst _)) -> return ()
+       _ -> throwError $ CompileErr $ ErrPos pos (CircuitErr ty)
+     let info = Info { classifier = ty'',
                        identification = DefinedFunction
                                         (Just (Const f, VCircuit m, Just (Const f)))}
      tcTop $ addNewId f info
