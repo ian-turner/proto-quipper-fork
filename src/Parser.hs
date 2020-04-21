@@ -7,7 +7,8 @@ module Parser
         parseModule,
         initialParserState,
         parseImports,
-        parseCommand)
+        parseCommand,
+        parseExp)
        where
 
 import ConcreteSyntax
@@ -79,6 +80,10 @@ initialOpTable = [[], [], [], [], [], [unaryBang "!" Bang, quotedOp], [], [binOp
 parseModule :: String -> String -> ParserState -> Either P.ParseError ([Decl], ParserState)
 parseModule srcName cnts st = 
   runIndent $ runParserT decls st srcName cnts
+
+parseExp :: String -> ParserState -> Either P.ParseError Exp
+parseExp exp st = 
+  runIndent $ runParserT term st "" exp
 
 -- | Parse only the import declarations from a file. The imports must be declared
 -- at the beginning of the file. 

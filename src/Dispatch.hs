@@ -88,8 +88,6 @@ dispatch (Eval e) =
             return True
        else do
          let fvs = getVars AllowEigen t'
-         gl <- getCxt
-         et <- tcTop $ erasure e''
          when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
          ioTop $ putStrLn ("it has type \n" ++ (show $ disp t'))
          v <- evaluation e''
