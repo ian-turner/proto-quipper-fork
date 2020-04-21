@@ -3,39 +3,63 @@ import "lib/Prelude.dpq"
 import "test/Tele.dpq"
 
 
-rotate : ! forall (y : Nat) -> Qubit -> Nat -> Vec Qubit y -> Vec Qubit y * Qubit
-rotate q buff qs = 
-        case qs of
-           VNil -> (VNil, q)
-           VCons q' qs' -> 
-             let (n, qs'') = length qs'
-                 (r, c) = rotate q buff qs''
-                 m = minus (S buff) n
-                 (q'' , c') = R m q' c
-   	     in (VCons q'' r , c')	       	    
+-- rotate : ! forall (y : Nat) -> Qubit -> Nat -> Vec Qubit y -> Vec Qubit y * Qubit
+-- rotate q buff qs = 
+--         case qs of
+--            VNil -> (VNil, q)
+--            VCons q' qs' -> 
+--              let (n, qs'') = length qs'
+--                  (r, c) = rotate q buff qs''
+--                  m = minus (S buff) n
+--                  (q'' , c') = R m q' c
+--    	     in (VCons q'' r , c')	       	    
 
-qft_aux : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
-qft_aux l = case l of
-                 VNil -> VNil 
-                 VCons q qs ->
-	           let (m, qs') = length qs
-                       (qs'', q') = rotate q m (qft_aux qs') in
-		   VCons (H q') qs''
+-- qft_aux : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
+-- qft_aux l = case l of
+--                  VNil -> VNil 
+--                  VCons q qs ->
+-- 	           let (m, qs') = length qs
+--                        (qs'', q') = rotate q m (qft_aux qs') in
+-- 		   VCons (H q') qs''
+rotate : ! forall (y : Nat) -> Nat -> Qubit -> Vec Qubit y -> Qubit * Vec Qubit y
+rotate m q v =
+    case v of
+      VNil -> (q, VNil)
+      VCons x xs ->
+        let (q', x') = R m q x
+            (q'', xs') = rotate (S m) q' xs
+        in (q'', VCons x' xs')
+
+oneRotation : ! (n : Nat) -> Circ(Qubit * Vec Qubit n, Qubit * Vec Qubit n)
+oneRotation n =
+  box (Qubit * Vec Qubit n) 
+    (λ x ->
+       let (q, v) = x in rotate 2 (H q) v)
+                     
+qft : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
+qft v =
+  case v of
+    VNil -> VNil
+    VCons q qs ->
+      let q' = H q
+          (q'', qs') = rotate 2 q' qs
+          qs'' = qft qs'
+      in VCons q'' qs''
 
 -- big-headian QFT: the highest-order bit is at the head of the list->
-qft : !  (n : Nat) -> Vec Qubit n -> Vec Qubit n
-qft n l = reverse_vec (qft_aux l)
+-- qft : !  (n : Nat) -> Vec Qubit n -> Vec Qubit n
+-- qft n l = reverse_vec (qft_aux l)
 
 
 -- test1 : Vec Qubit four
 -- test1 = qft four (VCons (Init0 ()) (VCons (Init0 ()) (VCons (Init0 ()) (VCons (Init0 ()) VNil))))
 
 qftTwice : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n
-qftTwice n l = qft n (qft n l)
+qftTwice n l = qft (qft l)
 
 
 qftBox : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n) 
-qftBox n = box (Vec Qubit n) (\ x -> qft n x)
+qftBox n = box (Vec Qubit n) (\ x -> qft x)
 
 qft4 : Circ(Vec Qubit 4, Vec Qubit 4) 
 qft4 = qftBox 4
@@ -56,7 +80,7 @@ qft2Box n = box (Vec Qubit n) $ \ x -> qftUnbox n x
 
 -- little-headian QFT: the lowest-order bit is at the head of the list->
 qft_little_headian : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n
-qft_little_headian n l = reverse_vec (qft_aux l)
+qft_little_headian n l = reverse_vec (qft l)
 
 
 qft_little_headian_Box : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)

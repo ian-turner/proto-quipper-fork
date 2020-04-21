@@ -194,9 +194,7 @@ dispatch (ShowCirc (Just e)) =
      et <- tcTop $ erasure e''
      when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
      ioTop $ putStrLn "generated gates:"
-     resetTopGates
-     evaluation e''
-     gs <- getGates 
+     gs <- evaluation' e''
      ioTop $ putStrLn (show $ vcat $ map dispRaw gs)
      return True
 
@@ -212,10 +210,8 @@ dispatch (TopGateCount Nothing (Just e)) =
      gl <- getCxt
      et <- tcTop $ erasure e''
      when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
-     resetTopGates
-     evaluation e''
-     gs <- getGates 
-     ioTop $ putStrLn ("total top gates: \n" ++ (show $ length gs))
+     gs <- evaluation' e''
+     ioTop $ putStrLn ("total top gates: \n" ++ (show (length gs)))
      return True
 
 dispatch (TopGateCount (Just n) (Just e)) =
@@ -225,9 +221,7 @@ dispatch (TopGateCount (Just n) (Just e)) =
      gl <- getCxt
      et <- tcTop $ erasure e''
      when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
-     resetTopGates
-     evaluation e''
-     gs <- getGates
+     gs <- evaluation' e''
      let rs = [g | g <- gs, (getName $ gateName g) == n]
      ioTop $ putStrLn (n++":\n" ++ (show $ length rs))
      return True

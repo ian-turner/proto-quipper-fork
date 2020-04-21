@@ -160,13 +160,24 @@ evaluation :: A.Exp -> Top Value
 evaluation exp =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
+     putGates []
      (res, gs) <- ioTop $ simulate $
                   do {(st, v) <- getSt (eval exp') (initES gl 0);
                       return v}
-     gs' <- getGates
-     putGates (gs'++gs)
+     putGates gs
      return res
-     
+
+evaluation' :: A.Exp -> Top Gates
+evaluation' exp =
+  do gl <- getCxt
+     exp' <- tcTop $ erasure exp
+     putGates []
+     (res, gs) <- ioTop $ simulate $
+                  do {(st, v) <- getSt (eval exp') (initES gl 0);
+                      return v}
+     putGates gs
+     return gs
+
      
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
 topTypeInfer :: A.Exp -> Top (A.Exp, A.Exp)
@@ -201,10 +212,6 @@ clearInterpreterState =
   do p <- getPath
      putInterpreterState $ emptyState p
 
-resetTopGates :: Top ()
-resetTopGates = putGates []
-  
-     
 
 -- | The empty interpreter state.
 emptyState p = InterpreterState {

@@ -417,6 +417,7 @@ user	0m21.785s
 sys	0m3.794s
 -}
 large_board' (x : Unit) = box_checkwin_red (9 @ 7 - 1) 9 refl refl
+main1 (x : Unit) = uncurry (real_checkwin_red 34 7 refl refl) (init (False, nVec 35 True))
 
 -- main = large_board ()
 {-

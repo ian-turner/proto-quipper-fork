@@ -23,7 +23,7 @@ module Utils
          nextCase,
          exitCase,
          hashPos,
-         Label(..),
+         Label(..)
        )
        where
 
@@ -78,6 +78,7 @@ instance Disp Label where
   
 instance Show Label where
   show (L t) = show t
+
 
 -- | A prefix pattern definition for opening a binder.  
 pattern Abst :: (Bindable a, Nominal t) => a -> t -> Bind a t

@@ -31,17 +31,13 @@ make_toffoli c b a =
 
 boxTof = boxCirc $ \ x -> uncurry (uncurry make_toffoli) x
 
--- testTof1 : Bool * Bool * Bool
--- testTof1 =
---   let (x, y, z) = toffoli (initQubit True) (initQubit True) (initQubit False)
---   in (dynlift $ Meas x, dynlift $ Meas y, dynlift $ Meas z)
+testTof1 : Bool * Bool * Bool
+testTof1 =
+  let (x, y, z) = toffoli (initQubit True) (initQubit True) (initQubit False)
+  in (dynlift $ Meas x, dynlift $ Meas y, dynlift $ Meas z)
 
 -- Or
 
--- testTof2 : Bool * Bool * Bool
--- testTof2 =
---   let (x, y, z) = toffoli (init True) (init True) (init False)
---   in (measure x, measure y, measure z)
 
 -- Or 
 
@@ -68,5 +64,9 @@ f x =
   
 
 
+testTof2 : Bool * Bool * Bool
+testTof2 =
+  let (x, y, z) = toffoli (init True) (init True) (init False)
+  in (measure x, measure y, measure z)
 
 -- testTerm = Term0 (Init1 ())
