@@ -276,7 +276,6 @@ evalApp (VApp _ (VApp _ (VApp _ (VApp _ VExBox q) _) _) _) v =
 
 
 evalApp (VApp _ (VApp _ VReverse _) _) (VCircuit m) = do
---  m' <- refresh m
   let gs' = revGates (gates m)
       ins = input m
       outs = output m
@@ -289,7 +288,8 @@ evalApp (VApp _ (VApp _ (VApp _ VControlled _) _) _) (VCircuit m) =
           outs = output m
           mycirc = VCircuit $ Morphism ins (controlledGates ctrl gs) outs
           env = Map.fromList [(circ, (mycirc, 1))] 
-          exp = EPair (EApp [] (EForce $ EApp [] EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
+          exp = EPair (EApp [inp, circ]
+                       (EForce $ EApp [circ] EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
       in return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
   where controlledGates a gs = map (helper a) gs
         helper a (Gate id ps ins outs b False) = Gate id ps ins outs b False
@@ -518,10 +518,10 @@ templateToVal (VLBase _) =
      return (VLabel v)
 templateToVal a@(VConst _) = return a
 templateToVal a@(VUnit) = return VStar
-templateToVal (VApp _ e1 e2) =
+templateToVal (VApp vs e1 e2) =
   do e1' <- templateToVal e1
      e2' <- templateToVal e2
-     return $ VApp [] e1' e2'
+     return $ VApp vs e1' e2'
 
 templateToVal (VTensor e1 e2) =
   do e1' <- templateToVal e1

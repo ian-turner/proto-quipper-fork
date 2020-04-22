@@ -524,7 +524,7 @@ makeGate id ps t flag =
           -- morph = Wired $ abst (ins ++ outs) (VCircuit $ Morphism inExp' [g] outExp')
             morph = VCircuit $ Morphism inExp' [g] outExp'
             env = Map.fromList [(y, (morph, 1))] 
-            unbox_morph = ELam [y] $ etaPair (length inss) (EForce $ EApp [] EUnBox (EVar y))
+            unbox_morph = ELam [y] $ etaPair y (length inss) (EForce $ EApp [y] EUnBox (EVar y))
             res = VLiftCirc (abst xs (abst env unbox_morph))
         return res
   where makeInOut (Arrow t t') =
@@ -539,12 +539,12 @@ makeGate id ps t flag =
           let xs = x:xs
           in zipWith (\ x y -> x ++ show y) (take lp xs) [0 .. ]
           
-        etaPair n e | n == 0 = error "from etaPair"
-        etaPair n e =
+        etaPair x n e | n == 0 = error "from etaPair"
+        etaPair x n e =
           freshNames (getName "y" n) $ \ xs ->
           let xs' = map EVar xs
               pairs = foldl EPair (head xs') (tail xs')
-          in abst (zip xs $ repeat 1) (EApp xs e pairs)
+          in abst (zip xs $ repeat 1) (EApp (x:xs) e pairs)
 
 
 

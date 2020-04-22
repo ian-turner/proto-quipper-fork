@@ -1,45 +1,6 @@
 -- | This module defines various of syntactic operations on the abstract syntax.
 
 module SyntacticOperations where
-       -- (
-       --   removeVacuousPi,
-       --   getVars,
-       --   VarSwitch(..),
-       --   erasePos,
-       --   obtainPos,
-       --   getWires,
-       --   toBool,
-       --   refresh_gates,
-       --   isBool,
-       --   toNum,
-       --   flatten,
-       --   vacuousForall,
-       --   isKind,
-       --   flattenArrows,
-       --   isCirc,
-       --   unPair,
-       --   removePrefixes,
-       --   toEigen,
-       --   isExplicit,
-       --   unTensor,
-       --   unEigen,
-       --   isEigenVar,
-       --   unEigenBound,
-       --   evars,
-       --   vars,
-       --   unVPair,
-       --   vflatten,
-       --   rename,
-       --   isConst,
-       --   unwind,
-       --   UnwindFlag(..),
-       --   gateCount,
-       --   modalAnd,
-       --   abstractMode,
-       --   freshMode,
-       --   modeResolution,
-       --   modeSubst
-       -- ) where
 
 import Syntax
 import Utils
@@ -57,7 +18,7 @@ import Prelude hiding((<>))
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-
+-- | Calculate the set difference of two multi-sets. 
 difference' s1 s2 =
   let s2' = S.distinctElems s2
   in helper s1 s2'
@@ -68,7 +29,6 @@ difference' s1 s2 =
 -- | Remove all the vacuous pi quantifiers.
 
 removeVacuousPi :: Exp -> Exp
-
 removeVacuousPi (Pos p e) = removeVacuousPi e
 
 removeVacuousPi (Forall (Abst xs m) ty) =
@@ -1050,9 +1010,8 @@ toBool (VConst x) | getName x == "True" = True
 toBool (VConst x) | getName x == "False" = False
 
 -- | Convert a value to a natural number. It is an error to call this
--- with a value that is not a Peano number.
-
--- toNum :: (Num p) => Value -> p
+-- with a value that is not a Peano number. This is used for printing
+-- the parameters of a gate.
 toNum (VConst x) | getName x == "Z" = 0
 toNum (VApp _ (VConst s) n) | getName s == "S" =
   toNum n + 1
@@ -1060,7 +1019,7 @@ toNum (VLabel n) = l n
 
 -- | Rename the labels of a morphism according to a binding.
 rename :: Morphism -> Map Label Label -> Morphism            
-rename morph m = -- (Morphism ins gs outs)
+rename morph m =
   let ins = input morph
       outs = output morph
       gs = gates morph
@@ -1087,11 +1046,11 @@ renameGs gs m = map helper gs
   where helper (Gate id params ins outs ctrls b) =
           Gate id params (renameTemp ins m) (renameTemp outs m) (renameTemp ctrls m) b
 
--- | Get the set of free variables from a 'EExp'.
+-- | Get the set of free variables from a 'EExp'. This is to be used
+-- productively with the erasure to gather free variable information.        
 evarsHelper :: EExp -> S.MultiSet Variable
 evarsHelper a@(EVar y) = S.insert y S.empty
 evarsHelper (EApp vs t tm) = S.fromList vs
-   -- (evarsHelper t) `S.union` (evarsHelper tm)
 evarsHelper (ELam vs bind) = S.fromList vs
 evarsHelper (EPair t tm) =
    (evarsHelper t) `S.union` (evarsHelper tm)
@@ -1128,7 +1087,10 @@ evars e = S.distinctElems $ evarsHelper e
 
 
 -- | Retrieve the variables that a closure refers to. This
--- must be done efficiently since it is used for evaluation.
+-- must be done efficiently since it is used during evaluation.
+-- Each time a definition is added, it will be called. It is essential
+-- to pre-computed free variables for 'VLam', 'VLift' and 'VApp', as
+-- they occur 99%. 
 vars :: Value -> [Variable]
 vars (VLam ws _) = ws
 vars (VLift ws e) = ws
@@ -1137,12 +1099,12 @@ vars (VApp ws e1 e2) = ws
 vars (VPair e1 e2) =
     let vs1 = vars e1
         vs2 = vars e2
-    in vs1 `seq` vs2 `seq` (vs1 ++ vs2)
+    in vs1 ++ vs2
 
 vars (VTensor e1 e2) =
     let vs1 = vars e1
         vs2 = vars e2
-    in vs1 `seq` vs2 `seq` (vs1 ++ vs2)
+    in vs1 ++ vs2
       
 vars _ = []
 
