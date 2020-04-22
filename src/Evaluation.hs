@@ -24,8 +24,8 @@ import Control.Monad.Except
 import Text.PrettyPrint
 import TCMonad 
 
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.List
 import Data.Tuple
@@ -112,7 +112,7 @@ eval (EForce m) =
        VLift _ e -> eval e
        VDynlift -> return $ VForce VDynlift
        w@(VLiftCirc _) -> return w
-       v@(VApp VUnBox _) -> return $ VForce v
+       v@(VApp _ VUnBox _) -> return $ VForce v
        a -> error $ "from eval(EForce):" ++ (show $ disp a)
        
 eval (ETensor e1 e2) =
@@ -139,7 +139,7 @@ eval a@(EExBox) = return VExBox
 -- hence making the implementation conforming the eager evaluation
 -- strategy. As a result, we do not get lazy circuit in the sense of Quipper.
 
-eval (EApp m n) =
+eval (EApp vs m n) =
   do v <- eval m
      w <- eval n
      v `seq` w `seq` evalApp v w
@@ -248,7 +248,7 @@ addRef (v:vs) lenv =
   
 -- | A helper function for evaluating various of applications.
 evalApp :: Value -> Value -> Eval Value
-evalApp VUnBox v | (VCircuit _) <- v = return $ VApp VUnBox v
+evalApp VUnBox v | (VCircuit _) <- v = return $ VApp [] VUnBox v
 evalApp VUnBox v | otherwise = return VUnBox
 evalApp (VForce VDynlift) (VLabel v) =
   do b <- dynamicLift v
@@ -257,46 +257,46 @@ evalApp (VForce VDynlift) (VLabel v) =
        else return $ VConst (Id "False")
 
 -- append gates
-evalApp (VForce (VApp VUnBox (VCircuit morph))) w =
+evalApp (VForce (VApp _ VUnBox (VCircuit morph))) w =
  do morph' <- refresh morph
     let binding = makeBinding (input morph') w
     appendMorph binding morph'
 
-evalApp (VApp (VApp (VApp VBox q) _) _) v =
+evalApp (VApp _ (VApp _ (VApp _ VBox q) _) _) v =
   case v of
     VLift _ m -> evalBox (Right m) q
-    VApp VUnBox w -> return w
+    VApp _ VUnBox w -> return w
     m@(VLiftCirc _) -> evalBox (Left m) q
     a -> error $ "evalApp VBox:" ++ (show $ disp a)
 
-evalApp (VApp (VApp (VApp (VApp VExBox q) _) _) _) v =  
+evalApp (VApp _ (VApp _ (VApp _ (VApp _ VExBox q) _) _) _) v =  
   case v of
     VLift _ body ->
       evalExbox body q
 
 
-evalApp (VApp (VApp VReverse _) _) (VCircuit m) = do
+evalApp (VApp _ (VApp _ VReverse _) _) (VCircuit m) = do
 --  m' <- refresh m
   let gs' = revGates (gates m)
       ins = input m
       outs = output m
   return $ (VCircuit $ Morphism outs gs' ins)
 
-evalApp (VApp (VApp (VApp VControlled _) _) _) (VCircuit m) = 
+evalApp (VApp _ (VApp _ (VApp _ VControlled _) _) _) (VCircuit m) = 
   freshNames ["#ctrl", "#input", "#circ"] $ \ (ctrl:inp:circ:[]) -> 
       let ins = input m
           gs = gates m
           outs = output m
           mycirc = VCircuit $ Morphism ins (controlledGates ctrl gs) outs
           env = Map.fromList [(circ, (mycirc, 1))] 
-          exp = EPair (EApp (EForce $ EApp EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
+          exp = EPair (EApp [] (EForce $ EApp [] EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
       in return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
   where controlledGates a gs = map (helper a) gs
         helper a (Gate id ps ins outs b False) = Gate id ps ins outs b False
         helper a (Gate id ps ins outs VStar flag) = Gate id ps ins outs (VVar a) flag
         helper a (Gate id ps ins outs b flag) = Gate id ps ins outs (VPair b (VVar a)) flag
 
-evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _)_)_) m =
+evalApp (VApp _ (VApp _ (VApp _ (VApp _ (VApp _ VWithComputed _) _) _)_)_) m =
   return $ VComputed m 
 
 evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
@@ -336,7 +336,7 @@ evalApp v w =
         do let args = res ++ [w]
                lvs = length vs
            if lvs > (length args) then
-             return $ VApp v w
+             return $ VApp (vars v ++ vars w) v w
              else do let ns = countVar vs e
                          sub = filter (\ (_ , (v, n)) -> n /= 0) $ zip vs (zip args ns)
                          sub' = zip vs args
@@ -346,27 +346,25 @@ evalApp v w =
                      e' <- eval e
                      case e' of
                        VLam _ bd -> handleBody ws bd
-                       _ -> return $ foldl' VApp e' ws
+                       _ ->
+                         return $ foldl' (\ x y -> VApp (vars x ++ vars y) x y) e' ws
         
-    _ -> return $ VApp v w
+    _ -> return $ VApp (vars v ++ vars w) v w
           
-  where unwindVal (VApp t1 t2) =
-          let (h, args) = unwindVal t1
-          in (h, args++[t2])
-        unwindVal a = (a, [])
+  where
         -- Handle beta reduction
         handleBody args bd = open bd $ \ vs m ->
              let lvs = length vs
              in
               if lvs > length args
-              then return $ VApp v w
+              then return $ VApp (vars v ++ vars w) v w
               else do let sub = zip vs args
                           ws = drop lvs args
                       mapM_ (\ (x,v) -> addDefinition x v) sub
                       if null ws then eval m
                         else 
                         do m' <- eval m
-                           m' `seq` return $ foldl' VApp m' ws
+                           m' `seq` return $ foldl' (\ x y -> VApp (vars x ++ vars y) x y) m' ws
         -- Perform substitution on the variables in a circuit.
         updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Int))]
         updateCirc sub lenv = 
@@ -401,10 +399,10 @@ evalApp v w =
           let a' = applyValSubst a lc
               b' = applyValSubst b lc
           in VPair a' b'
-        applyValSubst (VApp a b) lc =
+        applyValSubst (VApp vs a b) lc =
           let a' = applyValSubst a lc
               b' = applyValSubst b lc
-          in VApp a' b'
+          in VApp vs a' b'
         applyValSubst c lc = 
           error $ "from applyValSubst" ++ (show $ disp c)
 
@@ -520,10 +518,10 @@ templateToVal (VLBase _) =
      return (VLabel v)
 templateToVal a@(VConst _) = return a
 templateToVal a@(VUnit) = return VStar
-templateToVal (VApp e1 e2) =
+templateToVal (VApp _ e1 e2) =
   do e1' <- templateToVal e1
      e2' <- templateToVal e2
-     return $ VApp e1' e2'
+     return $ VApp [] e1' e2'
 
 templateToVal (VTensor e1 e2) =
   do e1' <- templateToVal e1
@@ -539,7 +537,7 @@ size (VLabel x) = 1
 size (VConst _) = 0
 size VUnit = 0
 size VStar = 0
-size (VApp e1 e2) = size e1 + size e2
+size (VApp _ e1 e2) = size e1 + size e2
 size (VTensor e1 e2) = size e1 + size e2
 size (VPair e1 e2) = size e1 + size e2
 size a = error $ "applying size function to an ill-formed template:" ++ (show $ disp a)     

@@ -768,7 +768,7 @@ isBasicValue (VPair x y) =
   do r1 <- isBasicValue x
      r2 <- isBasicValue y
      return (r1 && r2)
-isBasicValue a@(VApp t t') =
+isBasicValue a@(VApp _ t t') =
     do r1 <- isBasicValue t
        r2 <- isBasicValue t'
        return (r1 && r2)

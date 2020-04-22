@@ -439,11 +439,15 @@ vflatten :: Value -> Maybe (Either Id Id, [Value])
 vflatten (VBase id) = return (Right id, [])
 vflatten (VLBase id) = return (Right id, [])
 vflatten (VConst id) = return (Left id, [])
-vflatten (VApp t1 t2) =
+vflatten (VApp _ t1 t2) =
   do (id, args) <- vflatten t1
      return (id, args ++ [t2])
 vflatten _ = Nothing
 
+unwindVal (VApp _ t1 t2) =
+          let (h, args) = unwindVal t1
+          in (h, args++[t2])
+unwindVal a = (a, [])
 
 -- | Determine whether an expression is a kind expression. Note that we allow
 -- dependent kind such as: @(a : Type) -> a -> Type@.
@@ -839,7 +843,7 @@ getWires :: Value -> [Label]
 getWires (VLabel x) = [x]
 getWires (VConst _) = []
 getWires VStar = []
-getWires (VApp e1 e2) = getWires e1 ++ getWires e2
+getWires (VApp _ e1 e2) = getWires e1 ++ getWires e2
 getWires (VPair e1 e2) = getWires e1 ++ getWires e2
 getWires a = error $ "applying getWires function to an ill-formed template:" ++ (show $ disp a)
 
@@ -1050,7 +1054,7 @@ toBool (VConst x) | getName x == "False" = False
 
 -- toNum :: (Num p) => Value -> p
 toNum (VConst x) | getName x == "Z" = 0
-toNum (VApp (VConst s) n) | getName s == "S" =
+toNum (VApp _ (VConst s) n) | getName s == "S" =
   toNum n + 1
 toNum (VLabel n) = l n
 
@@ -1073,7 +1077,7 @@ renameTemp (VLabel x) m =
     Just y -> VLabel y
 renameTemp a@(VConst _) m = a
 renameTemp VStar m = VStar
-renameTemp (VApp e1 e2) m = VApp (renameTemp e1 m) (renameTemp e2 m)
+renameTemp (VApp vs e1 e2) m = VApp vs (renameTemp e1 m) (renameTemp e2 m)
 renameTemp (VPair e1 e2) m = VPair (renameTemp e1 m) (renameTemp e2 m)
 renameTemp a m = error "applying renameTemp function to an ill-formed template"     
 
@@ -1086,8 +1090,8 @@ renameGs gs m = map helper gs
 -- | Get the set of free variables from a 'EExp'.
 evarsHelper :: EExp -> S.MultiSet Variable
 evarsHelper a@(EVar y) = S.insert y S.empty
-evarsHelper (EApp t tm) =
-   (evarsHelper t) `S.union` (evarsHelper tm)
+evarsHelper (EApp vs t tm) = S.fromList vs
+   -- (evarsHelper t) `S.union` (evarsHelper tm)
 evarsHelper (ELam vs bind) = S.fromList vs
 evarsHelper (EPair t tm) =
    (evarsHelper t) `S.union` (evarsHelper tm)
@@ -1122,16 +1126,13 @@ evarsHelper _ = S.empty
 evars :: EExp -> [Variable]
 evars e = S.distinctElems $ evarsHelper e
 
+
 -- | Retrieve the variables that a closure refers to. This
 -- must be done efficiently since it is used for evaluation.
 vars :: Value -> [Variable]
 vars (VLam ws _) = ws
 vars (VLift ws e) = ws
-
-vars (VApp e1 e2) =
-  let vs1 = vars e1
-      vs2 = vars e2
-  in vs1 `seq` vs2 `seq` (vs1 ++ vs2)
+vars (VApp ws e1 e2) = ws
 
 vars (VPair e1 e2) =
     let vs1 = vars e1

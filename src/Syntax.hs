@@ -436,7 +436,7 @@ data Value =
   | VCircuit Morphism
     -- ^ Unbound circuit (incomplete).
     -- ^ Complete circuit.
-  | VApp Value Value -- ^ Applicative value.
+  | VApp [Variable] Value Value -- ^ Applicative value.
   | VForce Value -- ^ Value version of 'Force'.
   | VComputed Value
   | VBox -- ^ Value version of 'Box'.
@@ -515,7 +515,7 @@ instance Disp Value where
   display flag (VLiftCirc (Abst vs (Abst env e))) = 
    text "vliftCirc" <+> hsep (map dispRaw vs) <+> text "->"
    <+> braces (dispRaw env) $$ nest 2 (display flag e)
-  display flag a@(VApp t t') = 
+  display flag a@(VApp _ t t') = 
     case toNat a of
       Nothing ->
         case toVec a of
@@ -524,7 +524,7 @@ instance Disp Value where
 
           Just vs -> brackets $ fsep $ punctuate comma $ map (\ x -> display flag x ) vs
       Just i -> int i
-    where toNat (VApp (VConst id) t') =
+    where toNat (VApp _ (VConst id) t') =
             if getName id == "S" then
               do n <- toNat t'
                  return $ 1+n
@@ -537,7 +537,7 @@ instance Disp Value where
           toVec (VConst id) =
             if getName id == "VNil" then return []
             else Nothing
-          toVec (VApp (VApp (VConst id) e) res) =
+          toVec (VApp _ (VApp _ (VConst id) e) res) =
             if getName id == "VCons" then
               do vs <- toVec res
                  return $ e:vs
@@ -552,7 +552,7 @@ instance Disp Value where
   precedence (VLBase _) = 12
   precedence (VTensor _ _) = 8
   precedence (VPair _ _) = 11
-  precedence (VApp _ _) = 10
+  precedence (VApp _ _ _) = 10
   precedence _ = 0
 
 instance Disp (Map Variable (Value, Int)) where
@@ -585,7 +585,7 @@ instance Disp Gate where
 toExp :: Value -> Exp
 toExp (VConst id) = Const id
 toExp VStar = Star
-toExp (VApp a b) = App (toExp a) (toExp b)
+toExp (VApp _ a b) = App (toExp a) (toExp b)
 toExp (VPair a b) = Pair (toExp a) (toExp b)
 
 -- | Declarations in abstract syntax, resolved from the declarations
@@ -634,7 +634,7 @@ data EExp =
   | EConst Id
   | EBase Id
   | ELBase Id
-  | EApp EExp EExp
+  | EApp [Variable] EExp EExp
   | EPair EExp EExp
   | ETensor EExp EExp
   | EArrow EExp EExp     
@@ -689,7 +689,7 @@ instance Disp EExp where
   display flag (ELift ws e) = 
    text "elift" <+> (brackets $ hsep (map dispRaw ws)) <+> display flag e
 
-  display flag a@(EApp v1 v2) =
+  display flag a@(EApp _ v1 v2) =
     fsep [dParen flag (precedence a - 1) v1, dParen flag (precedence a) v2]
   display flag (EForce v) = text "&" <> display flag v
   display flag (ECase e (EB brs)) =
@@ -720,7 +720,7 @@ instance Disp EExp where
   precedence (ELBase _) = 12
   precedence (ETensor _ _) = 8
   precedence (EPair _ _) = 11
-  precedence (EApp _ _) = 10
+  precedence (EApp _ _ _) = 10
   precedence _ = 0
   
 instance Disp EPattern where
