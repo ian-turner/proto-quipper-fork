@@ -1050,10 +1050,11 @@ renameGs gs m = map helper gs
 -- productively with the erasure to gather free variable information.        
 evarsHelper :: EExp -> S.MultiSet Variable
 evarsHelper a@(EVar y) = S.insert y S.empty
-evarsHelper (EApp vs t tm) = S.fromList vs
+evarsHelper (EApp t tm) =
+  (evarsHelper t) `S.union` (evarsHelper tm)
 evarsHelper (ELam vs bind) = S.fromList vs
 evarsHelper (EPair t tm) =
-   (evarsHelper t) `S.union` (evarsHelper tm)
+  (evarsHelper t) `S.union` (evarsHelper tm)
 
 evarsHelper (EForce t) = (evarsHelper t)
 evarsHelper (ELift vs t) = S.fromList vs

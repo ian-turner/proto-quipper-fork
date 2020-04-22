@@ -438,7 +438,7 @@ data Value =
     -- ^ Complete circuit.
   | VApp [Variable] Value Value
     -- ^ Applicative value, for runtime efficiency, we also
-    -- store pre-computed free variables.
+    -- store free variables.
   | VForce Value -- ^ Value version of 'Force'.
   | VComputed Value
   | VBox -- ^ Value version of 'Box'.
@@ -636,7 +636,7 @@ data EExp =
   | EConst Id
   | EBase Id
   | ELBase Id
-  | EApp [Variable] EExp EExp
+  | EApp EExp EExp
   | EPair EExp EExp
   | ETensor EExp EExp
   | EArrow EExp EExp     
@@ -691,7 +691,7 @@ instance Disp EExp where
   display flag (ELift ws e) = 
    text "elift" <+> (brackets $ hsep (map dispRaw ws)) <+> display flag e
 
-  display flag a@(EApp _ v1 v2) =
+  display flag a@(EApp v1 v2) =
     fsep [dParen flag (precedence a - 1) v1, dParen flag (precedence a) v2]
   display flag (EForce v) = text "&" <> display flag v
   display flag (ECase e (EB brs)) =
@@ -722,7 +722,7 @@ instance Disp EExp where
   precedence (ELBase _) = 12
   precedence (ETensor _ _) = 8
   precedence (EPair _ _) = 11
-  precedence (EApp _ _ _) = 10
+  precedence (EApp _ _) = 10
   precedence _ = 0
   
 instance Disp EPattern where

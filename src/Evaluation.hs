@@ -139,7 +139,7 @@ eval a@(EExBox) = return VExBox
 -- hence making the implementation conforming the eager evaluation
 -- strategy. As a result, we do not get lazy circuit in the sense of Quipper.
 
-eval (EApp vs m n) =
+eval (EApp m n) =
   do v <- eval m
      w <- eval n
      v `seq` w `seq` evalApp v w
@@ -288,8 +288,8 @@ evalApp (VApp _ (VApp _ (VApp _ VControlled _) _) _) (VCircuit m) =
           outs = output m
           mycirc = VCircuit $ Morphism ins (controlledGates ctrl gs) outs
           env = Map.fromList [(circ, (mycirc, 1))] 
-          exp = EPair (EApp [inp, circ]
-                       (EForce $ EApp [circ] EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
+          exp = EPair (EApp 
+                       (EForce $ EApp EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
       in return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
   where controlledGates a gs = map (helper a) gs
         helper a (Gate id ps ins outs b False) = Gate id ps ins outs b False

@@ -74,7 +74,7 @@ withoutSimulator (RW_Return a) = (a, [])
 withoutSimulator (RW_Write g r) = 
   let (a, gs) = withoutSimulator r
   in (a, g:gs)
-withoutSimulator (RW_Read _ _) = error "qserver is not up, can't dynamic lift"
+withoutSimulator (RW_Read _ _) = E.throw $ userError "qserver is not up, can't dynamic lift"
                                                       
 interaction :: ReadWrite a -> Handle -> Map Label Label -> [Label] -> IO (a, Gates)
 interaction (RW_Return a) h map ls = return (a, [])

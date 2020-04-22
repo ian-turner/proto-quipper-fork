@@ -43,50 +43,38 @@ erasure a@(LBase t) = return (ELBase t)
 erasure (App e1 e2) =
   do e1' <- erasure e1
      e2' <- erasure e2
-     let vs1 = evars e1'
-         vs2 = evars e2'
-     return $ EApp (vs1 ++ vs2) e1' e2'
+     return $ EApp e1' e2'
 
 
 -- Convert app' to app
 erasure (App' e1 e2) =
   do e1' <- erasure e1
      e2' <- erasure e2
-     let vs1 = evars e1'
-         vs2 = evars e2'
-     return $ EApp (vs1 ++ vs2) e1' e2'
+     return $ EApp e1' e2'
 
 erasure (AppDict e1 e2) =
   do e1' <- erasure e1
      e2' <- erasure e2
-     let vs1 = evars e1'
-         vs2 = evars e2'
-     return $ EApp (vs1 ++ vs2) e1' e2'
+     return $ EApp e1' e2'
 
 
 erasure (AppDep e1 e2) =
   do e1' <- erasure e1
      e2' <- erasure e2
-     let vs1 = evars e1'
-         vs2 = evars e2'
-     return $ EApp (vs1 ++ vs2) e1' e2'
+     return $ EApp e1' e2'
 
 
 erasure (AppDepTy e1 e2) =
   do e1' <- erasure e1
      e2' <- erasure e2
-     let vs1 = evars e1'
-         vs2 = evars e2'
-     return $ EApp (vs1 ++ vs2) e1' e2'
+     return $ EApp e1' e2'
      
 
 
 erasure (AppDep' e1 e2) =
   do e1' <- erasure e1
      e2' <- erasure e2
-     let vs1 = evars e1'
-         vs2 = evars e2'
-     return $ EApp (vs1 ++ vs2) e1' e2'
+     return $ EApp e1' e2'
      
 
 
@@ -341,7 +329,7 @@ countVar xs e =
         helper EExBox x = 0
         helper EStar x = 0
         helper EUnit x = 0
-        helper (EApp _ t1 t2) x = helper t1 x + helper t2 x
+        helper (EApp t1 t2) x = helper t1 x + helper t2 x
         helper (EPair t1 t2) x = helper t1 x + helper t2 x
         helper (ETensor t1 t2) x = helper t1 x + helper t2 x
         helper (EArrow t1 t2) x = helper t1 x + helper t2 x
