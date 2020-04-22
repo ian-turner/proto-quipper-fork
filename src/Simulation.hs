@@ -17,7 +17,7 @@ import Text.PrettyPrint
 
 import Debug.Trace
 
-data ReadWrite a = RW_Return a
+data ReadWrite a = RW_Return !a
                  | RW_Write !Gate (ReadWrite a)
                  | RW_Read !Label (Bool -> ReadWrite a)
 

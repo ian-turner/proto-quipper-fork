@@ -10,8 +10,8 @@ extra-source-files:
 - README.md
 - ChangeLog.md
 
-data-files:          lib/*.dpq,
-                     test/*.dpq
+# data-files:          lib/*.dpq,
+#                      test/*.dpq
 
 
 # Metadata used when publishing your package

@@ -50,6 +50,8 @@ import Data.List
 
 import qualified Data.MultiSet as S
 import Data.MultiSet (MultiSet)
+import qualified Data.Set as Set
+import Data.Set (Set)
 import Text.PrettyPrint
 import Prelude hiding((<>))
 import Data.Map (Map)
@@ -1123,11 +1125,24 @@ evars e = S.distinctElems $ evarsHelper e
 -- | Retrieve the variables that a closure refers to. This
 -- must be done efficiently since it is used for evaluation.
 vars :: Value -> [Variable]
-vars (VLam ws (Abst _ e)) = ws
+vars (VLam ws _) = ws
 vars (VLift ws e) = ws
-vars (VPair e1 e2) = (vars e1) ++ (vars e2)
-vars (VTensor e1 e2) = (vars e1) ++ (vars e2)
-vars (VApp e1 e2) = (vars e1) ++ (vars e2)
+
+vars (VApp e1 e2) =
+  let vs1 = vars e1
+      vs2 = vars e2
+  in vs1 `seq` vs2 `seq` (vs1 ++ vs2)
+
+vars (VPair e1 e2) =
+    let vs1 = vars e1
+        vs2 = vars e2
+    in vs1 `seq` vs2 `seq` (vs1 ++ vs2)
+
+vars (VTensor e1 e2) =
+    let vs1 = vars e1
+        vs2 = vars e2
+    in vs1 `seq` vs2 `seq` (vs1 ++ vs2)
+      
 vars _ = []
 
 -- | Generate a fresh modality.

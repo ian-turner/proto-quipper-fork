@@ -436,7 +436,7 @@ data Value =
   | VCircuit Morphism
     -- ^ Unbound circuit (incomplete).
     -- ^ Complete circuit.
-  | VApp Value Value -- ^ Applicative value. 
+  | VApp Value Value -- ^ Applicative value.
   | VForce Value -- ^ Value version of 'Force'.
   | VComputed Value
   | VBox -- ^ Value version of 'Box'.

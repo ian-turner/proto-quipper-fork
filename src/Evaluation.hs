@@ -7,7 +7,7 @@
 -- It still has memory problem when generating super-large circuits.
 
 module Evaluation 
-       (eval, number, getSt, initES, size, toVal) where
+       (eval, number, initES, size, toVal) where
 
 import Syntax
 import Erasure
@@ -17,17 +17,18 @@ import Nominal
 import Simulation
 
 import Control.Exception 
-import Control.Monad.State (State)
-import qualified Control.Monad.State as S
+import Control.Monad.State 
+
 import Control.Monad.Identity
 import Control.Monad.Except
 import Text.PrettyPrint
 import TCMonad 
 
-import qualified Data.Map.Strict as Map
-import Data.Map.Strict (Map)
+import qualified Data.Map as Map
+import Data.Map (Map)
 import Data.Set (Set)
 import Data.List
+import Data.Tuple
 import qualified Data.Set as S
 import Debug.Trace
 
@@ -35,7 +36,7 @@ import Debug.Trace
 -- * The Eval monad and eval function.
 
 -- | The evaluation monad.
-type Eval a = QuantumState a
+type Eval a = StateT EvalState ReadWrite a
 
 
 -- | Evaluator state, it contains an underlying circuit and
@@ -50,8 +51,6 @@ data EvalState =
        number :: Int -- ^ Current fresh label
      }
 
-newtype QuantumState a = QS {getSt :: EvalState -> ReadWrite (EvalState, a)}
-
 initES gl n = ES{evalEnv = gl, localEvalEnv = Map.empty, number = n}
 
 freshL :: Int -> Eval [Label]
@@ -62,37 +61,12 @@ freshL n =
      put s{number = m + n}
      return r
      
-get :: Eval EvalState
-get = QS $ \ s -> return (s, s)
-
-put :: EvalState -> Eval ()
-put s' = QS $ \ s -> return (s', ())
-
 dynamicLift :: Label -> Eval Bool
-dynamicLift l = QS $ \ s ->
-  do b <- dynliftRW l
-     return (s, b)
-
+dynamicLift l = lift $ dynliftRW l
 
 addGates :: [Gate] -> Eval ()
-addGates gs =
-  QS $ \ s -> mapM_ gateRW gs >> return (s, ())
+addGates gs = lift $ mapM_ gateRW gs
 
-
-instance Monad QuantumState where
-  return a = QS $ \ s -> return (s, a)
-  f >>= g = QS h
-    where h s = do
-            (st, v) <- getSt f s
-            getSt (g v) st
-          
-
-instance Applicative QuantumState where
-  pure = return
-  (<*>) = ap
-
-instance Functor QuantumState where
-  fmap = liftM
 
 -- | Evaluate an expression to
 -- a value in the value domain. The eval function also takes an environment
@@ -258,7 +232,7 @@ addDefinition (x, n) m =
      let vs = vars m
          lenv = localEvalEnv st
          lenv' = if n == 0 then lenv
-                 else Map.insert x (m, n, 0, vs) (addRef vs lenv) 
+                 else vs `seq` Map.insert x (m, n, 0, vs) (addRef vs lenv) 
      put st{localEvalEnv = lenv'}
 
 -- | Increase the reference count for given variables.
@@ -443,9 +417,9 @@ evalBox body uv =
                 Right body' -> eval body'
                 Left v -> return v
       let uv' = toVal uv vs
-          bgs = boxGates $ getSt (evalApp b uv') st
+          bgs = boxGates $ runStateT (evalApp b uv') st
           gs = fst bgs
-          res = snd $ snd bgs
+          res = fst $ snd bgs
           newMorph = Morphism uv' gs res
           morph' = (VCircuit newMorph)
       return morph'
@@ -463,9 +437,9 @@ evalExbox body uv =
       b <- eval body
       let uv' = toVal uv vs
           d = Morphism uv' [] uv'
-          bgs = boxGates $ getSt (evalApp b uv') st
+          bgs = boxGates $ runStateT (evalApp b uv') st
           gs = fst bgs
-          res = snd $ snd bgs
+          res = fst $ snd bgs
           n = fstVPair res
           res' = sndVPair res
           newMorph = Morphism uv' gs res'
@@ -534,15 +508,15 @@ invertName id | "_inv" `isSuffixOf` (getName id)  =  Id $ getName id \\ "_inv"
 
 -- | Rename /uv/ using fresh labels draw from /vs/.
 toVal :: Value -> [Label] -> Value
-toVal uv vs = S.evalState (templateToVal uv) vs
+toVal uv vs = evalState (templateToVal uv) vs
 
 -- | Obtain a fresh template inhabitant of a simple type, with wirenames
 -- drawn from the state. The input is a simple data type.
 templateToVal :: Value -> State [Label] Value
 templateToVal (VLBase _) =
-  do x <- S.get
+  do x <- get
      let (v:vs) = x
-     S.put vs
+     put vs
      return (VLabel v)
 templateToVal a@(VConst _) = return a
 templateToVal a@(VUnit) = return VStar

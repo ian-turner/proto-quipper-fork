@@ -237,8 +237,10 @@ a_small_board_red =
   $ VCons True $ VCons True $ VCons True $ VCons True $ VCons True VNil
 
 main1 (x : Unit) = uncurry (real_checkwin_red 34 7 refl refl) (init (False, nVec 35 True))
-
 main2 (x : Unit) = uncurry (real_checkwin_red 20 7 refl refl) (init (False, nVec 21 True))
+
+main3 (x : Unit) = uncurry (real_checkwin_red 62 7 refl refl) (init (False, nVec 63 True))
+
 
 main = box_checkwin_red (3 @ 7 - 1) 7 refl refl 
 {- main = box_checkwin_red (3 @ 7 - 1) 7 refl refl 
