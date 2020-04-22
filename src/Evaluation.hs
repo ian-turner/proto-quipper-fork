@@ -281,8 +281,9 @@ evalApp (VApp _ (VApp _ VReverse _) _) (VCircuit m) = do
       outs = output m
   return $ (VCircuit $ Morphism outs gs' ins)
 
-evalApp (VApp _ (VApp _ (VApp _ VControlled _) _) _) (VCircuit m) = 
-  freshNames ["#ctrl", "#input", "#circ"] $ \ (ctrl:inp:circ:[]) -> 
+evalApp (VApp _ (VApp _ (VApp _ VControlled _) _) _) (VCircuit m') = 
+  freshNames ["#ctrl", "#input", "#circ"] $ \ (ctrl:inp:circ:[]) -> do
+      m <- refresh m'
       let ins = input m
           gs = gates m
           outs = output m
@@ -290,7 +291,7 @@ evalApp (VApp _ (VApp _ (VApp _ VControlled _) _) _) (VCircuit m) =
           env = Map.fromList [(circ, (mycirc, 1))] 
           exp = EPair (EApp 
                        (EForce $ EApp EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
-      in return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
+      return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
   where controlledGates a gs = map (helper a) gs
         helper a (Gate id ps ins outs b False) = Gate id ps ins outs b False
         helper a (Gate id ps ins outs VStar flag) = Gate id ps ins outs (VVar a) flag
