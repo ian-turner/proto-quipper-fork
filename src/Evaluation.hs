@@ -48,10 +48,11 @@ data EvalState =
        -- The first 'Int' represents the approximate number of occurrences,
        -- the second 'Int' represents its accurate reference count,
        -- the ['Variable'] is the variables that it refers to.
-       number :: Int -- ^ Current fresh label
+       number :: Int, -- ^ Current fresh label
+       gcSize :: Int
      }
 
-initES gl n = ES{evalEnv = gl, localEvalEnv = Map.empty, number = n}
+initES gl n = ES{evalEnv = gl, localEvalEnv = Map.empty, number = n, gcSize = 1048576}
 
 freshL :: Int -> Eval [Label]
 freshL n =
@@ -214,17 +215,27 @@ lookupLEnv :: Variable -> Eval Value
 lookupLEnv x =
   do st <- get
      let lenv = localEvalEnv st
+         size = gcSize st
      case Map.lookup x lenv of
        Nothing -> error $ "from lookupLEnv:" ++ show x
        Just (v, n, ref, ps) ->
          if (n-1 <= 0) && ref == 0 then
-           do let lenv' = decrRef ps (Map.delete x lenv)
+           do let lenv' = deref ps (Map.delete x lenv)
               put st{localEvalEnv = lenv'}
               return v
-         else
-           do let lenv' = Map.insert x (v, n-1, ref, ps) lenv
-              put st{localEvalEnv = lenv'}
-              return v
+         else do let lenv' = Map.insert x (v, n-1, ref, ps) lenv
+                 put st{localEvalEnv = lenv'}
+                 return v
+           
+           -- do let lenv' = Map.insert x (v, n-1, ref, ps) lenv
+           --        s = Map.size lenv'
+           --    if s > size then do
+           --      let lenv'' = gc lenv'
+           --          newSize = if Map.size lenv'' < s then size + 10000 else size * 2
+           --      lenv'' `seq` put st{localEvalEnv = lenv'', gcSize = newSize}
+           --      return v
+           --      else do put st{localEvalEnv = lenv'}
+           --              return v
 
 -- | Add a value to the environment.
 addDefinition (x, n) m =
@@ -579,3 +590,23 @@ refresh morph =
              return ((Gate id ps input' output' ctrl' flag):gs', m'')
 
 
+gc :: Map Variable (Value, Int, Int, [Variable]) -> Map Variable (Value, Int, Int, [Variable])
+gc m =
+  let res = Map.foldrWithKey (\k a xs -> if freeable a then (k,ref a):xs else xs) [] m
+      s = Map.size m
+      m' = foldl' (\ m' (k, ps) -> deref ps (Map.delete k m')) m res
+  in m' 
+  where freeable (_, i, j, ps) = (i <= 0) && (j == 0)
+        ref (_, _, _, ps) = ps
+
+deref [] m = m
+deref (v:vs) m =
+          case Map.lookup v m of
+            Nothing -> error "from deref"
+            Just (val, n, ref, ps) | (ref - 1 == 0) && n <= 0 ->
+              deref (vs++ps) (Map.delete v m)
+            Just (val, n, ref, ps) | otherwise ->
+              let m' = Map.insert v (val, n, ref-1, ps) m
+              in deref vs m'
+
+  
