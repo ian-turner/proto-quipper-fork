@@ -517,12 +517,12 @@ instance Disp Value where
   display flag (VLiftCirc (Abst vs (Abst env e))) = 
    text "vliftCirc" <+> hsep (map dispRaw vs) <+> text "->"
    <+> braces (dispRaw env) $$ nest 2 (display flag e)
-  display flag a@(VApp _ t t') = 
+  display flag a@(VApp ws t t') = 
     case toNat a of
       Nothing ->
         case toVec a of
           Nothing ->
-            fsep [dParen flag (precedence a - 1) t, dParen flag (precedence a) t']
+            fsep [brackets (hsep $ map (display flag) ws), dParen flag (precedence a - 1) t, dParen flag (precedence a) t']
 
           Just vs -> brackets $ fsep $ punctuate comma $ map (\ x -> display flag x ) vs
       Just i -> int i

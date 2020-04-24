@@ -1100,13 +1100,15 @@ vars (VApp ws e1 e2) = ws
 vars (VPair e1 e2) =
     let vs1 = vars e1
         vs2 = vars e2
-    in vs1 ++ vs2
+    in vs1 `union` vs2
 
 vars (VTensor e1 e2) =
     let vs1 = vars e1
         vs2 = vars e2
-    in vs1 ++ vs2
-      
+    in vs1 `union` vs2        
+
+vars (VVar _) = error "from vars"
+vars (VForce _) = error "from vars"
 vars _ = []
 
 -- | Generate a fresh modality.

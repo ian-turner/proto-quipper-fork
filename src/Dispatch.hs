@@ -72,9 +72,9 @@ dispatch Reload =
 dispatch (Type e) =
   do e' <- topResolve e
      (t', e'') <- topTypeInfer e'
-     let fvs = getVars AllowEigen t'
-     when (not $ S.null fvs) $ 
-       throwError $ CompileErr $ TyAmbiguous Nothing t'
+     -- let fvs = getVars AllowEigen t'
+     -- when (not $ S.null fvs) $ 
+     --   throwError $ CompileErr $ TyAmbiguous Nothing t'
      liftIO $ putStrLn ("it has classifier \n" ++ (show $ disp t'))
      return True
 
@@ -87,8 +87,8 @@ dispatch (Eval e) =
             liftIO $ putStrLn ("it normalizes to \n" ++ (show $ disp n))
             return True
        else do
-         let fvs = getVars AllowEigen t'
-         when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
+         -- let fvs = getVars AllowEigen t'
+         -- when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
          ioTop $ putStrLn ("it has type \n" ++ (show $ disp t'))
          v <- evaluation e''
          ioTop $ putStrLn ("it has value \n" ++ (show $ dispRaw v))
@@ -187,10 +187,9 @@ dispatch (ShowCirc Nothing) = do
 dispatch (ShowCirc (Just e)) = 
   do e' <- topResolve e
      (t', e'') <- topTypeInfer e'
-     let fvs = getVars AllowEigen t'
+     -- let fvs = getVars AllowEigen t'
      gl <- getCxt
-     et <- tcTop $ erasure e''
-     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
+     -- when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
      ioTop $ putStrLn "generated gates:"
      gs <- evaluation' e''
      ioTop $ putStrLn (show $ vcat $ map dispRaw gs)
@@ -204,10 +203,10 @@ dispatch (TopGateCount Nothing Nothing) =
 dispatch (TopGateCount Nothing (Just e)) =
   do e' <- topResolve e
      (t', e'') <- topTypeInfer e'
-     let fvs = getVars AllowEigen t'
+--     let fvs = getVars AllowEigen t'
      gl <- getCxt
-     et <- tcTop $ erasure e''
-     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
+--     et <- tcTop $ erasure e''
+--     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
      gs <- evaluation' e''
      ioTop $ putStrLn ("total top gates: \n" ++ (show (length gs)))
      return True
@@ -215,10 +214,10 @@ dispatch (TopGateCount Nothing (Just e)) =
 dispatch (TopGateCount (Just n) (Just e)) =
   do e' <- topResolve e
      (t', e'') <- topTypeInfer e'
-     let fvs = getVars AllowEigen t'
+--     let fvs = getVars AllowEigen t'
      gl <- getCxt
-     et <- tcTop $ erasure e''
-     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
+--     et <- tcTop $ erasure e''
+--     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
      gs <- evaluation' e''
      let rs = [g | g <- gs, (getName $ gateName g) == n]
      ioTop $ putStrLn (n++":\n" ++ (show $ length rs))

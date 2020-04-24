@@ -155,27 +155,26 @@ tcTop m =
             putInstCxt inst'
             return e
 
--- | Perform evaluation in 'Top' monad.
+-- | Perform evaluation in 'Top' monad, record gates to toplevel
 evaluation :: A.Exp -> Top Value            
 evaluation exp =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
      putGates []
      (res, gs) <- ioTop $ simulate $
-                  do {(v, st) <- runStateT (eval exp') (initES gl 0);
-                      return v}
+                  do {r <- runStateT (eval exp') (initES gl 0);
+                      return $ fst r}
      putGates gs
      return res
 
+-- | Perform evaluation in 'Top' monad, return gates
 evaluation' :: A.Exp -> Top Gates
 evaluation' exp =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
-     putGates []
      (res, gs) <- ioTop $ simulate $
-                  do {(v, st) <- runStateT (eval exp') (initES gl 0);
-                      return v}
-     putGates gs
+                  do {r <- runStateT (eval exp') (initES gl 0);
+                      return $ fst r}
      return gs
 
      

@@ -242,7 +242,7 @@ main2 (x : Unit) = uncurry (real_checkwin_red 20 7 refl refl) (init (False, nVec
 main3 (x : Unit) = uncurry (real_checkwin_red 62 7 refl refl) (init (False, nVec 63 True))
 
 
-main = box_checkwin_red (3 @ 7 - 1) 7 refl refl 
+-- main = box_checkwin_red (3 @ 7 - 1) 7 refl refl 
 {- main = box_checkwin_red (3 @ 7 - 1) 7 refl refl 
    dpq test/Hex3.dpq -g  173.37s user 21.19s system 125% cpu 2:34.84 total
 
@@ -250,7 +250,7 @@ main = box_checkwin_red (3 @ 7 - 1) 7 refl refl
 -- box_checkwin_red (9 @ 7 - 1) 7 refl refl
 
 
--- main = box_checkwin_red (5 @ 7 - 1) 7 refl refl
+main = box_checkwin_red (5 @ 7 - 1) 7 refl refl
 -- 475119
 -- dpq test/Hex3.dpq -g  1654.73s user 205.41s system 122% cpu 25:15.20 total 
 -- mem 28%, 5m. 

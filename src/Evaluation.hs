@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-
+{-# LANGUAGE BangPatterns #-}
 
 
 -- | This module implements a closure-based call-by-value evaluation.
@@ -76,7 +76,7 @@ addGates gs = lift $ mapM_ gateRW gs
 eval :: EExp -> Eval Value
 eval (EVar x) = do
   v <- lookupLEnv x 
-  return v
+  v `seq` return v
 
 eval EStar = return VStar
 eval EUnit = return VUnit
@@ -88,11 +88,11 @@ eval a@(EConst k) =
        Just e ->
          case identification e of
            DataConstr _ -> return (VConst k)
-           DefinedGate v -> return v
-           DefinedFunction (Just (_, v, _)) -> return v
+           DefinedGate v -> v `seq` return v
+           DefinedFunction (Just (_, v, _)) -> v `seq` return v
            DefinedFunction Nothing -> throw $ userError ("undefined: " ++ (show $ disp k))
-           DefinedMethod _ v -> return v
-           DefinedInstFunction _ v -> return v
+           DefinedMethod _ v -> v `seq` return v
+           DefinedInstFunction _ v -> v `seq` return v
 
 eval (EBase k) = return $ VBase k
 
@@ -119,7 +119,7 @@ eval (EForce m) =
 eval (ETensor e1 e2) =
   do e1' <- eval e1
      e2' <- eval e2
-     return $ VTensor e1' e2'
+     e1' `seq` e2' `seq` return $ VTensor e1' e2'
 
 eval a@(ELam ws body) = return (VLam ws body)
      
@@ -171,14 +171,14 @@ eval (ELetPat m bd) =
      case vflatten m' of
        Nothing -> error ("from LetPat" ++ (show $ disp m'))
        Just (Left id, args) ->
-         open bd $ \ p m ->
+         open bd $ \ p n ->
          case p of
            EPApp kid vs
              | kid == id ->
                do let vs' = vs 
                       subs = (zip vs' args)
                   mapM_ (\ (x, v) -> addDefinition x v) subs
-                  eval m
+                  eval n
            p -> error "pattern mismatch, from eval ELetPat" 
 
 eval b@(ECase m (EB bd)) =
@@ -220,7 +220,7 @@ lookupLEnv x =
        Nothing -> error $ "from lookupLEnv:" ++ show x
        Just (v, n, ref, ps) ->
          if (n-1 <= 0) && ref == 0 then
-           do let lenv' = deref ps (Map.delete x lenv)
+           do let lenv' = decrRef ps (Map.delete x lenv)
               put st{localEvalEnv = lenv'}
               return v
          else do let lenv' = Map.insert x (v, n-1, ref, ps) lenv
@@ -238,24 +238,27 @@ lookupLEnv x =
            --              return v
 
 -- | Add a value to the environment.
-addDefinition (x, n) m =
+-- addDefinition (!x, !n) !m | trace ("adddef:") $ False = undefined                 
+addDefinition (!x, !n) !m =
   do st <- get
      let vs = vars m
          lenv = localEvalEnv st
          lenv' = if n == 0 then lenv
-                 else vs `seq` Map.insert x (m, n, 0, vs) (addRef vs lenv) 
+                 else -- trace ("adddef:" ++ show (dispRaw x) ++":"++ show n ++ ":"++ show vs ++ show (dispRaw m) ) $
+                   vs `seq` Map.insert x (m, n, 0, vs) (addRef x vs lenv) 
      put st{localEvalEnv = lenv'}
 
 -- | Increase the reference count for given variables.
-addRef :: [Variable] -> Map Variable (Value, Int, Int, [Variable]) ->
-           Map Variable (Value, Int, Int, [Variable])               
-addRef [] lenv = lenv
-addRef (v:vs) lenv =
+-- addRef :: [Variable] -> Map Variable (Value, Int, Int, [Variable]) ->
+--            Map Variable (Value, Int, Int, [Variable])               
+addRef x [] lenv = lenv
+addRef x (v:vs) lenv =
   case Map.lookup v lenv of
     Nothing -> error $ "from addRef:" ++ show v
     Just (val, n, ref, ps) ->
       let lenv' = Map.insert v (val, n , ref+1, ps) lenv
-      in addRef vs lenv' 
+      in addRef x vs lenv' 
+       -- trace (show x ++ "refer:"++show v ++ ":"++ show (ref+1)) $ addRef x vs lenv' 
   
 -- | A helper function for evaluating various of applications.
 evalApp :: Value -> Value -> Eval Value
@@ -268,7 +271,7 @@ evalApp (VForce VDynlift) (VLabel v) =
        else return $ VConst (Id "False")
 
 -- append gates
-evalApp (VForce (VApp _ VUnBox (VCircuit morph))) w =
+evalApp (VForce (VApp _ VUnBox (VCircuit morph))) !w =
  do morph' <- refresh morph
     let binding = makeBinding (input morph') w
     appendMorph binding morph'
@@ -286,10 +289,8 @@ evalApp (VApp _ (VApp _ (VApp _ (VApp _ VExBox q) _) _) _) v =
       evalExbox body q
 
 
-evalApp (VApp _ (VApp _ VReverse _) _) (VCircuit m) = do
-  let gs' = revGates (gates m)
-      ins = input m
-      outs = output m
+evalApp (VApp _ (VApp _ VReverse _) _) (VCircuit (Morphism ins gs outs)) = do
+  let gs' = revGates gs
   return $ (VCircuit $ Morphism outs gs' ins)
 
 evalApp (VApp _ (VApp _ (VApp _ VControlled _) _) _) (VCircuit m') = 
@@ -340,7 +341,7 @@ evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
         sndVPair (VPair _ b) = b
 evalApp a@(VCircuit _) w = return a
 
-evalApp v w = 
+evalApp v !w = 
   let (h, res) = unwindVal v
   in case h of
     VLam _ bd -> handleBody (res ++ [w]) bd
@@ -348,7 +349,7 @@ evalApp v w =
         do let args = res ++ [w]
                lvs = length vs
            if lvs > (length args) then
-             return $ VApp (vars v ++ vars w) v w
+             return $ VApp (vars v `union` vars w) v w
              else do let ns = countVar vs e
                          sub = filter (\ (_ , (v, n)) -> n /= 0) $ zip vs (zip args ns)
                          sub' = zip vs args
@@ -359,9 +360,9 @@ evalApp v w =
                      case e' of
                        VLam _ bd -> handleBody ws bd
                        _ ->
-                         return $ foldl' (\ x y -> VApp (vars x ++ vars y) x y) e' ws
+                         return $ foldl' (\ x y -> VApp (vars x `union` vars y) x y) e' ws
         
-    _ -> return $ VApp (vars v ++ vars w) v w
+    _ -> return $ VApp (vars v `union` vars w) v w
           
   where
         -- Handle beta reduction
@@ -369,27 +370,23 @@ evalApp v w =
              let lvs = length vs
              in
               if lvs > length args
-              then return $ VApp (vars v ++ vars w) v w
+              then return $ VApp (vars v `union` vars w) v w
               else do let sub = zip vs args
                           ws = drop lvs args
                       mapM_ (\ (x,v) -> addDefinition x v) sub
                       if null ws then eval m
                         else 
                         do m' <- eval m
-                           m' `seq` return $ foldl' (\ x y -> VApp (vars x ++ vars y) x y) m' ws
+                           m' `seq`
+                             return $ foldl' (\ x y -> VApp (vars x `union` vars y) x y) m' ws
         -- Perform substitution on the variables in a circuit.
         updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Int))]
-        updateCirc sub lenv = 
-             let (x, (circ, n)):[] = Map.toList lenv
-                 (VCircuit morph) = circ
-                 ins = input morph
-                 gs = gates morph
-                 outs = output morph
-                 params = map (\ (Gate _ p _ _ _ _) -> p) gs
+        updateCirc sub lenv | (x, (VCircuit (Morphism ins gs outs), n)):[] <- Map.toList lenv = 
+             let params = map (\ (Gate _ p _ _ _ _) -> p) gs
                  ctrls = map (\ (Gate _ _ _ _ c _) -> c) gs
                  params' = map (\ p -> helper p sub) params
                  ctrls' = helper ctrls sub
-                 gs' = zipWith3 (\ p c (Gate id _ inn oot _ flag) -> Gate id p inn oot c flag)
+                 gs' = zipWith3 (\ !p !c (Gate id _ inn oot _ flag) -> Gate id p inn oot c flag)
                        params' ctrls' gs
                  circ' = (VCircuit (Morphism ins gs' outs))
              in [(x, (circ', n))]
@@ -464,10 +461,12 @@ evalExbox body uv =
 -- For efficiency reason we try prepend instead of append, so 'evalBox' and 'evalExbox'
 -- have to reverse the list of gates as part of the post-processing. 
 appendMorph :: Binding -> Morphism -> Eval Value
-appendMorph binding f = 
+appendMorph binding !f = 
   do let f' = rename f binding
-     addGates (gates f')
-     return $ output f'
+         gs = gates f'
+         outs = output f'
+     gs `seq` addGates gs
+     outs `seq` return outs
 
 
 
@@ -567,11 +566,8 @@ decrRef (v:vs) m =
       in decrRef vs m'
         
 
-refresh morph =
-  do let ins = input morph
-         gs = gates morph
-         outs = output morph
-     insWires' <- freshL (size ins)
+refresh (Morphism ins gs outs) =
+  do insWires' <- freshL (size ins)
      let insWires = getWires ins
          m = Map.fromList (zip insWires insWires')
          ins' = renameTemp ins m
@@ -590,23 +586,23 @@ refresh morph =
              return ((Gate id ps input' output' ctrl' flag):gs', m'')
 
 
-gc :: Map Variable (Value, Int, Int, [Variable]) -> Map Variable (Value, Int, Int, [Variable])
-gc m =
-  let res = Map.foldrWithKey (\k a xs -> if freeable a then (k,ref a):xs else xs) [] m
-      s = Map.size m
-      m' = foldl' (\ m' (k, ps) -> deref ps (Map.delete k m')) m res
-  in m' 
-  where freeable (_, i, j, ps) = (i <= 0) && (j == 0)
-        ref (_, _, _, ps) = ps
+-- gc :: Map Variable (Value, Int, Int, [Variable]) -> Map Variable (Value, Int, Int, [Variable])
+-- gc m =
+--   let res = Map.foldrWithKey (\k a xs -> if freeable a then (k,ref a):xs else xs) [] m
+--       m' = foldl' (\ m' (k, ps) -> deref ps (Map.delete k m')) m res
+--   in m' 
+--   where freeable (_, i, j, ps) = (i <= 0) && (j == 0)
+--         ref (_, _, _, ps) = ps
 
-deref [] m = m
-deref (v:vs) m =
-          case Map.lookup v m of
-            Nothing -> error "from deref"
-            Just (val, n, ref, ps) | (ref - 1 == 0) && n <= 0 ->
-              deref (vs++ps) (Map.delete v m)
-            Just (val, n, ref, ps) | otherwise ->
-              let m' = Map.insert v (val, n, ref-1, ps) m
-              in deref vs m'
+-- deref [] m = m
+-- deref (v:vs) m =
+--           case Map.lookup v m of
+--             Nothing -> error "from deref"
+--             Just (val, n, ref, ps) | (ref - 1 == 0) && n <= 0 ->
+--               trace ("deleting2:"++ show v) $ deref (vs `union` ps) (Map.delete v m)
+--             Just (val, n, ref, ps) | otherwise ->
+--               let m' = Map.insert v (val, n, ref-1, ps) m
+--               in deref vs m'
+
 
   
