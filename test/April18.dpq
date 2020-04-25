@@ -61,8 +61,14 @@ f x =
   let y = H x
       -- _ = dynlift (Meas y)
   in f y -- (Init0 ()) 
-  
 
+main1 = boxCirc f
+
+main2 : ! (Qubit -> Qubit -> Qubit * Qubit)
+main2 x y = controlling f x y
+
+-- main3 : ! (Qubit -> Qubit -> Qubit * Qubit)
+main = box (Qubit * Qubit) $ \ x -> (uncurry $ controlled main1) x
 
 -- testTof2 : Bool * Bool * Bool
 -- testTof2 =

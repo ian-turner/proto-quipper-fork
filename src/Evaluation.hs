@@ -48,11 +48,10 @@ data EvalState =
        -- The first 'Int' represents the approximate number of occurrences,
        -- the second 'Int' represents its accurate reference count,
        -- the ['Variable'] is the variables that it refers to.
-       number :: Int, -- ^ Current fresh label
-       gcSize :: Int
+       number :: Int -- ^ Current fresh label
      }
 
-initES gl n = ES{evalEnv = gl, localEvalEnv = Map.empty, number = n, gcSize = 1048576}
+initES gl n = ES{evalEnv = gl, localEvalEnv = Map.empty, number = n}
 
 freshL :: Int -> Eval [Label]
 freshL n =
@@ -76,7 +75,7 @@ addGates gs = lift $ mapM_ gateRW gs
 eval :: EExp -> Eval Value
 eval (EVar x) = do
   v <- lookupLEnv x 
-  v `seq` return v
+  return v
 
 eval EStar = return VStar
 eval EUnit = return VUnit
@@ -88,11 +87,11 @@ eval a@(EConst k) =
        Just e ->
          case identification e of
            DataConstr _ -> return (VConst k)
-           DefinedGate v -> v `seq` return v
-           DefinedFunction (Just (_, v, _)) -> v `seq` return v
+           DefinedGate v -> return v
+           DefinedFunction (Just (_, v, _)) -> return v
            DefinedFunction Nothing -> throw $ userError ("undefined: " ++ (show $ disp k))
-           DefinedMethod _ v -> v `seq` return v
-           DefinedInstFunction _ v -> v `seq` return v
+           DefinedMethod _ v -> return v
+           DefinedInstFunction _ v -> return v
 
 eval (EBase k) = return $ VBase k
 
@@ -215,7 +214,6 @@ lookupLEnv :: Variable -> Eval Value
 lookupLEnv x =
   do st <- get
      let lenv = localEvalEnv st
-         size = gcSize st
      case Map.lookup x lenv of
        Nothing -> error $ "from lookupLEnv:" ++ show x
        Just (v, n, ref, ps) ->
@@ -227,25 +225,15 @@ lookupLEnv x =
                  put st{localEvalEnv = lenv'}
                  return v
            
-           -- do let lenv' = Map.insert x (v, n-1, ref, ps) lenv
-           --        s = Map.size lenv'
-           --    if s > size then do
-           --      let lenv'' = gc lenv'
-           --          newSize = if Map.size lenv'' < s then size + 10000 else size * 2
-           --      lenv'' `seq` put st{localEvalEnv = lenv'', gcSize = newSize}
-           --      return v
-           --      else do put st{localEvalEnv = lenv'}
-           --              return v
 
 -- | Add a value to the environment.
--- addDefinition (!x, !n) !m | trace ("adddef:") $ False = undefined                 
 addDefinition (!x, !n) !m =
   do st <- get
      let vs = vars m
          lenv = localEvalEnv st
          lenv' = if n == 0 then lenv
-                 else -- trace ("adddef:" ++ show (dispRaw x) ++":"++ show n ++ ":"++ show vs ++ show (dispRaw m) ) $
-                   vs `seq` Map.insert x (m, n, 0, vs) (addRef x vs lenv) 
+                 else
+                   Map.insert x (m, n, 0, vs) (addRef x vs lenv) 
      put st{localEvalEnv = lenv'}
 
 -- | Increase the reference count for given variables.
@@ -437,6 +425,7 @@ evalBox body uv =
 -- pair and the usual tensor pair at runtime, the evaluator may confuse
 -- the tensor pair with existential pair, thus making the wrong decision.
 -- So we define 'evalExbox' and 'evalBox' separately to enforce the assumptions.
+   
 evalExbox :: EExp -> Value -> Eval Value        
 evalExbox body uv =
    do vs <- freshL (size uv)
@@ -465,8 +454,8 @@ appendMorph binding !f =
   do let f' = rename f binding
          gs = gates f'
          outs = output f'
-     gs `seq` addGates gs
-     outs `seq` return outs
+     addGates gs
+     return outs
 
 
 
@@ -586,23 +575,3 @@ refresh (Morphism ins gs outs) =
              return ((Gate id ps input' output' ctrl' flag):gs', m'')
 
 
--- gc :: Map Variable (Value, Int, Int, [Variable]) -> Map Variable (Value, Int, Int, [Variable])
--- gc m =
---   let res = Map.foldrWithKey (\k a xs -> if freeable a then (k,ref a):xs else xs) [] m
---       m' = foldl' (\ m' (k, ps) -> deref ps (Map.delete k m')) m res
---   in m' 
---   where freeable (_, i, j, ps) = (i <= 0) && (j == 0)
---         ref (_, _, _, ps) = ps
-
--- deref [] m = m
--- deref (v:vs) m =
---           case Map.lookup v m of
---             Nothing -> error "from deref"
---             Just (val, n, ref, ps) | (ref - 1 == 0) && n <= 0 ->
---               trace ("deleting2:"++ show v) $ deref (vs `union` ps) (Map.delete v m)
---             Just (val, n, ref, ps) | otherwise ->
---               let m' = Map.insert v (val, n, ref-1, ps) m
---               in deref vs m'
-
-
-  

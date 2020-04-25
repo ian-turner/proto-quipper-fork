@@ -572,9 +572,9 @@ instance Disp (Map Variable (Value, Int, Int)) where
 
 instance Disp Morphism where
  display flag (Morphism ins gs outs) =
-   (braces $ display flag ins) $$
-   nest 2 (vcat $ map (display flag) gs) $$
-   (braces $ display flag outs) 
+   -- (braces $ display flag ins) $$
+   nest 2 (vcat $ map (display flag) gs) 
+   -- $$ (braces $ display flag outs)
 
 instance Disp Gate where
   display flag (Gate g params ins outs ctrls b) =
