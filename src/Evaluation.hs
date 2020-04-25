@@ -24,8 +24,8 @@ import Control.Monad.Except
 import Text.PrettyPrint
 import TCMonad 
 
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.List
 import Data.Tuple
@@ -253,8 +253,12 @@ addRef x (v:vs) lenv =
   
 -- | A helper function for evaluating various of applications.
 evalApp :: Value -> Value -> Eval Value
-evalApp VUnBox v | (VCircuit _) <- v = return $ VApp [] VUnBox v
-evalApp VUnBox v | otherwise = return VUnBox
+evalApp VUnBox v =
+  case v of
+    (VCircuit _) -> return $ VApp [] VUnBox v
+    _ -> return VUnBox
+
+
 evalApp (VForce VDynlift) (VLabel v) =
   do b <- dynamicLift v
      if b then

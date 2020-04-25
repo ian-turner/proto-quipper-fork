@@ -690,7 +690,7 @@ instance Disp EExp where
          text "->", nest 2 (display flag e)]
   display flag (ELift ws e) = 
    text "elift" <+> (brackets $ hsep (map dispRaw ws)) <+> display flag e
-
+ 
   display flag a@(EApp v1 v2) =
     fsep [dParen flag (precedence a - 1) v1, dParen flag (precedence a) v2]
   display flag (EForce v) = text "&" <> display flag v

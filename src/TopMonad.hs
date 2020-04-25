@@ -172,10 +172,10 @@ evaluation' :: A.Exp -> Top Gates
 evaluation' exp =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
-     (res, gs) <- ioTop $ simulate $
+     res <- ioTop $ simulate $
                   do {r <- runStateT (eval exp') (initES gl 0);
                       return $ fst r}
-     return gs
+     return (snd res)
 
      
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
