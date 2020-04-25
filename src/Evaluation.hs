@@ -24,8 +24,8 @@ import Control.Monad.Except
 import Text.PrettyPrint
 import TCMonad 
 
-import qualified Data.Map.Strict as Map
-import Data.Map.Strict (Map)
+import qualified Data.Map as Map
+import Data.Map (Map)
 import Data.Set (Set)
 import Data.List
 import Data.Tuple
@@ -118,7 +118,8 @@ eval (EForce m) =
 eval (ETensor e1 e2) =
   do e1' <- eval e1
      e2' <- eval e2
-     e1' `seq` e2' `seq` return $ VTensor e1' e2'
+     -- e1' `seq` e2' `seq`
+     return $ VTensor e1' e2'
 
 eval a@(ELam ws body) = return (VLam ws body)
      
@@ -142,12 +143,14 @@ eval a@(EExBox) = return VExBox
 eval (EApp m n) =
   do v <- eval m
      w <- eval n
-     v `seq` w `seq` evalApp v w
+     -- v `seq` w `seq`
+     evalApp v w
 
 eval (EPair m n) = 
   do v <- eval m
      w <- eval n
-     v `seq` w `seq` return (VPair v w)
+     -- v `seq` w `seq`
+     return (VPair v w)
 
 eval (ELet m bd) =
   do m' <- eval m
@@ -227,7 +230,7 @@ lookupLEnv x =
            
 
 -- | Add a value to the environment.
-addDefinition (!x, !n) !m =
+addDefinition (x, n) m =
   do st <- get
      let vs = vars m
          lenv = localEvalEnv st
@@ -259,7 +262,7 @@ evalApp (VForce VDynlift) (VLabel v) =
        else return $ VConst (Id "False")
 
 -- append gates
-evalApp (VForce (VApp _ VUnBox (VCircuit morph))) !w =
+evalApp (VForce (VApp _ VUnBox (VCircuit morph))) w =
  do morph' <- refresh morph
     let binding = makeBinding (input morph') w
     appendMorph binding morph'
@@ -329,7 +332,7 @@ evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
         sndVPair (VPair _ b) = b
 evalApp a@(VCircuit _) w = return a
 
-evalApp v !w = 
+evalApp v w = 
   let (h, res) = unwindVal v
   in case h of
     VLam _ bd -> handleBody (res ++ [w]) bd
@@ -348,7 +351,7 @@ evalApp v !w =
                      case e' of
                        VLam _ bd -> handleBody ws bd
                        _ ->
-                         return $ foldl' (\ x y -> VApp (vars x `union` vars y) x y) e' ws
+                         return $ foldl (\ x y -> VApp (vars x `union` vars y) x y) e' ws
         
     _ -> return $ VApp (vars v `union` vars w) v w
           
@@ -365,16 +368,18 @@ evalApp v !w =
                       if null ws then eval m
                         else 
                         do m' <- eval m
-                           m' `seq`
-                             return $ foldl' (\ x y -> VApp (vars x `union` vars y) x y) m' ws
+                           --m' `seq`
+                           return $ foldl (\ x y -> VApp (vars x `union` vars y) x y) m' ws
         -- Perform substitution on the variables in a circuit.
         updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Int))]
-        updateCirc sub lenv | (x, (VCircuit (Morphism ins gs outs), n)):[] <- Map.toList lenv = 
-             let params = map (\ (Gate _ p _ _ _ _) -> p) gs
-                 ctrls = map (\ (Gate _ _ _ _ c _) -> c) gs
-                 params' = map (\ p -> helper p sub) params
-                 ctrls' = helper ctrls sub
-                 gs' = zipWith3 (\ !p !c (Gate id _ inn oot _ flag) -> Gate id p inn oot c flag)
+        updateCirc sub lenv =
+             let ((x, (VCircuit (Morphism ins gs outs), n)):[]) = Map.toList lenv
+                 params1 = map params gs
+                 ctrls = map ctrl gs
+                 params' = map (\ p -> helper p sub) params1
+                 ctrls' = helper ctrls sub -- (Gate id _ inn oot _ flag)
+                 gs' = zipWith3 (\ p c g ->
+                                  Gate (gateName g) p (inputVal g) (outputVal g) c (ctrlFlag g))
                        params' ctrls' gs
                  circ' = (VCircuit (Morphism ins gs' outs))
              in [(x, (circ', n))]
@@ -450,7 +455,7 @@ evalExbox body uv =
 -- For efficiency reason we try prepend instead of append, so 'evalBox' and 'evalExbox'
 -- have to reverse the list of gates as part of the post-processing. 
 appendMorph :: Binding -> Morphism -> Eval Value
-appendMorph binding !f = 
+appendMorph binding f = 
   do let f' = rename f binding
          gs = gates f'
          outs = output f'
