@@ -43,15 +43,10 @@ type Eval a = StateT EvalState ReadWrite a
 -- a global context. 
 data EvalState =
   ES { evalEnv :: Context,  -- ^ The global evaluation context.
-       localEvalEnv :: Map Variable (Value, Int, Int, [Variable]),
-       -- ^ The heap for evaluation, represented by a map.
-       -- The first 'Int' represents the approximate number of occurrences,
-       -- the second 'Int' represents its accurate reference count,
-       -- the ['Variable'] is the variables that it refers to.
        number :: Int -- ^ Current fresh label
      }
 
-initES gl n = ES{evalEnv = gl, localEvalEnv = Map.empty, number = n}
+initES gl n = ES{evalEnv = gl, number = n}
 
 freshL :: Int -> Eval [Label]
 freshL n =
@@ -72,14 +67,14 @@ addGates gs = lift $ mapM_ gateRW gs
 -- a value in the value domain. The eval function also takes an environment
 -- as argument and form a closure when evaluating a lambda abstraction or a lifted term.
 
-eval :: EExp -> Eval Value
-eval (EVar x) = do
-  v <- lookupLEnv x 
-  return v
+eval :: LEnv -> EExp -> Eval Value
+eval lenv (EVar x) = 
+  return $ lookupLEnv x lenv
 
-eval EStar = return VStar
-eval EUnit = return VUnit
-eval a@(EConst k) =
+
+eval lenv EStar = return VStar
+eval lenv EUnit = return VUnit
+eval lenv a@(EConst k) =
   do st <- get
      let genv = evalEnv st
      case Map.lookup k genv of
@@ -93,9 +88,9 @@ eval a@(EConst k) =
            DefinedMethod _ v -> return v
            DefinedInstFunction _ v -> return v
 
-eval (EBase k) = return $ VBase k
+eval lenv (EBase k) = return $ VBase k
 
-eval a@(ELBase k) =
+eval lenv a@(ELBase k) =
   do st <- get
      let genv = evalEnv st
      case Map.lookup k genv of
@@ -103,35 +98,34 @@ eval a@(ELBase k) =
        Just e ->
          case identification e of
            DataType Simple _ (Just (ELBase id)) -> return (VLBase id)
-           DataType (SemiSimple _) _ (Just d) -> eval d
+           DataType (SemiSimple _) _ (Just d) -> eval lenv d
            DataType _ _ Nothing -> return (VBase k)
 
-eval (EForce m) =
-  do m' <- eval m
+eval lenv (EForce m) =
+  do m' <- eval lenv m
      case m' of
-       VLift _ e -> eval e
+       VLift (Abst lenv e) -> eval lenv e
        VDynlift -> return $ VForce VDynlift
        w@(VLiftCirc _) -> return w
-       v@(VApp _ VUnBox _) -> return $ VForce v
+       v@(VApp VUnBox _) -> return $ VForce v
        a -> error $ "from eval(EForce):" ++ (show $ disp a)
        
-eval (ETensor e1 e2) =
-  do e1' <- eval e1
-     e2' <- eval e2
-     -- e1' `seq` e2' `seq`
+eval lenv (ETensor e1 e2) =
+  do e1' <- eval lenv e1
+     e2' <- eval lenv e2
      return $ VTensor e1' e2'
 
-eval a@(ELam ws body) = return (VLam ws body)
+eval lenv a@(ELam body) = return (VLam (abst lenv body))
      
-eval a@(ELift ws body) = return (VLift ws body)
+eval lenv a@(ELift body) = return (VLift (abst lenv body))
      
-eval EUnBox = return VUnBox
-eval EReverse = return VReverse
-eval EDynlift = return VDynlift
-eval EControlled = return VControlled
-eval EWithComputed = return VWithComputed
-eval a@(EBox) = return VBox
-eval a@(EExBox) = return VExBox
+eval lenv EUnBox = return VUnBox
+eval lenv EReverse = return VReverse
+eval lenv EDynlift = return VDynlift
+eval lenv EControlled = return VControlled
+eval lenv EWithComputed = return VWithComputed
+eval lenv a@(EBox) = return VBox
+eval lenv a@(EExBox) = return VExBox
 
 -- Note that because QuantumState is an example
 -- of state monad, sequencing is enforced. So each
@@ -140,36 +134,34 @@ eval a@(EExBox) = return VExBox
 -- hence making the implementation conforming the eager evaluation
 -- strategy. As a result, we do not get lazy circuit in the sense of Quipper.
 
-eval (EApp m n) =
-  do v <- eval m
-     w <- eval n
-     -- v `seq` w `seq`
+eval lenv (EApp m n) =
+  do v <- eval lenv m
+     w <- eval lenv n
      evalApp v w
 
-eval (EPair m n) = 
-  do v <- eval m
-     w <- eval n
-     -- v `seq` w `seq`
+eval lenv (EPair m n) = 
+  do v <- eval lenv m
+     w <- eval lenv n
      return (VPair v w)
 
-eval (ELet m bd) =
-  do m' <- eval m
+eval lenv (ELet m bd) =
+  do m' <- eval lenv m
      open bd $ \ x n ->
-       do addDefinition x m'
-          eval n
+       let lenv' = addDefinition x m' lenv
+       in eval lenv' n
 
 
-eval (ELetPair m (Abst xs n)) =
-  do m' <- eval m
+eval lenv (ELetPair m (Abst xs n)) =
+  do m' <- eval lenv m
      let r = unVPair (length xs) m'
      case r of
-       Just vs -> do
-         mapM_ (\ (x, y) -> addDefinition x y)
-                        (zip xs vs)
-         eval n
+       Just vs -> 
+         let lenv' = foldl (\ a (x, y) -> addDefinition x y a) lenv
+                     (zip xs vs)
+         in eval lenv' n
 
-eval (ELetPat m bd) =
-  do m' <- eval m
+eval lenv (ELetPat m bd) =
+  do m' <- eval lenv m
      case vflatten m' of
        Nothing -> error ("from LetPat" ++ (show $ disp m'))
        Just (Left id, args) ->
@@ -179,12 +171,12 @@ eval (ELetPat m bd) =
              | kid == id ->
                do let vs' = vs 
                       subs = (zip vs' args)
-                  mapM_ (\ (x, v) -> addDefinition x v) subs
-                  eval n
+                      lenv' = foldl (\ a (x, v) -> addDefinition x v a) lenv subs
+                  eval lenv' n
            p -> error "pattern mismatch, from eval ELetPat" 
 
-eval b@(ECase m (EB bd)) =
-  do m' <- eval m
+eval lenv b@(ECase m (EB bd)) =
+  do m' <- eval lenv m
      case vflatten m' of
        Nothing -> error ("from eval (Case):")
        Just (Left id, args) ->
@@ -197,12 +189,12 @@ eval b@(ECase m (EB bd)) =
                do st <- get
                   let vs' = vs
                       subs = zip vs' args
-                  mapM_ (\ (x, v) -> addDefinition x v) subs
-                  eval m
+                      lenv' = foldl (\ a (x, v) -> addDefinition x v a) lenv subs
+                  eval lenv' m
                | otherwise -> reduce id args bds
         reduce id args [] = throw $ userError ("missing a branch for: " ++ show (disp id))
 
-eval a = error $ "from eval: " ++ (show $ disp a)
+eval lenv a = error $ "from eval: " ++ (show $ disp a)
 
 
 -- * Helper functions for eval.
@@ -213,49 +205,23 @@ eval a = error $ "from eval: " ++ (show $ disp a)
 -- anymore, there is no way to collect them. The
 -- PROS is that it runs faster than stop-the-world-gc and it does not
 -- stop anything. 
-lookupLEnv :: Variable -> Eval Value
-lookupLEnv x =
-  do st <- get
-     let lenv = localEvalEnv st
+lookupLEnv :: Variable -> LEnv -> Value
+lookupLEnv x lenv =
      case Map.lookup x lenv of
        Nothing -> error $ "from lookupLEnv:" ++ show x
-       Just (v, n, ref, ps) ->
-         if (n-1 <= 0) && ref == 0 then
-           do let lenv' = decrRef ps (Map.delete x lenv)
-              put st{localEvalEnv = lenv'}
-              return v
-         else do let lenv' = Map.insert x (v, n-1, ref, ps) lenv
-                 put st{localEvalEnv = lenv'}
-                 return v
+       Just v -> v
            
-
 -- | Add a value to the environment.
-addDefinition (x, n) m =
-  do st <- get
-     let vs = vars m
-         lenv = localEvalEnv st
-         lenv' = if n == 0 then lenv
-                 else
-                   Map.insert x (m, n, 0, vs) (addRef x vs lenv) 
-     put st{localEvalEnv = lenv'}
+addDefinition x m lenv =
+     Map.insert x m lenv
 
--- | Increase the reference count for given variables.
--- addRef :: [Variable] -> Map Variable (Value, Int, Int, [Variable]) ->
---            Map Variable (Value, Int, Int, [Variable])               
-addRef x [] lenv = lenv
-addRef x (v:vs) lenv =
-  case Map.lookup v lenv of
-    Nothing -> error $ "from addRef:" ++ show v
-    Just (val, n, ref, ps) ->
-      let lenv' = Map.insert v (val, n , ref+1, ps) lenv
-      in addRef x vs lenv' 
-       -- trace (show x ++ "refer:"++show v ++ ":"++ show (ref+1)) $ addRef x vs lenv' 
+
   
 -- | A helper function for evaluating various of applications.
 evalApp :: Value -> Value -> Eval Value
 evalApp VUnBox v =
   case v of
-    (VCircuit _) -> return $ VApp [] VUnBox v
+    (VCircuit _) -> return $ VApp VUnBox v
     _ -> return VUnBox
 
 
@@ -266,36 +232,36 @@ evalApp (VForce VDynlift) (VLabel v) =
        else return $ VConst (Id "False")
 
 -- append gates
-evalApp (VForce (VApp _ VUnBox (VCircuit morph))) w =
+evalApp (VForce (VApp VUnBox (VCircuit morph))) w =
  do morph' <- refresh morph
     let binding = makeBinding (input morph') w
     appendMorph binding morph'
 
-evalApp (VApp _ (VApp _ (VApp _ VBox q) _) _) v =
+evalApp (VApp (VApp (VApp VBox q) _) _) v =
   case v of
-    VLift _ m -> evalBox (Right m) q
-    VApp _ VUnBox w -> return w
-    m@(VLiftCirc _) -> evalBox (Left m) q
+    VLift (Abst lenv m) -> evalBox lenv (Right m) q
+    VApp VUnBox w -> return w
+    m@(VLiftCirc _) -> evalBox Map.empty (Left m) q
     a -> error $ "evalApp VBox:" ++ (show $ disp a)
 
-evalApp (VApp _ (VApp _ (VApp _ (VApp _ VExBox q) _) _) _) v =  
+evalApp (VApp (VApp (VApp (VApp VExBox q) _) _) _) v =  
   case v of
-    VLift _ body ->
-      evalExbox body q
+    VLift (Abst lenv body) ->
+      evalExbox lenv body q
 
 
-evalApp (VApp _ (VApp _ VReverse _) _) (VCircuit (Morphism ins gs outs)) = do
+evalApp (VApp (VApp VReverse _) _) (VCircuit (Morphism ins gs outs)) = do
   let gs' = revGates gs
   return $ (VCircuit $ Morphism outs gs' ins)
 
-evalApp (VApp _ (VApp _ (VApp _ VControlled _) _) _) (VCircuit m') = 
+evalApp (VApp (VApp (VApp VControlled _) _) _) (VCircuit m') = 
   freshNames ["#ctrl", "#input", "#circ"] $ \ (ctrl:inp:circ:[]) -> do
       m <- refresh m'
       let ins = input m
           gs = gates m
           outs = output m
           mycirc = VCircuit $ Morphism ins (controlledGates ctrl gs) outs
-          env = Map.fromList [(circ, (mycirc, 1))] 
+          env = Map.fromList [(circ, mycirc)] 
           exp = EPair (EApp 
                        (EForce $ EApp EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
       return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
@@ -304,7 +270,7 @@ evalApp (VApp _ (VApp _ (VApp _ VControlled _) _) _) (VCircuit m') =
         helper a (Gate id ps ins outs VStar flag) = Gate id ps ins outs (VVar a) flag
         helper a (Gate id ps ins outs b flag) = Gate id ps ins outs (VPair b (VVar a)) flag
 
-evalApp (VApp _ (VApp _ (VApp _ (VApp _ (VApp _ VWithComputed _) _) _)_)_) m =
+evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _)_)_) m =
   return $ VComputed m 
 
 evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
@@ -339,54 +305,51 @@ evalApp a@(VCircuit _) w = return a
 evalApp v w = 
   let (h, res) = unwindVal v
   in case h of
-    VLam _ bd -> handleBody (res ++ [w]) bd
+    VLam (Abst lenv bd) -> handleBody lenv (res ++ [w]) bd
     VLiftCirc (Abst vs (Abst lenv e)) -> 
         do let args = res ++ [w]
                lvs = length vs
            if lvs > (length args) then
-             return $ VApp (vars v `union` vars w) v w
-             else do let ns = countVar vs e
-                         sub = filter (\ (_ , (v, n)) -> n /= 0) $ zip vs (zip args ns)
-                         sub' = zip vs args
+             return $ VApp v w
+             else do let sub' = zip vs args
                          ws = drop lvs args
                          lenv'= updateCirc sub' lenv
-                     mapM_ (\(x, (v, n)) -> addDefinition (x, n) v) (lenv' ++ sub)
-                     e' <- eval e
+                         lenv'' = Map.fromList (lenv' ++ sub')
+                     e' <- eval lenv'' e
                      case e' of
-                       VLam _ bd -> handleBody ws bd
+                       VLam (Abst lenv''' bd) -> handleBody lenv''' ws bd
                        _ ->
-                         return $ foldl (\ x y -> VApp (vars x `union` vars y) x y) e' ws
+                         return $ foldl (\ x y -> VApp x y) e' ws
         
-    _ -> return $ VApp (vars v `union` vars w) v w
+    _ -> return $ VApp v w
           
   where
         -- Handle beta reduction
-        handleBody args bd = open bd $ \ vs m ->
+        handleBody lenv args bd = open bd $ \ vs m ->
              let lvs = length vs
              in
               if lvs > length args
-              then return $ VApp (vars v `union` vars w) v w
+              then return $ VApp v w
               else do let sub = zip vs args
                           ws = drop lvs args
-                      mapM_ (\ (x,v) -> addDefinition x v) sub
-                      if null ws then eval m
+                          lenv' = foldl (\ a (x,v) -> addDefinition x v a) lenv sub
+                      if null ws then eval lenv' m
                         else 
-                        do m' <- eval m
-                           --m' `seq`
-                           return $ foldl (\ x y -> VApp (vars x `union` vars y) x y) m' ws
+                        do m' <- eval lenv' m
+                           return $ foldl (\ x y -> VApp x y) m' ws
         -- Perform substitution on the variables in a circuit.
-        updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Int))]
+        updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, Value)]
         updateCirc sub lenv =
-             let ((x, (VCircuit (Morphism ins gs outs), n)):[]) = Map.toList lenv
+             let [(x, VCircuit (Morphism ins gs outs))] = Map.toList lenv
                  params1 = map params gs
                  ctrls = map ctrl gs
                  params' = map (\ p -> helper p sub) params1
-                 ctrls' = helper ctrls sub -- (Gate id _ inn oot _ flag)
+                 ctrls' = helper ctrls sub
                  gs' = zipWith3 (\ p c g ->
                                   Gate (gateName g) p (inputVal g) (outputVal g) c (ctrlFlag g))
                        params' ctrls' gs
                  circ' = (VCircuit (Morphism ins gs' outs))
-             in [(x, (circ', n))]
+             in [(x, circ')]
         -- Perfrom substitution.             
         helper :: [Value] -> [(Variable, Value)] -> [Value]
         helper [] lc = []
@@ -405,20 +368,21 @@ evalApp v w =
           let a' = applyValSubst a lc
               b' = applyValSubst b lc
           in VPair a' b'
-        applyValSubst (VApp vs a b) lc =
+        applyValSubst (VApp a b) lc =
           let a' = applyValSubst a lc
               b' = applyValSubst b lc
-          in VApp vs a' b'
+          in VApp a' b'
         applyValSubst c lc = 
           error $ "from applyValSubst" ++ (show $ disp c)
 
 -- | Evaluate a box term.
-evalBox :: Either Value EExp -> Value -> Eval Value               
-evalBox body uv =
+
+-- evalBox :: Either Value EExp -> Value -> Eval Value               
+evalBox lenv body uv =
    do vs <- freshL (size uv)
       st <- get
       b <- case body of
-                Right body' -> eval body'
+                Right body' -> eval lenv body'
                 Left v -> return v
       let uv' = toVal uv vs
           bgs = boxGates $ runStateT (evalApp b uv') st
@@ -435,11 +399,11 @@ evalBox body uv =
 -- the tensor pair with existential pair, thus making the wrong decision.
 -- So we define 'evalExbox' and 'evalBox' separately to enforce the assumptions.
    
-evalExbox :: EExp -> Value -> Eval Value        
-evalExbox body uv =
+-- evalExbox :: EExp -> Value -> Eval Value        
+evalExbox lenv body uv =
    do vs <- freshL (size uv)
       st <- get
-      b <- eval body
+      b <- eval lenv body
       let uv' = toVal uv vs
           d = Morphism uv' [] uv'
           bgs = boxGates $ runStateT (evalApp b uv') st
@@ -527,10 +491,10 @@ templateToVal (VLBase _) =
      return (VLabel v)
 templateToVal a@(VConst _) = return a
 templateToVal a@(VUnit) = return VStar
-templateToVal (VApp vs e1 e2) =
+templateToVal (VApp e1 e2) =
   do e1' <- templateToVal e1
      e2' <- templateToVal e2
-     return $ VApp vs e1' e2'
+     return $ VApp e1' e2'
 
 templateToVal (VTensor e1 e2) =
   do e1' <- templateToVal e1
@@ -546,23 +510,12 @@ size (VLabel x) = 1
 size (VConst _) = 0
 size VUnit = 0
 size VStar = 0
-size (VApp _ e1 e2) = size e1 + size e2
+size (VApp e1 e2) = size e1 + size e2
 size (VTensor e1 e2) = size e1 + size e2
 size (VPair e1 e2) = size e1 + size e2
 size a = error $ "applying size function to an ill-formed template:" ++ (show $ disp a)     
 
 
--- | Decrease the reference count for a list of variables.
-decrRef :: [Variable] -> Map Variable (Value, Int, Int, [Variable]) ->
-           Map Variable (Value, Int, Int, [Variable])          
-decrRef [] m = m
-decrRef (v:vs) m =
-  case Map.lookup v m of
-    Nothing -> error "from decrRef"
-    Just (val, n, ref, ps) ->
-      let m' = Map.insert v (val, n, ref-1, ps) m
-      in decrRef vs m'
-        
 
 refresh (Morphism ins gs outs) =
   do insWires' <- freshL (size ins)

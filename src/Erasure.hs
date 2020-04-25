@@ -5,7 +5,7 @@
 -- | This module defines the 'erasure' function, it erases
 -- an annotated expression to a lambda expression without irrelevant annotations.
 
-module Erasure (erasure, countVar) where
+module Erasure (erasure) where
 
 import Syntax
 import Nominal
@@ -100,63 +100,39 @@ erasure (AppTm e1 e2) = erasure e1
 
 erasure a@(Lam (Abst xs m)) =
   do m' <- erasure m
-     let ns = countVar xs m'
-         xs' = zip xs ns
-         ws = evars m' \\ xs
-     return $ ELam ws (abst xs' m') 
+     return $ ELam (abst xs m') 
 
 erasure a@(LamAnn _ (Abst xs m)) =
   do m' <- erasure m
-     let ns = countVar xs m'
-         xs' = zip xs ns
-         ws = evars m' \\ xs
-     return $ ELam ws (abst xs' m') 
+     return $ ELam (abst xs m') 
 
 erasure a@(LamAnn' _ (Abst xs m)) =
   do m' <- erasure m
-     let ns = countVar xs m'
-         xs' = zip xs ns
-         ws = evars m' \\ xs
-     return $ ELam ws (abst xs' m') 
+     return $ ELam (abst xs m') 
 
 -- Convert lam' to lam
 erasure a@(Lam' (Abst xs m)) =
   do m' <- erasure m
-     let ns = countVar xs m'
-         xs' = zip xs ns
-         ws = evars m' \\ xs
-     return $ ELam ws (abst xs' m') 
+     return $ ELam (abst xs m') 
 
 erasure a@(LamDict (Abst xs m)) =
   do m' <- erasure m
-     let ns = countVar xs m'
-         xs' = zip xs ns
-         ws = evars m' \\ xs
-     return $ ELam ws (abst xs' m') 
+     return $ ELam (abst xs m') 
 
 erasure (WithType ann t) = erasure ann
 
 erasure (LamDep (Abst ys m)) =
   do m' <- erasure m
-     let ns = countVar ys m'
-         xs' = zip ys ns
-         ws = evars m' \\ ys
-     return $ ELam ws (abst xs' m') 
+     return $ ELam (abst ys m') 
 
 erasure (LamDepTy (Abst ys m)) =
   do m' <- erasure m
-     let ns = countVar ys m'
-         xs' = zip ys ns
-         ws = evars m' \\ ys
-     return $ ELam ws (abst xs' m') 
+     return $ ELam (abst ys m') 
 
 
 erasure (LamDep' (Abst ys m)) =
   do m' <- erasure m
-     let ns = countVar ys m'
-         xs' = zip ys ns
-         ws = evars m' \\ ys
-     return $ ELam ws (abst xs' m') 
+     return $ ELam (abst ys m') 
 
 erasure (LamTm bd) =
   open bd $ \ xs m -> erasure m
@@ -166,8 +142,7 @@ erasure (LamType bd) =
 
 erasure (Lift t) =
   do t' <- erasure t
-     let fvs = evars t'
-     return (ELift fvs t')
+     return (ELift t')
 
 erasure (Force t) = EForce <$> erasure t
 erasure (Force' t) = EForce <$> erasure t
@@ -184,17 +159,13 @@ erasure a@(ExBox) = return EExBox
 
 erasure (Let m bd) = open bd $ \ vs b -> 
   do m' <- erasure m
-
      b' <- erasure b
-     let n:[] = countVar [vs] b'
-     return $ ELet m' (abst (vs, n) b') 
+     return $ ELet m' (abst vs b') 
      
 erasure (LetPair m bd) = open bd $ \ xs b ->
   do m' <- erasure m
      b' <- erasure b
-     let ns = countVar xs b'
-         xs' = zip xs ns
-     return $ ELetPair m' (abst xs' b') 
+     return $ ELetPair m' (abst xs b') 
 
 erasure (LetPat m bd) = open bd $ \ pa b ->
   case pa of
@@ -214,10 +185,8 @@ erasure (LetPat m bd) = open bd $ \ pa b ->
           open bds $ \ ys m ->
           do let (vs, res) = splitAt (length ys) args
                  vs1 = map (\ (Right x) -> x) vs
-                 ns = countVar vs1 b'
-                 vs2 = zip vs1 ns
              vs' <- helper m res b b'
-             return $ vs2++vs'
+             return $ vs1++vs'
 
         helper (Forall bds t) args b b' =
           open bds $ \ ys m ->
@@ -228,20 +197,17 @@ erasure (LetPat m bd) = open bd $ \ pa b ->
         helper (Arrow t1 t2) (x:xs) b b' =
           do vs' <- helper t2 xs b b'
              let (Right x') = x
-                 n:[] = countVar [x'] b'
-             return $ (x', n):vs'
+             return $ x':vs'
 
         helper (Imply [t1] t2) (x:xs) b b' =
           do vs' <- helper t2 xs b b'
              let (Right x') = x
-                 n:[] = countVar [x'] b'
-             return $ (x', n):vs'
+             return $ x':vs'
 
         helper (Imply (t1:ts) t2) (x:xs) b b' =
           do vs' <- helper (Imply ts t2) xs b b'
              let (Right x') = x
-                 n:[] = countVar [x'] b'
-             return $ (x', n):vs'
+             return $ x':vs'
 
         helper a [] b b' = return []
         helper a _ b b' = error $ "from helper erasure-letPat"
@@ -267,10 +233,8 @@ erasure l@(Case e (B br)) =
                open bds $ \ ys m ->
                do let (vs, res) = splitAt (length ys) args
                       vs1 = map (\ (Right x) -> x) vs
-                      ns = countVar vs1 m'
-                      vs2 = zip vs1 ns
                   vs' <- helper2 m res ann m'
-                  return $ vs2++vs'
+                  return $ vs1++vs'
 
              helper2 (Forall bds t) args ann m' =
                open bds $ \ ys m ->
@@ -281,19 +245,16 @@ erasure l@(Case e (B br)) =
              helper2 (Arrow t1 t2) (x:xs) ann m' =
                do vs' <- helper2 t2 xs ann m'
                   let (Right x') = x
-                      n:[] = countVar [x'] m'
-                  return $ (x', n):vs'
+                  return $ x':vs'
              helper2 (Imply [t1] t2) (x:xs) ann m' =
                do vs' <- helper2 t2 xs ann m'
                   let (Right x') = x
-                      n:[] = countVar [x'] m'
-                  return $ (x', n):vs'
+                  return $ x':vs'
 
              helper2 (Imply (t1:ts) t2) (x:xs) ann m' =
                do vs' <- helper2 (Imply ts t2) xs ann m'
                   let (Right x') = x
-                      n:[] = countVar [x'] m'
-                  return $ (x', n):vs'
+                  return $ x':vs'
                   
              helper2 a [] _ _ = return []
              helper2 a b _ _ = error $ "from helper2 flag-erasure-case" ++ (show $ disp a)
@@ -311,40 +272,41 @@ checkExplicit (Right x :xs) ann =
 -- | Count the number of occurrences for a list of variables. It is only
 -- an over-approximation, as there is no way to predict the real uses due to
 -- the way closure interacts with recursion and case branching. 
-countVar :: [Variable] -> EExp -> [Int]
-countVar xs e =
-  map (helper e) xs
-  where helper :: EExp -> Variable -> Int
-        helper (EVar y) x | x == y = 1
-                          | otherwise = 0
-        helper (EConst _) x = 0
-        helper (EBase _) x = 0
-        helper (ELBase _) x = 0
-        helper EUnBox x = 0
-        helper EReverse x = 0
-        helper EControlled x = 0
-        helper EWithComputed x = 0
-        helper EDynlift x = 0
-        helper EBox x = 0
-        helper EExBox x = 0
-        helper EStar x = 0
-        helper EUnit x = 0
-        helper (EApp t1 t2) x = helper t1 x + helper t2 x
-        helper (EPair t1 t2) x = helper t1 x + helper t2 x
-        helper (ETensor t1 t2) x = helper t1 x + helper t2 x
-        helper (EArrow t1 t2) x = helper t1 x + helper t2 x
-        helper (ELam _ (Abst _ e)) x = (helper e x)
-        helper (ELift _ e) x = (helper e x)
-        helper (EForce e) x = helper e x
-        helper (ELet e (Abst _ e2)) x =
-          helper e x + helper e2 x
-        helper (ELetPair e (Abst _ e2)) x =
-          helper e x + helper e2 x
-        helper (ELetPat e (Abst _ e2)) x =
-          helper e x + helper e2 x
-        helper (ECase e (EB brs)) x =
-          helper e x + helper2 brs x
-        helper2 :: [Bind EPattern EExp] -> Variable -> Int
-        helper2 brs x =
-          maximum $ map (\ b -> open b $ \ _ m -> helper m x) brs
+
+-- countVar :: [Variable] -> EExp -> [Int]
+-- countVar xs e =
+--   map (helper e) xs
+--   where helper :: EExp -> Variable -> Int
+--         helper (EVar y) x | x == y = 1
+--                           | otherwise = 0
+--         helper (EConst _) x = 0
+--         helper (EBase _) x = 0
+--         helper (ELBase _) x = 0
+--         helper EUnBox x = 0
+--         helper EReverse x = 0
+--         helper EControlled x = 0
+--         helper EWithComputed x = 0
+--         helper EDynlift x = 0
+--         helper EBox x = 0
+--         helper EExBox x = 0
+--         helper EStar x = 0
+--         helper EUnit x = 0
+--         helper (EApp t1 t2) x = helper t1 x + helper t2 x
+--         helper (EPair t1 t2) x = helper t1 x + helper t2 x
+--         helper (ETensor t1 t2) x = helper t1 x + helper t2 x
+--         helper (EArrow t1 t2) x = helper t1 x + helper t2 x
+--         helper (ELam _ (Abst _ e)) x = (helper e x)
+--         helper (ELift _ e) x = (helper e x)
+--         helper (EForce e) x = helper e x
+--         helper (ELet e (Abst _ e2)) x =
+--           helper e x + helper e2 x
+--         helper (ELetPair e (Abst _ e2)) x =
+--           helper e x + helper e2 x
+--         helper (ELetPat e (Abst _ e2)) x =
+--           helper e x + helper e2 x
+--         helper (ECase e (EB brs)) x =
+--           helper e x + helper2 brs x
+--         helper2 :: [Bind EPattern EExp] -> Variable -> Int
+--         helper2 brs x =
+--           maximum $ map (\ b -> open b $ \ _ m -> helper m x) brs
 

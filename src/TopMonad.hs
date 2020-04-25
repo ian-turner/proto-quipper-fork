@@ -27,9 +27,9 @@ import Control.Monad.Identity
 import Control.Exception hiding (TypeError)
 import Text.Parsec hiding (count)
 import Text.PrettyPrint
-import Control.Monad.State.Lazy
-import qualified Data.Map.Lazy as Map
-import Data.Map.Lazy (Map)
+import Control.Monad.State
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 
 
 -- | Top-level error data type. 
@@ -162,7 +162,7 @@ evaluation exp =
      exp' <- tcTop $ erasure exp
      putGates []
      (res, gs) <- ioTop $ simulate $
-                  do {r <- runStateT (eval exp') (initES gl 0);
+                  do {r <- runStateT (eval Map.empty exp') (initES gl 0);
                       return $ fst r}
      putGates gs
      return res
@@ -173,7 +173,7 @@ evaluation' exp =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
      res <- ioTop $ simulate $
-                  do {r <- runStateT (eval exp') (initES gl 0);
+                  do {r <- runStateT (eval Map.empty exp') (initES gl 0);
                       return $ fst r}
      return (snd res)
 

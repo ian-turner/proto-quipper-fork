@@ -756,11 +756,11 @@ vpair =
 vvector :: Parser A.Value
 vvector =
   do elems <- brackets (value `sepBy` comma)
-     return $ foldr (\ x y -> A.VApp [] (A.VApp [] (A.VConst (Id "VCons")) x) y) (A.VConst (Id "VNil")) elems
+     return $ foldr (\ x y -> A.VApp (A.VApp (A.VConst (Id "VCons")) x) y) (A.VConst (Id "VNil")) elems
 
 value = 
   manyLines (do{ head <- headExp;
-                 return $ foldl (\ z x -> A.VApp [] z x) head}) arg
+                 return $ foldl (\ z x -> A.VApp z x) head}) arg
   where headExp = vlabel <|> try vpair <|> vvector <|> try vstar <|> try vconst
                   <|> parens value 
 
