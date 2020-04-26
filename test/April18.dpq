@@ -66,11 +66,12 @@ main1 = box Qubit f
 
 main (x : Qubit) = unbox main1 x
 
--- main2 : ! (Qubit -> Qubit -> Qubit * Qubit)
--- main2 x y = controlling f x y
+main2 : ! (Qubit -> Qubit -> Qubit * Qubit)
+main2 = controlling f 
 
 -- main3 : ! (Qubit -> Qubit -> Qubit * Qubit)
--- main = box (Qubit * Qubit) $ \ x -> (uncurry $ controlled main1) x
+main3 = box (Qubit * Qubit) (\ x -> uncurry main2 x)
+-- \ x -> (uncurry $ controlled main1) x
 
 -- testTof2 : Bool * Bool * Bool
 -- testTof2 =
