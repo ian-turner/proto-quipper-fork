@@ -399,12 +399,12 @@ vflatten :: Value -> Maybe (Either Id Id, [Value])
 vflatten (VBase id) = return (Right id, [])
 vflatten (VLBase id) = return (Right id, [])
 vflatten (VConst id) = return (Left id, [])
-vflatten (VApp _ t1 t2) =
+vflatten (VApp t1 t2) =
   do (id, args) <- vflatten t1
      return (id, args ++ [t2])
 vflatten _ = Nothing
 
-unwindVal (VApp _ t1 t2) =
+unwindVal (VApp t1 t2) =
           let (h, args) = unwindVal t1
           in (h, args++[t2])
 unwindVal a = (a, [])
@@ -803,7 +803,7 @@ getWires :: Value -> [Label]
 getWires (VLabel x) = [x]
 getWires (VConst _) = []
 getWires VStar = []
-getWires (VApp _ e1 e2) = getWires e1 ++ getWires e2
+getWires (VApp e1 e2) = getWires e1 ++ getWires e2
 getWires (VPair e1 e2) = getWires e1 ++ getWires e2
 getWires a = error $ "applying getWires function to an ill-formed template:" ++ (show $ disp a)
 
@@ -1013,7 +1013,7 @@ toBool (VConst x) | getName x == "False" = False
 -- with a value that is not a Peano number. This is used for printing
 -- the parameters of a gate.
 toNum (VConst x) | getName x == "Z" = 0
-toNum (VApp _ (VConst s) n) | getName s == "S" =
+toNum (VApp (VConst s) n) | getName s == "S" =
   toNum n + 1
 toNum (VLabel n) = l n
 
@@ -1036,7 +1036,7 @@ renameTemp (VLabel x) m =
     Just y -> VLabel y
 renameTemp a@(VConst _) m = a
 renameTemp VStar m = VStar
-renameTemp (VApp vs e1 e2) m = VApp vs (renameTemp e1 m) (renameTemp e2 m)
+renameTemp (VApp e1 e2) m = VApp (renameTemp e1 m) (renameTemp e2 m)
 renameTemp (VPair e1 e2) m = VPair (renameTemp e1 m) (renameTemp e2 m)
 renameTemp a m = error "applying renameTemp function to an ill-formed template"     
 
@@ -1048,43 +1048,44 @@ renameGs gs m = map helper gs
 
 -- | Get the set of free variables from a 'EExp'. This is to be used
 -- productively with the erasure to gather free variable information.        
-evarsHelper :: EExp -> S.MultiSet Variable
-evarsHelper a@(EVar y) = S.insert y S.empty
-evarsHelper (EApp t tm) =
-  (evarsHelper t) `S.union` (evarsHelper tm)
-evarsHelper (ELam vs bind) = S.fromList vs
-evarsHelper (EPair t tm) =
-  (evarsHelper t) `S.union` (evarsHelper tm)
 
-evarsHelper (EForce t) = (evarsHelper t)
-evarsHelper (ELift vs t) = S.fromList vs
-evarsHelper (ELet m bd) =
-  let m' = evarsHelper m in
-    open bd $ \ (y, _) b -> S.union m'(difference' (evarsHelper b) (S.fromList [y])) 
+-- evarsHelper :: EExp -> S.MultiSet Variable
+-- evarsHelper a@(EVar y) = S.insert y S.empty
+-- evarsHelper (EApp t tm) =
+--   (evarsHelper t) `S.union` (evarsHelper tm)
+-- evarsHelper (ELam vs bind) = S.fromList vs
+-- evarsHelper (EPair t tm) =
+--   (evarsHelper t) `S.union` (evarsHelper tm)
 
-evarsHelper (ELetPair m bd) =
-  let m' = evarsHelper m in
-    open bd $ \ y b -> S.union m'(difference' (evarsHelper b) (S.fromList $ map fst y)) 
+-- evarsHelper (EForce t) = (evarsHelper t)
+-- evarsHelper (ELift vs t) = S.fromList vs
+-- evarsHelper (ELet m bd) =
+--   let m' = evarsHelper m in
+--     open bd $ \ (y, _) b -> S.union m'(difference' (evarsHelper b) (S.fromList [y])) 
+
+-- evarsHelper (ELetPair m bd) =
+--   let m' = evarsHelper m in
+--     open bd $ \ y b -> S.union m'(difference' (evarsHelper b) (S.fromList $ map fst y)) 
 
 
-evarsHelper (ELetPat m bd) =
-  let m' = evarsHelper m in
-   open bd $ \ (EPApp id ps) b ->
-    S.union m' (difference' (evarsHelper b) (S.fromList $ map fst ps)) 
+-- evarsHelper (ELetPat m bd) =
+--   let m' = evarsHelper m in
+--    open bd $ \ (EPApp id ps) b ->
+--     S.union m' (difference' (evarsHelper b) (S.fromList $ map fst ps)) 
 
         
-evarsHelper (ECase tm (EB br)) =
-  (evarsHelper tm) `S.union` (helper' br)
-  where helper' br =
-          S.unions $ map (\ b -> open b $
-                                 \ (EPApp id ps) m ->
-                                 difference' (evarsHelper m) $ S.fromList $ map fst ps)
-                        br
-evarsHelper _ = S.empty
+-- evarsHelper (ECase tm (EB br)) =
+--   (evarsHelper tm) `S.union` (helper' br)
+--   where helper' br =
+--           S.unions $ map (\ b -> open b $
+--                                  \ (EPApp id ps) m ->
+--                                  difference' (evarsHelper m) $ S.fromList $ map fst ps)
+--                         br
+-- evarsHelper _ = S.empty
 
--- | Get the list of free variables in an 'EExp'.
-evars :: EExp -> [Variable]
-evars e = S.distinctElems $ evarsHelper e
+-- -- | Get the list of free variables in an 'EExp'.
+-- evars :: EExp -> [Variable]
+-- evars e = S.distinctElems $ evarsHelper e
 
 
 -- | Retrieve the variables that a closure refers to. This
@@ -1092,22 +1093,25 @@ evars e = S.distinctElems $ evarsHelper e
 -- Each time a definition is added, it will be called. It is essential
 -- to pre-computed free variables for 'VLam', 'VLift' and 'VApp', as
 -- they occur 99%. 
-vars :: Value -> [Variable]
-vars (VLam ws _) = ws
-vars (VLift ws e) = ws
-vars (VApp ws e1 e2) = ws
 
-vars (VPair e1 e2) =
-    let vs1 = vars e1
-        vs2 = vars e2
-    in vs1 ++ vs2
+-- vars :: Value -> [Variable]
+-- vars (VLam ws _) = ws
+-- vars (VLift ws e) = ws
+-- vars (VApp ws e1 e2) = ws
 
-vars (VTensor e1 e2) =
-    let vs1 = vars e1
-        vs2 = vars e2
-    in vs1 ++ vs2
-      
-vars _ = []
+-- vars (VPair e1 e2) =
+--     let vs1 = vars e1
+--         vs2 = vars e2
+--     in vs1 `union` vs2
+
+-- vars (VTensor e1 e2) =
+--     let vs1 = vars e1
+--         vs2 = vars e2
+--     in vs1 `union` vs2        
+
+-- vars (VVar _) = error "from vars"
+-- vars (VForce _) = error "from vars"
+-- vars _ = []
 
 -- | Generate a fresh modality.
 freshMode :: [String] -> Modality

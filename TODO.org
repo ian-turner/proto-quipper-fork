@@ -20,3 +20,7 @@
 ** TODO Implement Agda style '?'. 
 
 ** TODO Eliminate existsBox.
+   I don't think this can be done. 
+
+** Boxing is done eagerly due to eagerness.  
+  This make boxing large circuit (at the million scale) space inefficient.

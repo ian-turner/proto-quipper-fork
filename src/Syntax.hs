@@ -423,12 +423,12 @@ data Value =
   | VUnit -- ^ Runtime unit type for generating unit value.
   | VLBase Id -- ^ Runtime simple types.
   | VBase Id -- ^ Runtime non-simple type. 
-  | VLam [Variable] (Bind [(Variable, Int)] EExp)
+  | VLam (Bind LEnv (Bind [Variable] EExp))
     -- ^ Lambda forms a closure. ['Variable']
     -- is the list of variables that are referred by this closure.
   | VPair Value Value -- ^ Pair of values.
   | VStar -- ^ Unit value. 
-  | VLift [Variable] EExp -- ^ Lift forms a closure. ['Variable']
+  | VLift (Bind LEnv EExp) -- ^ Lift forms a closure. ['Variable']
     -- is the list of variables that is refered by this closure.
   | VLiftCirc (Bind [Variable] (Bind LEnv EExp))
     -- ^ Circuit binding, [Variable] is like a lambda that handles the parameter arguments
@@ -436,7 +436,7 @@ data Value =
   | VCircuit Morphism
     -- ^ Unbound circuit (incomplete).
     -- ^ Complete circuit.
-  | VApp [Variable] Value Value
+  | VApp Value Value
     -- ^ Applicative value, for runtime efficiency, we also
     -- store free variables.
   | VForce Value -- ^ Value version of 'Force'.
@@ -452,9 +452,9 @@ data Value =
 
 -- | Local variable environment for evaluation. It contains the
 -- approximate number of uses of for each variable. 
-type LEnv = Map Variable (Value, Int)
+type LEnv = Map Variable Value
 
-instance Bindable (Map Variable (Value, Int)) where
+instance Bindable (Map Variable Value) where
   binding loc = do
     loc' <- map_binding (Map.toList loc)
     pure $ Map.fromList loc'
@@ -508,16 +508,11 @@ instance Disp Value where
   display flag (VWithComputed) = text "withComputed"
   display flag (VDynlift) = text "dynlift"
   display flag (VCircuit m) = display flag m
-  display flag (VLam ws (Abst vs e)) = 
-    sep [text "\\vlam" <+> brackets (hsep $ map dispRaw ws),
-         hsep (map (\ (x, y) -> parens (dispRaw x <> text ":" <> int y)) vs)
-         <+> text "->", nest 2 (display flag e)]
-  display flag (VLift ws e) = 
-   text "vlift" <+> (brackets $ hsep (map dispRaw ws)) <+> display flag e
-  display flag (VLiftCirc (Abst vs (Abst env e))) = 
-   text "vliftCirc" <+> hsep (map dispRaw vs) <+> text "->"
-   <+> braces (dispRaw env) $$ nest 2 (display flag e)
-  display flag a@(VApp _ t t') = 
+  display flag (VLam _) = text "lam"
+  display flag (VLift _) = text "vlift"
+  display flag (VLiftCirc (Abst vs (Abst env e))) = text "vliftCirc"
+
+  display flag a@(VApp t t') = 
     case toNat a of
       Nothing ->
         case toVec a of
@@ -526,7 +521,7 @@ instance Disp Value where
 
           Just vs -> brackets $ fsep $ punctuate comma $ map (\ x -> display flag x ) vs
       Just i -> int i
-    where toNat (VApp _ (VConst id) t') =
+    where toNat (VApp (VConst id) t') =
             if getName id == "S" then
               do n <- toNat t'
                  return $ 1+n
@@ -539,7 +534,7 @@ instance Disp Value where
           toVec (VConst id) =
             if getName id == "VNil" then return []
             else Nothing
-          toVec (VApp _ (VApp _ (VConst id) e) res) =
+          toVec (VApp (VApp (VConst id) e) res) =
             if getName id == "VCons" then
               do vs <- toVec res
                  return $ e:vs
@@ -554,14 +549,15 @@ instance Disp Value where
   precedence (VLBase _) = 12
   precedence (VTensor _ _) = 8
   precedence (VPair _ _) = 11
-  precedence (VApp _ _ _) = 10
+  precedence (VApp _ _) = 10
   precedence _ = 0
 
-instance Disp (Map Variable (Value, Int)) where
+instance Disp (Map Variable Value) where
    display flag l =
      vcat $
-     map (\ (x, (y, n)) -> dispRaw x <> text ":" <> int n
-                           <+> text ":=" <+> display flag y) (Map.toList l)
+     map (\ (x, y) ->
+           dispRaw x <+> text ":=" <+> display flag y) (Map.toList l)
+                      
 
 instance Disp (Map Variable (Value, Int, Int)) where
    display flag l =
@@ -572,9 +568,8 @@ instance Disp (Map Variable (Value, Int, Int)) where
 
 instance Disp Morphism where
  display flag (Morphism ins gs outs) =
-   (braces $ display flag ins) $$
-   nest 2 (vcat $ map (display flag) gs) $$
-   (braces $ display flag outs) 
+   nest 2 (vcat $ map (display flag) gs) 
+
 
 instance Disp Gate where
   display flag (Gate g params ins outs ctrls b) =
@@ -587,7 +582,7 @@ instance Disp Gate where
 toExp :: Value -> Exp
 toExp (VConst id) = Const id
 toExp VStar = Star
-toExp (VApp _ a b) = App (toExp a) (toExp b)
+toExp (VApp a b) = App (toExp a) (toExp b)
 toExp (VPair a b) = Pair (toExp a) (toExp b)
 
 -- | Declarations in abstract syntax, resolved from the declarations
@@ -640,8 +635,8 @@ data EExp =
   | EPair EExp EExp
   | ETensor EExp EExp
   | EArrow EExp EExp     
-  | ELam [Variable] (Bind [(Variable, Int)] EExp)
-  | ELift [Variable] EExp
+  | ELam (Bind [Variable] EExp)
+  | ELift EExp
   | EForce EExp
   | EUnBox
   | EReverse
@@ -650,8 +645,8 @@ data EExp =
   | EBox
   | EExBox
   | EDynlift
-  | ELet EExp (Bind (Variable, Int) EExp)
-  | ELetPair EExp (Bind [(Variable, Int)] EExp) 
+  | ELet EExp (Bind Variable EExp)
+  | ELetPair EExp (Bind [Variable] EExp) 
   | ELetPat EExp (Bind EPattern EExp) 
   | ECase EExp EBranches
   | EStar
@@ -663,7 +658,7 @@ data EBranches = EB [Bind EPattern EExp]
                deriving (Eq, Generic, Show, NominalSupport, NominalShow, Nominal)
 
 -- | Erased pattern.
-data EPattern = EPApp Id [(Variable, Int)]
+data EPattern = EPApp Id [Variable]
               deriving (Eq, Generic, NominalShow, NominalSupport, Nominal, Bindable, Show)
 
 
@@ -684,13 +679,13 @@ instance Disp EExp where
   display flag (EControlled) = text "controlled"
   display flag (EWithComputed) = text "withComputed"
   display flag (EDynlift) = text "dynlift"
-  display flag (ELam ws (Abst vs e)) = 
-    sep [text "\\elam" <+> brackets (hsep $ map dispRaw ws),
-         hsep (map (\ (x, y) -> parens (dispRaw x <> text ":" <> int y)) vs),
+  display flag (ELam (Abst vs e)) = 
+    sep [text "\\elam",
+         hsep (map (\ x -> dispRaw x) vs),
          text "->", nest 2 (display flag e)]
-  display flag (ELift ws e) = 
-   text "elift" <+> (brackets $ hsep (map dispRaw ws)) <+> display flag e
-
+  display flag (ELift e) = 
+   text "elift" <+> display flag e
+ 
   display flag a@(EApp v1 v2) =
     fsep [dParen flag (precedence a - 1) v1, dParen flag (precedence a) v2]
   display flag (EForce v) = text "&" <> display flag v
@@ -701,13 +696,13 @@ instance Disp EExp where
             open bd $ \ p b -> fsep [dispRaw p, text "->" , nest 2 (display flag b)]
 
   display flag (ELet m bd) =
-    open bd $ \ (x, n) b ->
-    fsep [text "elet" <+> dispRaw x <> text ":" <> int n <+> text "=", display flag m,
+    open bd $ \ x b ->
+    fsep [text "elet" <+> dispRaw x <+> text "=", display flag m,
           text "in" <+> display flag b]
     
   display flag (ELetPair m bd) =
     open bd $ \ xs b ->
-    fsep [text "elet" <+> parens (hsep $ punctuate comma $ map (\ (x, n) -> dispRaw x <> text ":" <> int n) xs),
+    fsep [text "elet" <+> parens (hsep $ punctuate comma $ map dispRaw xs),
           text "=", display flag m,
           text "in" <+> display flag b]
 
@@ -728,7 +723,7 @@ instance Disp EExp where
 instance Disp EPattern where
   display flag (EPApp id vs) =
     display flag id <+>
-    hsep (map (\ (x, n) -> parens (display False x <> text ":" <> int n)) vs) 
+    hsep (map (\ x -> parens (display False x)) vs) 
 
 instance Disp BExp where
   display flag (BVar x) = dispRaw x

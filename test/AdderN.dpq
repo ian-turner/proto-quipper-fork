@@ -97,6 +97,7 @@ adding = (False, repeat 100 True, repeat 100 False)
 -- full blown prolog-> 
 main : Vec Bool 100 * Bool * (Bool * Vec Bool 100 * Vec Bool 100)
 main = runCirc nAdderRev_test1 adding
+-- main = nAdderRev_test1 
 
 binaryToNat : ! forall (n : Nat) -> Vec Bool n -> Nat
 binaryToNat v =

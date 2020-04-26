@@ -27,9 +27,9 @@ import Control.Monad.Identity
 import Control.Exception hiding (TypeError)
 import Text.Parsec hiding (count)
 import Text.PrettyPrint
-import Control.Monad.State.Lazy
-import qualified Data.Map.Lazy as Map
-import Data.Map.Lazy (Map)
+import Control.Monad.State
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 
 
 -- | Top-level error data type. 
@@ -155,28 +155,27 @@ tcTop m =
             putInstCxt inst'
             return e
 
--- | Perform evaluation in 'Top' monad.
+-- | Perform evaluation in 'Top' monad, record gates to toplevel
 evaluation :: A.Exp -> Top Value            
 evaluation exp =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
      putGates []
      (res, gs) <- ioTop $ simulate $
-                  do {(v, st) <- runStateT (eval exp') (initES gl 0);
-                      return v}
+                  do {r <- runStateT (eval Map.empty exp') (initES gl 0);
+                      return $ fst r}
      putGates gs
      return res
 
+-- | Perform evaluation in 'Top' monad, return gates
 evaluation' :: A.Exp -> Top Gates
 evaluation' exp =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
-     putGates []
-     (res, gs) <- ioTop $ simulate $
-                  do {(v, st) <- runStateT (eval exp') (initES gl 0);
-                      return v}
-     putGates gs
-     return gs
+     res <- ioTop $ simulate $
+                  do {r <- runStateT (eval Map.empty exp') (initES gl 0);
+                      return $ fst r}
+     return (snd res)
 
      
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
