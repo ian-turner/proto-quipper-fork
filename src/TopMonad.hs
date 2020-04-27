@@ -162,7 +162,7 @@ evaluation exp =
      exp' <- tcTop $ erasure exp
      putGates []
      (res, gs) <- ioTop $ simulate $
-                  do {r <- runStateT (eval Map.empty exp') (initES gl 0);
+                  do {r <- runStateT (eval Map.empty exp') (initES gl);
                       return $ fst r}
      putGates gs
      return res
@@ -173,7 +173,7 @@ evaluation' exp =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
      res <- ioTop $ simulate $
-                  do {r <- runStateT (eval Map.empty exp') (initES gl 0);
+                  do {r <- runStateT (eval Map.empty exp') (initES gl);
                       return $ fst r}
      return (snd res)
 
