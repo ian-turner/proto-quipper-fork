@@ -46,7 +46,7 @@ data EvalState =
        number :: Int -- ^ Current fresh label
      }
 
-initES gl n = ES{evalEnv = gl, number = n}
+initES gl n = ES{evalEnv = gl, number = 0}
 
 freshL :: Int -> Eval [Label]
 freshL n =
