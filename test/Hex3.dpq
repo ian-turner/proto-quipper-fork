@@ -240,6 +240,8 @@ main1 (x : Unit) = uncurry (real_checkwin_red 34 7 refl refl) (init (False, nVec
 main2 (x : Unit) = uncurry (real_checkwin_red 20 7 refl refl) (init (False, nVec 21 True))
 
 main3 (x : Unit) = uncurry (real_checkwin_red 62 7 refl refl) (init (False, nVec 63 True))
+main4 (x : Unit) = uncurry (real_checkwin_red 120 11 refl refl) (init (False, nVec 121 True))
+
 
 {-
 
