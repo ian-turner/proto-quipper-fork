@@ -240,7 +240,7 @@ main1 (x : Unit) = uncurry (real_checkwin_red 34 7 refl refl) (init (False, nVec
 main2 (x : Unit) = uncurry (real_checkwin_red 20 7 refl refl) (init (False, nVec 21 True))
 
 main3 (x : Unit) = uncurry (real_checkwin_red 62 7 refl refl) (init (False, nVec 63 True))
-main4 (x : Unit) = uncurry (real_checkwin_red 120 11 refl refl) (init (False, nVec 121 True))
+
 
 
 {-
@@ -249,11 +249,29 @@ mathcluster node17: 24 cores cpu 2.4Ghz, mem 125 G.
 command: dpq test/Hex3.dpq -tg -e "main3 ()" 
 total gates: 2554351
 
-real    44m23.865s
-user    214m59.908s
-sys     122m24.812s
-peak memory usage: 10.9% ~13G.
-peak cpu 1873% 
+real    46m48.794s
+user    260m56.596s
+sys     153m6.076s
+
+peak memory usage: 5.4% ~6.8G.
+peak cpu 1300% 
+
+-}
+
+main4 (x : Unit) = uncurry (real_checkwin_red 120 11 refl refl) (init (False, nVec 121 True))
+{-
+
+mathcluster node17: 24 cores cpu 2.4Ghz, mem 125 G. 
+command: dpq test/Hex3.dpq -tg -e "main4 ()" 
+17392665
+
+real    565m21.139s = ~9 hrs
+user    3047m33.116s
+sys     1649m15.120s
+
+
+peak memory usage: 36% ~45G.
+peak cpu ~1700% 
 
 -}
 
