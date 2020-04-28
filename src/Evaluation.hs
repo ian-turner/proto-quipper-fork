@@ -68,13 +68,13 @@ addGates gs = lift $ mapM_ gateRW gs
 -- as argument and form a closure when evaluating a lambda abstraction or a lifted term.
 
 eval :: LEnv -> EExp -> Eval Value
-eval lenv (EVar x) = 
+eval !lenv (EVar x) = 
   return $ lookupLEnv x lenv
 
 
-eval lenv EStar = return VStar
-eval lenv EUnit = return VUnit
-eval lenv a@(EConst k) =
+eval !lenv EStar = return VStar
+eval !lenv EUnit = return VUnit
+eval !lenv a@(EConst k) =
   do st <- get
      let genv = evalEnv st
      case Map.lookup k genv of
@@ -88,9 +88,9 @@ eval lenv a@(EConst k) =
            DefinedMethod _ v -> return v
            DefinedInstFunction _ v -> return v
 
-eval lenv (EBase k) = return $ VBase k
+eval !lenv (EBase k) = return $ VBase k
 
-eval lenv a@(ELBase k) =
+eval !lenv a@(ELBase k) =
   do st <- get
      let genv = evalEnv st
      case Map.lookup k genv of
@@ -101,7 +101,7 @@ eval lenv a@(ELBase k) =
            DataType (SemiSimple _) _ (Just d) -> eval lenv d
            DataType _ _ Nothing -> return (VBase k)
 
-eval lenv (EForce m) =
+eval !lenv (EForce m) =
   do m' <- eval lenv m
      case m' of
        VLift (Abst lenv e) -> eval lenv e
@@ -110,22 +110,22 @@ eval lenv (EForce m) =
        v@(VApp VUnBox _) -> return $ VForce v
        a -> error $ "from eval(EForce):" ++ (show $ disp a)
        
-eval lenv (ETensor e1 e2) =
+eval !lenv (ETensor e1 e2) =
   do e1' <- eval lenv e1
      e2' <- eval lenv e2
      return $ VTensor e1' e2'
 
-eval lenv a@(ELam body) = return (VLam (abst lenv body))
+eval !lenv a@(ELam body) = return (VLam (abst lenv body))
      
-eval lenv a@(ELift body) = return (VLift (abst lenv body))
+eval !lenv a@(ELift body) = return (VLift (abst lenv body))
      
-eval lenv EUnBox = return VUnBox
-eval lenv EReverse = return VReverse
-eval lenv EDynlift = return VDynlift
-eval lenv EControlled = return VControlled
-eval lenv EWithComputed = return VWithComputed
-eval lenv a@(EBox) = return VBox
-eval lenv a@(EExBox) = return VExBox
+eval !lenv EUnBox = return VUnBox
+eval !lenv EReverse = return VReverse
+eval !lenv EDynlift = return VDynlift
+eval !lenv EControlled = return VControlled
+eval !lenv EWithComputed = return VWithComputed
+eval !lenv a@(EBox) = return VBox
+eval !lenv a@(EExBox) = return VExBox
 
 -- Note that because QuantumState is an example
 -- of state monad, sequencing is enforced. So each
@@ -134,24 +134,24 @@ eval lenv a@(EExBox) = return VExBox
 -- hence making the implementation conforming the eager evaluation
 -- strategy. As a result, we do not get lazy circuit in the sense of Quipper.
 
-eval lenv (EApp m n) =
+eval !lenv (EApp m n) =
   do v <- eval lenv m
      w <- eval lenv n
      evalApp v w
 
-eval lenv (EPair m n) = 
+eval !lenv (EPair m n) = 
   do v <- eval lenv m
      w <- eval lenv n
      return (VPair v w)
 
-eval lenv (ELet m bd) =
+eval !lenv (ELet m bd) =
   do m' <- eval lenv m
      open bd $ \ x n ->
        let lenv' = addDefinition x m' lenv
        in eval lenv' n
 
 
-eval lenv (ELetPair m (Abst xs n)) =
+eval !lenv (ELetPair m (Abst xs n)) =
   do m' <- eval lenv m
      let r = unVPair (length xs) m'
      case r of
@@ -160,7 +160,7 @@ eval lenv (ELetPair m (Abst xs n)) =
                      (zip xs vs)
          in eval lenv' n
 
-eval lenv (ELetPat m bd) =
+eval !lenv (ELetPat m bd) =
   do m' <- eval lenv m
      case vflatten m' of
        Nothing -> error ("from LetPat" ++ (show $ disp m'))
@@ -175,7 +175,7 @@ eval lenv (ELetPat m bd) =
                   eval lenv' n
            p -> error "pattern mismatch, from eval ELetPat" 
 
-eval lenv b@(ECase m (EB bd)) =
+eval !lenv b@(ECase m (EB bd)) =
   do m' <- eval lenv m
      case vflatten m' of
        Nothing -> error ("from eval (Case):")
@@ -186,15 +186,15 @@ eval lenv b@(ECase m (EB bd)) =
           case p of
              EPApp kid vs
                | kid == id -> 
-               do st <- get
+               do -- st <- get
                   let vs' = vs
                       subs = zip vs' args
-                      lenv' = foldl (\ a (x, v) -> addDefinition x v a) lenv subs
+                      lenv' = foldl' (\ a (x, v) -> addDefinition x v a) lenv subs
                   eval lenv' m
                | otherwise -> reduce id args bds
         reduce id args [] = throw $ userError ("missing a branch for: " ++ show (disp id))
 
-eval lenv a = error $ "from eval: " ++ (show $ disp a)
+eval !lenv a = error $ "from eval: " ++ (show $ disp a)
 
 
 -- * Helper functions for eval.
@@ -332,7 +332,7 @@ evalApp v w =
               then return $ VApp v w
               else do let sub = zip vs args
                           ws = drop lvs args
-                          lenv' = foldl (\ a (x,v) -> addDefinition x v a) lenv sub
+                          lenv' = foldl' (\ a (x,v) -> addDefinition x v a) lenv sub
                       if null ws then eval lenv' m
                         else 
                         do m' <- eval lenv' m

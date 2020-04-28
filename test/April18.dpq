@@ -57,10 +57,10 @@ g : !(Qubit -> Qubit)
 g x = g x
 
 f : !(Qubit -> Qubit)
-f x =
-  let y = H x
-      -- _ = dynlift (Meas y)
-  in f y -- (Init0 ()) 
+f x = H (f x)
+  -- let y = H x
+  --     -- _ = dynlift (Meas y)
+  -- in f y -- (Init0 ()) 
 
 main1 = box Qubit f
 
