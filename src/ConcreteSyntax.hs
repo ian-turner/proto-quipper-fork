@@ -69,11 +69,11 @@ data Decl = GateDecl Position String [Exp] Exp (Bool, Bool, Bool)
           | CircuitDecl Position String Exp Morphism
           | Object Position String
             -- ^  Object declaration for simple types such as @Qubit@ or @Bit@.
-          | Def Position String Exp [String] Exp
+          | Def Position String Exp [String] Exp Bool
             -- ^ Function definition, 'Exp' is the type expression,
             -- ['String'] is a list of arguments, 'Exp' is the definition.
           | Defn Position String [Either Exp ([String], Exp)]
-            [Either Exp ([String], Exp)] Exp
+            [Either Exp ([String], Exp)] Exp Bool
             -- ^ Function definition in infer mode.
             -- The first ['Either' 'Exp' (['String'], 'Exp')]
             -- is a list of irrelevant arguments,

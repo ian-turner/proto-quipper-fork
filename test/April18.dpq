@@ -2,12 +2,13 @@ module April18 where
 import "lib/Prelude.dpq"
 
 
--- bell00 : Bool * Bool
--- bell00 = let x = Init0 ()
---              y = Init0 ()
---              x  = H x
---              (y, x) = CNot y x
---          in (dynlift (Meas y), dynlift (Meas x))
+bell00 : Bool * Bool
+bell00 = let x = Init0 ()
+             y = Init0 ()
+             x  = H x
+             (y, x) = CNot y x
+         in (dynlift (Meas y), dynlift (Meas x))
+
 
 make_toffoli : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
 make_toffoli c b a = 
@@ -79,3 +80,4 @@ main3 = box (Qubit * Qubit) (\ x -> uncurry main2 x)
 --   in (measure x, measure y, measure z)
 
 -- testTerm = Term0 (Init1 ())
+

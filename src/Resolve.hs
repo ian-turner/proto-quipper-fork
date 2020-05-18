@@ -375,22 +375,22 @@ resolveDecl scope (C.Object p x) =
   do (id, scope') <- addConst p x LBase scope
      return (Object p id, scope')
 
-resolveDecl scope (C.Def p f ty args def) =
+resolveDecl scope (C.Def p f ty args def isClifford) =
   do (id, scope') <- addConst p f Const scope
      let lscope' = toLScope scope'
      ty' <- resolve lscope' ty
      lscopeVars lscope' args $ \ d xs ->
        do def' <- resolve d def
           let res = if null xs then def' else Lam (abst xs def') 
-          return (Def p id (abstractMode ty') res, scope')
+          return (Def p id (abstractMode ty') res isClifford, scope')
 
-resolveDecl scope (C.Defn p f [] [] def) =
+resolveDecl scope (C.Defn p f [] [] def isClifford) =
   do (id, scope') <- addConst p f Const scope
      let lscope' = toLScope scope'
      def' <- resolve lscope' def
-     return (Defn p id Nothing def', scope')
+     return (Defn p id Nothing def' isClifford, scope')
 
-resolveDecl scope (C.Defn p f qs args def) | not $ null args =
+resolveDecl scope (C.Defn p f qs args def isClifford) | not $ null args =
   do (id, scope') <- addConst p f Const scope
      let lscope' = toLScope scope'
          pi = toPi args (C.Var "#r") 
@@ -403,7 +403,7 @@ resolveDecl scope (C.Defn p f qs args def) | not $ null args =
      lscopeVars lscope' args' $ \ d xs ->
        do def' <- resolve d def
           let res = if null xs then def' else Lam (abst xs def') 
-          return (Defn p id (Just (abstractMode ty')) res, scope')
+          return (Defn p id (Just (abstractMode ty')) res isClifford, scope')
      where toPi [] m = m 
            toPi ((Left s):xs) m = C.Imply [s] (toPi xs m)
            toPi ((Right (vs, t)):xs) m =

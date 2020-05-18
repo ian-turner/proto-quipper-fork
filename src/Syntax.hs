@@ -608,7 +608,7 @@ data Decl = Object Position Id -- ^ Declaration for qubit or bit.
             -- ^ Instance declaration.
             -- 'Id': instance function name, 'Exp': instance function type,
             -- [('Position', 'Id', 'Exp')]: list of methods and their definitions.
-          | Def Position Id Exp Exp
+          | Def Position Id Exp Exp Bool
             -- ^ Function declaration. 'Id': name, 'Exp': type, 'Exp': definition
           | GateDecl Position Id [Exp] Exp Modality
           | CircuitDecl Position Id Exp Morphism
@@ -617,7 +617,7 @@ data Decl = Object Position Id -- ^ Declaration for qubit or bit.
             -- ^ Importation.
           | OperatorDecl Position String Int String
             -- ^ Operator declaration. String: operator name, Int: precedence, String: fixity.
-          | Defn Position Id (Maybe Exp) Exp
+          | Defn Position Id (Maybe Exp) Exp Bool
             -- ^ Function declaration in infer mode. 'Id': name,
             -- 'May' 'Exp': maybe a partial type,
             -- 'Exp': definition

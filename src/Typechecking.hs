@@ -742,6 +742,7 @@ typeCheck flag a@(Case tm (B brs)) goal =
      at <- updateWithSubst t
      let t' = flatten at
      when (t' == Nothing) $ throwError (DataErr at tm)
+       
 
      let Just (Right id, _) = t'
      id' <- lookupId id

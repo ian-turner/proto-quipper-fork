@@ -80,7 +80,7 @@ main =
               exp' <- parserTop $ parseExp str pst
               e <- topResolve exp'
               (_, e'') <- topTypeInfer e
-              gs <- evaluation' e''
+              gs <- evaluation' e'' False
               ioTop (print $ vcat $ map dispRaw gs)
               
 
@@ -101,7 +101,7 @@ main =
              exp' <- parserTop $ parseExp exp pst
              e <- topResolve exp'
              (_, e'') <- topTypeInfer e
-             gs <- evaluation' e''
+             gs <- evaluation' e'' False
              case name of
                Nothing ->
                  liftIO $ print (length gs)

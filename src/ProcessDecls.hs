@@ -67,7 +67,7 @@ process (Class pos d kd dict dictType mths) =
                   tcTop $ checkVacuous pos tyy
                   (_, tyy') <- tcTop $ typeChecking True tyy Set 
                   (tyy'', a) <- tcTop $ typeChecking False (Pos pos mth) tyy'
-                  v <- evaluation a
+                  v <- evaluation a False
                   tcTop $  proofChecking False a tyy''
                   let fp = Info{ classifier = abstractMode tyy',
                                  identification = DefinedMethod a v
@@ -105,7 +105,7 @@ process (CircuitDecl pos f ty m) =
                                         (Just (Const f, VCircuit m, Just (Const f)))}
      tcTop $ addNewId f info
      
-process (Def pos f' ty' def') =
+process (Def pos f' ty' def' isClifford) =
   do tcTop $ checkVacuous pos ty'
      (_, ty) <- tcTop $ typeChecking True ty' Set 
      let ty1 = erasePos $ removeVacuousPi ty
@@ -119,7 +119,7 @@ process (Def pos f' ty' def') =
      -- note: need to do an erasure check before proof checking
      -- st <- get
      tcTop $ proofChecking False ann ty1'
-     v <- evaluation ann
+     v <- evaluation ann isClifford
        -- trace (show $ dispRaw f' <+> dispRaw ty1' <+> dispRaw (modeSubstitution st) ) $ 
 
      b <- tcTop $ isBasicValue v
@@ -132,7 +132,7 @@ process (Def pos f' ty' def') =
      tcTop $ addNewId f' info2
 
 -- This definition without arguments can not be recursive.
-process (Defn pos f Nothing def) =
+process (Defn pos f Nothing def isClifford) =
   do (ty, a) <- tcTop $ typeInfering False (Pos pos def)
      let fvs = getVars AllowEigen ty
      when (not $ S.null fvs) $ throwError $ CompileErr $ ErrPos pos $ TyAmbiguous (Just f) ty
@@ -141,7 +141,7 @@ process (Defn pos f Nothing def) =
      when (not p && not (isConst def)) $
        throwError $ CompileErr (ErrPos pos $ NotParam (Const f) ty)
      tcTop $ proofChecking False a ty
-     v <- evaluation a
+     v <- evaluation a isClifford
      b <- tcTop $ isBasicValue v
      v' <- if b then
              do x <- tcTop $  typeChecking False (toExp v) ty
@@ -160,7 +160,7 @@ process (Defn pos f Nothing def) =
              ty2 <- updateWithModeSubst ty'''
              return (abstractMode $ booleanVarElim ty2, unEigen r)
 
-process (Defn pos f (Just tt) def) =
+process (Defn pos f (Just tt) def isClifford) =
   do (_, tt') <- tcTop $ typeChecking True tt Set 
                  `catchError` \ e -> throwError $ ErrPos pos e
      let (Forall (Abst [r] ty') Set) = tt'
@@ -184,7 +184,7 @@ process (Defn pos f (Just tt) def) =
      -- the second check
      (tk', def') <- tcTop $  typeChecking False (Pos pos def) tk1
      tcTop $ proofChecking False def' tk'
-     v <- evaluation def'
+     v <- evaluation def' isClifford
      b <- tcTop $ isBasicValue v
      v' <- if b then
              do x <- tcTop $  typeChecking False (toExp v) tk1
@@ -418,7 +418,7 @@ elaborateInstance pos f' ty mths =
                      def' = unEigen $ if null ns then rebind env def
                                       else rebind env $ LamDict (abst ns def)
                      annTy' = erasePos annTy
-                 v <- evaluation def'
+                 v <- evaluation def' False
                  let fp = Info { classifier = annTy',
                                  identification = DefinedInstFunction def' v
                               }

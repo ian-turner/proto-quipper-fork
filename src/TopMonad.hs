@@ -156,23 +156,23 @@ tcTop m =
             return e
 
 -- | Perform evaluation in 'Top' monad, record gates to toplevel
-evaluation :: A.Exp -> Top Value            
-evaluation exp =
+evaluation :: A.Exp -> Bool -> Top Value            
+evaluation exp isClifford =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
      putGates []
-     (res, gs) <- ioTop $ simulate $
+     (res, gs) <- ioTop $ simulate isClifford $
                   do {r <- runStateT (eval Map.empty exp') (initES gl);
                       return $ fst r}
      putGates gs
      return res
 
 -- | Perform evaluation in 'Top' monad, return gates
-evaluation' :: A.Exp -> Top Gates
-evaluation' exp =
+evaluation' :: A.Exp -> Bool -> Top Gates
+evaluation' exp isClifford =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
-     res <- ioTop $ simulate $
+     res <- ioTop $ simulate isClifford $
                   do {r <- runStateT (eval Map.empty exp') (initES gl);
                       return $ fst r}
      return (snd res)

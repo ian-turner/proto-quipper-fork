@@ -59,11 +59,13 @@ data Response = Null
               | InternalError String
               deriving (Eq, Show, Read)
 
-simulate :: ReadWrite a -> IO (a, [Gate])
-simulate m =
+simulate :: Bool -> ReadWrite a -> IO (a, [Gate])
+simulate b m =
   (runTCPClient "127.0.0.1" "1901" $ \s -> do
       h <- socketToHandle s ReadWriteMode
       hGetLine h
+      when b $ hPutStrLn h "Stabilizer"
+      when (not b) $ hPutStrLn h "Universal"
       (v, gs) <- interaction m h Map.empty []
       hPutStrLn h "quit"
       return (v, gs))

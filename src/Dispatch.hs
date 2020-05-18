@@ -90,7 +90,7 @@ dispatch (Eval e) =
          -- let fvs = getVars AllowEigen t'
          -- when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
          ioTop $ putStrLn ("it has type \n" ++ (show $ disp t'))
-         v <- evaluation e''
+         v <- evaluation e'' False
          ioTop $ putStrLn ("it has value \n" ++ (show $ dispRaw v))
          return True
 
@@ -99,7 +99,7 @@ dispatch (Display e) =
      (t', et) <- topTypeInfer e'
      case t' of
        A.Circ _ _ _ ->
-         do res <- evaluation et
+         do res <- evaluation et False
             tmpdir <- liftIO $ getTemporaryDirectory
             (pdffile, fd) <- liftIO $ openTempFile tmpdir "DPQ.pdf"
             ioTop $ printCirc_fd res fd
@@ -116,11 +116,11 @@ dispatch (Print e file) =
      (t', et) <- topTypeInfer e'
      case t' of
        A.Circ _ _ _ ->
-         do res <- evaluation et
+         do res <- evaluation et False
             (ioTop $ printCirc res file)
             return True
        A.Exists (Abst n (A.Circ _ _ _)) _ ->
-         do res <- evaluation et
+         do res <- evaluation et False
             case res of
               A.VPair n circ -> 
                 do -- liftIO $ print (text "input size:" $$ disp n)
@@ -135,7 +135,7 @@ dispatch (GateCount name e) =
      (t', et) <- topTypeInfer e'
      case t' of
        A.Circ _ _ _ ->
-         do res <- evaluation et
+         do res <- evaluation et False
             let n = gateCount name res
             case name of
               Nothing ->
@@ -145,7 +145,7 @@ dispatch (GateCount name e) =
                 do liftIO $ print (text (g++":") $$ text (show n))  
                    return True
        A.Exists (Abst n (A.Circ _ _ _)) _ ->
-         do res <- evaluation et
+         do res <- evaluation et False
             case res of
               A.VPair m circ -> 
                 do let n = gateCount name res
@@ -165,7 +165,7 @@ dispatch (DisplayEx e) =
      (t', et) <- topTypeInfer e'
      case t' of
        A.Exists (Abst n (A.Circ _ _ _)) _ ->
-         do res <- evaluation et
+         do res <- evaluation et False
             case res of
               A.VPair _ circ -> 
                 do tmpdir <- liftIO $ getTemporaryDirectory
@@ -191,7 +191,7 @@ dispatch (ShowCirc (Just e)) =
      gl <- getCxt
      -- when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
      ioTop $ putStrLn "generated gates:"
-     gs <- evaluation' e''
+     gs <- evaluation' e'' False
      ioTop $ putStrLn (show $ vcat $ map dispRaw gs)
      return True
 
@@ -207,7 +207,7 @@ dispatch (TopGateCount Nothing (Just e)) =
      gl <- getCxt
 --     et <- tcTop $ erasure e''
 --     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
-     gs <- evaluation' e''
+     gs <- evaluation' e'' False
      ioTop $ putStrLn ("total top gates: \n" ++ (show (length gs)))
      return True
 
@@ -218,7 +218,7 @@ dispatch (TopGateCount (Just n) (Just e)) =
      gl <- getCxt
 --     et <- tcTop $ erasure e''
 --     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
-     gs <- evaluation' e''
+     gs <- evaluation' e'' False
      let rs = [g | g <- gs, (getName $ gateName g) == n]
      ioTop $ putStrLn (n++":\n" ++ (show $ length rs))
      return True

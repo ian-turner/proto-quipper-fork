@@ -402,14 +402,20 @@ simpleDecl =
                               return $ \ tys -> (P pPat, args, P p, cons, tys)}) 
                   singlePat
 
- 
+clifford =
+  do reservedOp "#"
+     reserved "Clifford"
+     return True
+     
 -- | Parse a function declaration with top-level type annotation.
 funDecl :: Parser Decl
 funDecl =
-  do f <- try $ do{ 
+  do 
+     (f, isClifford) <- try $ do{
+       isClifford <- option False clifford;
        f <- parens operator <|> var;
        reservedOp ":";
-       return f}
+       return (f, isClifford)}
      ty <- typeExp
      p <- getPosition                  
      f' <- try var <|> parens operator
@@ -418,13 +424,14 @@ funDecl =
      args <- many var
      reservedOp "="
      def <- term
-     return $ Def (P p) f ty args def
+     return $ Def (P p) f ty args def isClifford
 
 -- | Parse a function definition in the infer mode, where one only annotates
 -- types for arguments of the function.
 funDef :: Parser Decl
 funDef =
-  do p <- getPosition 
+  do isClifford <- option False clifford
+     p <- getPosition 
      f <- parens operator <|> var
      qs <- option [] $ try $ 
              do ans <- many1 (try annotation <|> classExp)
@@ -434,7 +441,7 @@ funDef =
              else many1 (try explicitAnnotation <|> classExp)
      reservedOp "="
      def <- term
-     return $ Defn (P p) f qs args def
+     return $ Defn (P p) f qs args def isClifford
        where explicitAnnotation =
                do x <- ann
                   return $ Right x
@@ -985,7 +992,7 @@ dpqStyle = Token.LanguageDef
                     "gate", "in", "let",
                     "case", "of",
                     "data", "import", "class", "instance",
-                    "simple",
+                    "simple", "Clifford",
                     "reverse", "box", "unbox", "existsBox", "controlled",
                     "withComputed", "dynlift", "circuit",
                     "object", "Circ", "Unit", "do",
@@ -996,7 +1003,7 @@ dpqStyle = Token.LanguageDef
                     "round"
                   ]
                , Token.reservedOpNames =
-                    ["λ", ".", "\\", "<-", "->", "*", "()", "!", "_", ":", "=", "=>", "[|", "|]", "`"]
+                    ["λ", ".", "\\", "<-", "->", "*", "()", "!", "_", ":", "=", "=>", "[|", "|]", "`", "#"]
                 }
 
 -- | Parse a Proto-Quipper-D token.
