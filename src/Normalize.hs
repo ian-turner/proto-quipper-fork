@@ -511,7 +511,8 @@ normalize a@(LamAnn' _ _) = return a
 normalize a@(LamDict _) = return a
 normalize a@(LamType _) = return a
 normalize a@(LamTm _) = return a
-normalize (Pos _ e) = normalize e 
+normalize (Pos _ e) = normalize e
+normalize (WithType a t) = normalize a
 normalize a = error $ "from normalize: " ++ (show $ disp a)
 
 

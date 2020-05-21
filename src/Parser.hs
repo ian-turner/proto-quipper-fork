@@ -562,7 +562,7 @@ ifExp =
      t1 <- term
      reserved "else"
      t2 <- term
-     return $ Case c [("True", [], t1), ("False", [], t2)]
+     return $ Case (WithAnn c (Base "Bool")) [("True", [], t1), ("False", [], t2)]
 
 
 -- | Parse a dependent pi-type.

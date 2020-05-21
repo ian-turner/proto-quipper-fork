@@ -101,7 +101,10 @@ instance forall a a' (n : Nat) -> (Initialize a a') =>
       VNil -> VNil
       VCons a as -> VCons (init a) (init as)
 
--- Warning: noted the result type is not directly related to input.
+-- Warning: noted the result type is not directly related to input, which 
+-- means the result type must be annotated.
+-- Also, it does not work with stabilizer formalism, because stabilizer formalism
+-- require all qubits are measured before dynamic lifting. 
 class Measurement a b where
   measure {0,0,0} : a -> b
 

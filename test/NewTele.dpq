@@ -1,0 +1,156 @@
+module NewTele where
+import "lib/Prelude.dpq"
+
+
+bell00 : Bool * Bool
+bell00 = let x = Init0 ()
+             y = Init0 ()
+             x  = H x
+             (y, x) = CNot y x
+         in (dynlift (Meas y), dynlift (Meas x))
+
+
+
+-- * Teleportation by dynmaic lifting, there is no classically controlled
+-- quantum gates used.
+
+plus_minus : ! (n : Nat) -> Bool -> Vec Qubit n
+plus_minus n b = let qs = initVec n b in map H qs
+
+share : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n * Vec Qubit n
+share n l =
+  let res = initVec n False
+      (res', l) = unzip $ zipWith CNot res l
+  in (l, res')
+
+bell : ! (n : Nat) -> Vec Qubit n * Vec Qubit n
+bell n =
+    let a = plus_minus n False
+        (a, b) = share n a
+    in (a, b)
+
+alice : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n -> Vec Bool n * Vec Bool n
+alice n q a =
+  let (a', q') = unzip $ zipWith CNot a q
+      q'' = map H q'
+  in (measure q'', measure a')
+
+bob : ! forall (n : Nat) -> Vec Qubit n -> (Vec Bool n * Vec Bool n) -> Vec Qubit n
+bob b u =
+  let (x, y) = u
+      (b, y) = unzip $ zipWith (\ q c  -> if c then (QNot q, c) else (q, c)) b y
+      (b, x) = unzip $ zipWith (\ q c -> if c then (ZGate q, c) else (q, c)) b x
+  in b
+
+-- The following teleportation function is not boxable! 
+-- tele_generic : !{0,0,0}((n : Nat) -> Vec Qubit n -> Vec Qubit n)
+tele_generic : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n
+tele_generic n q =
+  let (a, b) = bell n
+      (x, y) = alice n q a
+      b = bob b (x, y)
+  in b
+
+-- Note that 8 qubits is the upper limit for teleportation
+-- in my computer. So this is less than ideal.
+teleTest : Vec Bool 8
+teleTest =
+ let r = tele_generic 8 (initVec 4 True ++ initVec 4 False)
+ in measure r
+
+
+-- * Teleportation by measuring in the end. No classical
+-- information is transmitted. Note that in this case teleportation
+-- can be described entirely using Clifford gates.
+
+alice_g : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n -> Vec Qubit n * Vec Qubit n
+alice_g n q a = let (a', q') = unzip $ zipWith CNot a q
+                    q'' = map H q'
+                in (q'', a')
+
+-- Controlled Z gate, which is a member of Clifford group.
+cz (x y : Qubit) = let (x, y) = CNot (H x) y in (H x, y)
+
+bob_g : ! (n : Nat) -> Vec Qubit n -> (Vec Qubit n * Vec Qubit n) ->
+              Vec Qubit n * (Vec Qubit n * Vec Qubit n)
+bob_g n b u = let (x, y) = u
+                  (b, y) = unzip $ zipWith CNot b y
+                  (b, x) = unzip $ zipWith cz b x
+              in (b, (x, y))
+
+tele_g : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n * (Vec Qubit n * Vec Qubit n)
+tele_g n q = let (a, b) = bell n
+                 (x, y) = alice_g n q a
+                 (b, xy) = bob_g n b (x, y)
+              in (b, xy)
+
+boxTeleG (n : Nat) = box (Vec Qubit n) $ \ x -> tele_g n x
+
+-- Using the #Clifford flag, the following function is run 
+-- as a clifford circuit, which allows teleporting much more
+-- qubits. Note that by using #Clifford flag, it is currently
+-- the programmers' job to ensure using only clifford gates, and
+-- ensure measuring all the qubits before dynamic lifting. So
+-- stabilizer formalism does not work well with partial dynamic lifting.
+
+#Clifford
+teleTest2 =
+ let (b, xy) = tele_g 100 (initVec 50 True ++ initVec 50 False)
+     (x, y) = xy
+     x' = map Meas x
+     y' = map Meas y
+     b' = map Meas b
+     _ = map dynlift x'
+     _ = map dynlift y'
+     r = map dynlift b'
+ in r
+
+-- The following also showcase the efficiency of Clifford circuits.
+#Clifford
+bell100 : Vec Bool 100 * Vec Bool 100
+bell100 =
+  let (a, b) =  bell 100
+      (c, d) = (map Meas a, map Meas b)
+  in (map dynlift c, map dynlift d)
+
+
+ghz : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
+ghz ls =
+  case ls of
+     VNil -> VNil
+     VCons y ys ->
+       let ys' = ghz ys
+       in case ys' of
+             VNil -> VCons (H y) VNil
+             VCons x xs ->
+               let (y, x) = CNot y x
+               in VCons y (VCons x xs)
+
+ghz' : ! forall (n : Nat) -> Qubit -> Vec Qubit n -> Qubit * Vec Qubit n
+ghz' q ls =
+  case ls of
+     VNil -> (H q, VNil)
+     VCons y ys ->
+       let (q, ys') = ghz' q ys 
+           (y, q) = CNot y q
+       in (q, VCons y ys')
+
+boxGHZ : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
+boxGHZ n = box (Vec Qubit n) (\ x -> ghz x)
+
+boxGHZ' : ! (n : Nat) -> Circ(Qubit * Vec Qubit n, Qubit * Vec Qubit n)
+boxGHZ' n = box (Qubit * Vec Qubit n) (\ x -> uncurry ghz' x)
+
+-- Note that for GHZ there is no obvious speed up over universal simulator
+-- since H is only used once. 
+-- #Clifford
+testGHZ' : Bool * Vec Bool 500
+testGHZ' = let (q, qs) = ghz' (initQubit False) (initVec 500 False)
+               (q, qs) = (Meas q, map Meas qs) 
+           in (dynlift q, map dynlift qs)
+
+
+-- #Clifford
+testGHZ : Vec Bool 500
+testGHZ = map dynlift $ map Meas $ ghz (initVec 500 False)
+

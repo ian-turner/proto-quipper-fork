@@ -25,6 +25,7 @@ main = do
        dispatch (Load True $ p </> "test/Exists.dpq")
        dispatch (Load True $ p </> "test/QftAdder.dpq")
        dispatch (Load True $ p </> "test/Tele.dpq")
+       dispatch (Load True $ p </> "test/NewTele.dpq")
        dispatch (Load True $ p </> "test/March14.dpq")
        dispatch (Load True $ p </> "test/April12.dpq")
        dispatch (Load True $ p </> "test/Design.dpq")
