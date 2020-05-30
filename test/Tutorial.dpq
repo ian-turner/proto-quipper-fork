@@ -254,12 +254,14 @@ ap f x =
 data WithGarbage a = WG ((n : Nat) * Vec Qubit n) a
 
 instance Monad WithGarbage where
-  return x = WG (Z, VNil) x
-  bind wg f = let WG ng r = wg
-                  (n, g) = ng
-                  WG mg' r' = f r
-                  (m, g') = mg'
-               in WG (add n m, append g g') r'
+  return x =
+    WG (Z, VNil) x
+  bind wg f =
+    let WG ng r = wg
+        (n, g) = ng
+        WG mg' r' = f r
+        (m, g') = mg'
+    in WG (add n m, append g g') r'
 
 unGarbage : ! forall a -> WithGarbage a -> (n : Nat) * Vec Qubit n * a
 unGarbage z = let WG ex a = z in let (n, v) = ex in (n, (v, a))

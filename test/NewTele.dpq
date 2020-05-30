@@ -51,12 +51,16 @@ tele_generic n q =
       b = bob b (x, y)
   in b
 
+{-
+-- boxTeleG' (n : Nat) = box (Vec Qubit n) (\ x -> tele_generic n x)
+
 -- Note that 8 qubits is the upper limit for teleportation
 -- in my computer. So this is less than ideal.
-teleTest : Vec Bool 8
-teleTest =
- let r = tele_generic 8 (initVec 4 True ++ initVec 4 False)
- in measure r
+
+-- teleTest : Vec Bool 8
+-- teleTest =
+--  let r = tele_generic 8 (initVec 4 False ++ initVec 4 True)
+--  in measure r
 
 
 -- * Teleportation by measuring in the end. No classical
@@ -95,7 +99,7 @@ boxTeleG (n : Nat) = box (Vec Qubit n) $ \ x -> tele_g n x
 
 #Clifford
 teleTest2 =
- let (b, xy) = tele_g 100 (initVec 50 True ++ initVec 50 False)
+ let (b, xy) = tele_g 1000 (initVec 500 True ++ initVec 500 False)
      (x, y) = xy
      x' = map Meas x
      y' = map Meas y
@@ -106,12 +110,12 @@ teleTest2 =
  in r
 
 -- The following also showcase the efficiency of Clifford circuits.
-#Clifford
-bell100 : Vec Bool 100 * Vec Bool 100
-bell100 =
-  let (a, b) =  bell 100
-      (c, d) = (map Meas a, map Meas b)
-  in (map dynlift c, map dynlift d)
+-- #Clifford
+-- bell100 : Vec Bool 100 * Vec Bool 100
+-- bell100 =
+--   let (a, b) =  bell 100
+--       (c, d) = (map Meas a, map Meas b)
+--   in (map dynlift c, map dynlift d)
 
 
 ghz : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
@@ -144,13 +148,15 @@ boxGHZ' n = box (Qubit * Vec Qubit n) (\ x -> uncurry ghz' x)
 -- Note that for GHZ there is no obvious speed up over universal simulator
 -- since H is only used once. 
 -- #Clifford
-testGHZ' : Bool * Vec Bool 500
-testGHZ' = let (q, qs) = ghz' (initQubit False) (initVec 500 False)
-               (q, qs) = (Meas q, map Meas qs) 
-           in (dynlift q, map dynlift qs)
+-- testGHZ' : Bool * Vec Bool 500
+-- testGHZ' = let (q, qs) = ghz' (initQubit False) (initVec 500 False)
+--                (q, qs) = (Meas q, map Meas qs) 
+--            in (dynlift q, map dynlift qs)
 
 
 -- #Clifford
-testGHZ : Vec Bool 500
-testGHZ = map dynlift $ map Meas $ ghz (initVec 500 False)
 
+-- testGHZ : Vec Bool 500
+-- testGHZ = map dynlift $ map Meas $ ghz (initVec 500 False)
+
+-}

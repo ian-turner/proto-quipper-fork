@@ -2,6 +2,12 @@ module Tele where
 
 import "lib/Prelude.dpq"
 
+compose : ! forall b c -> (a : Type) -> (Simple c, Simple a, Simple b) =>
+             Circ(a, b) -> Circ(b, c) -> Circ(a, c)
+compose a f g =
+  let f' = unbox f
+      g' = unbox g
+  in box a (\ x -> g' (f' x))
 
 share : ! (Qubit -> Qubit * Qubit)
 share a = let b = Init0 ()
@@ -56,11 +62,13 @@ bobCirc = box (Qubit * (Bit * Bit)) bob
 tele : ! (Qubit -> Qubit)
 tele q = let (a, b) = unbox bell00 ()
              (x, y) = alice (q, a) 
-             b = bob (b, (x, y)) in b
+             b = bob (b, (x, y))
+          in b
 
 teleCirc : Circ (Qubit, Qubit)
 teleCirc = box Qubit tele
 
+-- reverseTele = reverse teleCirc
 
 plus_minus_generic : ! (n : Nat) -> Bool -> Vec Qubit n
 plus_minus_generic n b = let qs = initVec n b in map H qs

@@ -5,8 +5,11 @@ import "lib/Nat.dpq"
 
 
 -- All gates must have at least one input.
-
+-- {boxable, controllable, reversible}
+-- for gate {controllable, reversible}
 gate {1,0,1} Init0 : Unit -> Qubit
+
+-- gate Init0 : Unit -> Qubit : Term0
 
 gate {1,0,1} Init1 : Unit -> Qubit
 
