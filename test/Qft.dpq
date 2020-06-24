@@ -136,7 +136,7 @@ main2 = qft_both_Box_ctrl 9
 -- t : ! (Circ(Qubit, Qubit) -> Circ(Qubit, Qubit))
 -- t x = x
 
-testHa = withBasisChange ha ss
+-- testHa = withBasisChange ha ss
 
-test2 = boxCirc $ \ x -> tele (unbox testHa x)
+-- test2 = boxCirc $ \ x -> tele (unbox testHa x)
 

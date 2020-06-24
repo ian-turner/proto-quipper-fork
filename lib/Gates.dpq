@@ -11,12 +11,14 @@ gate {1,0,1} Init0 : Unit -> Qubit
 
 -- gate Init0 : Unit -> Qubit : Term0
 
+
 gate {1,0,1} Init1 : Unit -> Qubit
 
 gate {1,0,1} Term0 : Qubit -> Unit
 gate {1,0,1} Term1 : Qubit -> Unit
 
 gate {1,1,1} WGate : Qubit -> Qubit -> Qubit * Qubit
+-- gate WGate : Qubit -> Qubit -> Qubit * Qubit : WGate
 
 gate {1,1,1} WGateInverse : Qubit -> Qubit -> Qubit * Qubit
 

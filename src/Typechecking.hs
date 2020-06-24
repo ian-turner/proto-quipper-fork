@@ -46,12 +46,12 @@ typeInfer flag (Pos p e) =
   do (ty, ann, m) <- typeInfer flag e `catchError` \ e -> throwError $ addErrPos p e
      return (ty, (Pos p ann), m)
 
-typeInfer True Set = return (Sort, Set, identityMod)
+typeInfer flag Set = return (Sort, Set, identityMod)
 
-typeInfer True a@(Base kid) =
+typeInfer flag a@(Base kid) =
   lookupId kid >>= \ x -> return (classifier x, a, identityMod)
 
-typeInfer True a@(LBase kid) =
+typeInfer flag a@(LBase kid) =
   lookupId kid >>= \ x -> return (classifier x, a, identityMod)
 
 typeInfer flag a@(Var x) =
