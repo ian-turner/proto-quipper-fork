@@ -263,7 +263,8 @@ process (GateDecl pos id params t m@(M _ (BConst flag) _) inv) =
          params' = map erasePos params
          h' = foldl Tensor he tl
          hs = flattenTensor h
-         ty_inv = Bang (foldr Arrow (foldr Arrow h' hs) params) m    
+         ty_inv = Bang (foldr Arrow (foldr Arrow h' hs) params) m
+         t_inv' = foldr Arrow h' hs
      tcTop $ mapM_ checkStrictSimple (h:bds')
      when (null bds) $ throwError $ CompileErr (GateErr pos id)
      let ty = Bang (foldr Arrow t params) m
@@ -279,7 +280,7 @@ process (GateDecl pos id params t m@(M _ (BConst flag) _) inv) =
      case inv of
        Nothing -> return ()
        Just id' ->
-         do gate' <- makeGate id params' t' flag (Just id)
+         do gate' <- makeGate id params' t_inv' flag (Just id)
             let fp' = Info {classifier = tk_inv',
                             identification = DefinedGate gate'
                            }
