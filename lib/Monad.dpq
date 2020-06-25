@@ -14,8 +14,8 @@ module Monad where
 -- Note that this desugaring scheme of Idiom braket will always add join->
 
 class Monad (m : Type -> Type) where
-  return {1,1,1} : forall a -> a -> m a
-  bind {1,1,1} : forall a b -> m a -> (a -> m b) -> m b
+  return : forall a -> a -> m a
+  bind : forall a b -> m a -> (a -> m b) -> m b
 
 
 
@@ -67,5 +67,5 @@ fmap f x =
 (<$>) = fmap
   
 class MonadTrans (t : (Type -> Type) -> Type -> Type) where
-  lift {1,1,1} : forall (m : Type -> Type) a -> (Monad m) => m a -> t m a
+  lift : forall (m : Type -> Type) a -> (Monad m) => m a -> t m a
 

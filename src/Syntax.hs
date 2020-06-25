@@ -297,7 +297,7 @@ instance Disp Exp where
            dParen flag (precedence a) t']
     
   display flag a@(Bang t m) =
-    text "!" <> display flag m <> dParen flag (precedence a - 1) t
+    text "!" <> dParen flag (precedence a - 1) t
 
   display flag a@(Arrow t1 t2) =
     fsep [dParen flag (precedence a) t1, text "->" , dParen flag (precedence a - 1) t2]
@@ -324,7 +324,7 @@ instance Disp Exp where
   display flag (Lift m) = text "lift" <+> display flag m
 
   display flag (Circ u t m) =
-    text "Circ" <> display flag m <> (parens $ fsep [display flag u <> comma, display flag t])
+    text "Circ" <> (parens $ fsep [display flag u <> comma, display flag t])
   display flag (Pi bd t) =
     open bd $ \ vs b ->
     fsep [parens ((hsep $ map (display flag) vs) <+> text ":" <+> display flag t)
@@ -474,7 +474,8 @@ data Gate = Gate{
   inputVal :: Value,
   outputVal :: Value,
   ctrl :: Value,
-  ctrlFlag :: Bool
+  ctrlFlag :: Bool,
+  inv :: Maybe Id
   }
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 -- | A list of gates.
@@ -572,7 +573,7 @@ instance Disp Morphism where
 
 
 instance Disp Gate where
-  display flag (Gate g params ins outs ctrls b) =
+  display flag (Gate g params ins outs ctrls b _) =
     display flag g <> comma <+> brackets (hsep $ punctuate comma (map (display flag) params))
     <> comma <+> (display flag ins) <> comma <+> (display flag outs) <> comma
     <+> (display flag ctrls) <> comma <+> text (show b)
@@ -610,7 +611,7 @@ data Decl = Object Position Id -- ^ Declaration for qubit or bit.
             -- [('Position', 'Id', 'Exp')]: list of methods and their definitions.
           | Def Position Id Exp Exp Bool
             -- ^ Function declaration. 'Id': name, 'Exp': type, 'Exp': definition
-          | GateDecl Position Id [Exp] Exp Modality
+          | GateDecl Position Id [Exp] Exp Modality (Maybe Id)
           | CircuitDecl Position Id Exp Morphism
             -- ^ Gate declaration. 'Id': name, ['Exp']: parameters, 'Exp': input/output.
           | ImportDecl Position String

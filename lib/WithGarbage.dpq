@@ -19,7 +19,7 @@ dispose_qubit : !(Qubit -> WithGarbage Unit)
 dispose_qubit q = WG (S Z, VCons q VNil) ()
 
 class Disposable a where
-  dispose {1,1,1} : a -> WithGarbage Unit
+  dispose : a -> WithGarbage Unit
 
 instance Disposable Qubit where
   dispose = dispose_qubit 
@@ -36,11 +36,16 @@ instance forall a (n : Nat) -> (Disposable a) => Disposable (Vec a n) where
 
 
 class BooleanLogic a where
-  band {1,0,1} : a -> a -> WithGarbage a
-  bor {1,0,1} :  a -> a -> WithGarbage a
-  bxor {1,0,1} : a -> a -> WithGarbage a
-  bnot {1,0,1} : a -> WithGarbage a
-  bif {1,0,1} : Qubit -> a -> a -> WithGarbage a
+  #Boxable, #Reversible
+  band  : a -> a -> WithGarbage a
+  #Boxable, #Reversible
+  bor  :  a -> a -> WithGarbage a
+  #Boxable, #Reversible
+  bxor  : a -> a -> WithGarbage a
+  #Boxable, #Reversible
+  bnot  : a -> WithGarbage a
+  #Boxable, #Reversible
+  bif  : Qubit -> a -> a -> WithGarbage a
 
 instance BooleanLogic Qubit where
   -- generate 2 garbage

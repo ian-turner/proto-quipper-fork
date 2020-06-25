@@ -262,30 +262,39 @@ process (Object pos id) =
          instId = Id $ "instAt"++ hashPos pos ++ "Simple"
          instPS = Id $ "instAt"++ hashPos pos ++ "SimpParam"
      elaborateInstance pos instId (App s (LBase id)) []
-       -- `catchError`
-       --                    \ e -> throwError $ addErrPos pos e
-
-     -- laborateInstance pos instPS (App (App sp (LBase id)) (Base (Id "Bool"))) []
-       -- `catchError`
-       -- \ e -> case e of
-       --          NoDef t | getName t == "Bool" ->
-       --                    throwError $ ErrPos pos SimpParamErr
-       --          _ -> throwError $ addErrPos pos e
                
 
 
-process (GateDecl pos id params t m@(M _ (BConst flag) _)) =
+process (GateDecl pos id params t m@(M _ (BConst flag) _) inv) =
   do tcTop $ mapM_ checkParam params
      let (bds, h) = flattenArrows t
-     tcTop $ mapM_ checkStrictSimple (h:(map snd bds))
+         t' = erasePos t
+         bds'@(he:tl) = map snd bds
+         params' = map erasePos params
+         h' = foldl Tensor he tl
+         hs = flattenTensor h
+         ty_inv = Bang (foldr Arrow (foldr Arrow h' hs) params) m    
+     tcTop $ mapM_ checkStrictSimple (h:bds')
      when (null bds) $ throwError $ CompileErr (GateErr pos id)
      let ty = Bang (foldr Arrow t params) m
      (_, tk) <- tcTop $ typeChecking True ty Set
-     gate <- makeGate id (map erasePos params) (erasePos t) flag
-     let fp = Info {classifier = erasePos tk,
+     (_, tk_inv) <- tcTop $ typeChecking True ty_inv Set
+     let tk' = erasePos tk
+     let tk_inv' = erasePos tk_inv
+     gate <- makeGate id params' t' flag inv
+     let fp = Info {classifier = tk',
                    identification = DefinedGate gate
                    }
      tcTop $ addNewId id fp
+     case inv of
+       Nothing -> return ()
+       Just id' ->
+         do gate' <- makeGate id params' t' flag (Just id)
+            let fp' = Info {classifier = tk_inv',
+                            identification = DefinedGate gate'
+                           }
+            tcTop $ addNewId id' fp'         
+          
        where checkParam t =
                do p <- isParam t
                   when (not p) $ throwError $ ErrPos pos (NotAParam t)
@@ -504,8 +513,8 @@ determineClassifier d kd constructors types =
                           return $ and r
 
 -- | Construct a gate from a gate declaration.
-makeGate :: Id -> [Exp] -> Exp -> Bool -> Top Value
-makeGate id ps t flag =
+makeGate :: Id -> [Exp] -> Exp -> Bool -> Maybe Id -> Top Value
+makeGate id ps t flag inv =
   let lp = length ps + 1
       ns = getName "x" lp
       (inss, outExp) = makeInOut t
@@ -520,8 +529,7 @@ makeGate id ps t flag =
         let params = map VVar xs
             inExp' = toVal inExp ins
             outExp' = toVal outExp outs
-            g = Gate id params inExp' outExp' VStar flag
-          -- morph = Wired $ abst (ins ++ outs) (VCircuit $ Morphism inExp' [g] outExp')
+            g = Gate id params inExp' outExp' VStar flag inv
             morph = VCircuit $ Morphism inExp' [g] outExp'
             env = Map.fromList [(y, morph)] 
             unbox_morph = ELam $ etaPair y (length inss) (EForce $ EApp EUnBox (EVar y))

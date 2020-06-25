@@ -283,7 +283,7 @@ peak cpu ~1700%
 -- box_checkwin_red (9 @ 7 - 1) 7 refl refl
 
 
-main = box_checkwin_red (5 @ 7 - 1) 7 refl refl
+main = box_checkwin_red (3 @ 7 - 1) 7 refl refl
 -- 475119
 -- dpq test/Hex3.dpq -g  1654.73s user 205.41s system 122% cpu 25:15.20 total 
 -- mem 28%, 5m. 

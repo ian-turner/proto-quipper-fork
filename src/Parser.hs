@@ -25,8 +25,9 @@ import Text.Parsec.Language
 import qualified Text.Parsec.Token as Token
 import qualified Text.Parsec as P
 import qualified Data.IntMap as IM
-import Data.Char
+import Data.Char hiding (isControl)
 import Data.List
+import Data.Maybe
 
 
 
@@ -71,8 +72,7 @@ initialOpTable = [[], [], [], [], [], [unaryBang "!" Bang, quotedOp], [], [binOp
         unaryBang op f =
           Prefix $ do
           reservedOp op
-          m <- option Nothing (try parseMode >>= \ x -> return (Just x))
-          return (\ x -> f x m) 
+          return (\ x -> f x Nothing) 
 
         
 -- | Parse a Proto-Quipper-D module from a file name /srcName/ and file
@@ -134,7 +134,7 @@ reload =
 -- | Parse print pdf to file command.
 typing :: Parser Command
 typing =
-  do reserved ":t"
+  do try (reserved ":type") <|> reserved ":t"
      t <- term
      eof
      return $ Type t
@@ -222,7 +222,7 @@ decls = do
         (simpleDecl <|> importDecl
         <|> classDecl <|> instanceDecl
         <|>  gateDecl <|>  objectDecl <|>  dataDecl
-        <|> operatorDecl <|> circuitDecl
+        <|> operatorDecl
         <|> funDecl <|> funDef <?> "top level declaration") 
   st <- getState
   eof
@@ -256,6 +256,8 @@ importDecl = impGlobal
              mod <- stringLiteral
              return $ ImportGlobal (P p) mod              
 
+    
+
 -- | Parse a type class declaration. We allow phatom class, i.e. class without
 -- any method, in that case, one should not use the keyword "where".
 -- Method definitions have to have same level of indentation.
@@ -270,15 +272,21 @@ classDecl =
                            block method}
      return $ Class (P p) c vs mds
        where method =
-               do pos <- getPosition
+               do fs <- sepBy (try controllable <|> try reversible <|>
+                               try noModal <|> boxable) comma
+                  let fs' = nub fs
+                  pos <- getPosition
                   n <- parens operator <|> var
-                  m <- option Nothing (parseMode >>= \ x -> return (Just x))
                   reservedOp ":"
                   t <- typeExp
-                  let m' = case m of
-                             Nothing -> (True, True, True)
-                             Just r -> r
-                  return (P pos, n, t, m')
+                  let m = if null fs' then
+                            (True, True, True)
+                            else
+                            if NoModal `elem` fs' then
+                              (False, False, False)
+                              else 
+                              (Boxable `elem` fs', Controllable `elem` fs', Reversible `elem` fs')
+                  return (P pos, n, t, m)
 
 -- | Parse an instance declaration. For the instance of the phantom class,
 -- one should not use the keyword "where".
@@ -307,46 +315,69 @@ objectDecl =
      o <- const
      return $ Object (P p) o
 
--- | Parse a mode declaration.
-parseMode =
-  braces $ do
-    a <- zeroOrOne
-    comma
-    b <- zeroOrOne
-    comma
-    c <- zeroOrOne
-    return (a, b, c)
+tensorType =
+  do tys <- sepBy1 (unitTy <|> constExp) (reservedOp "*")
+     let res = foldl Tensor (head tys) (tail tys)
+     return res
+
+simpleType =
+  do tys <- sepBy1 tensorType (reservedOp "->")
+     let (bds, h) = (init tys, last tys)
+     let res = foldr Arrow h bds 
+     return res
 
 
-zeroOrOne :: Parser Bool
-zeroOrOne = 
-  do i <- integer
-     when ((i /= 0) && (i /= 1)) $ unexpected $ show i ++ ", expecting 0 or 1."
-     if i == 1 then return True
-       else return False
-       
+     
+     
+-- | Parse the controllable flag, return a boolean.
+isControl =
+  do reservedOp "#"
+     reserved "Controllable"
+     return True
+
+data Mod = Boxable | Controllable | Reversible | NoModal deriving (Eq)
+
+-- | Parse the controllable flag
+controllable =
+  do reservedOp "#"
+     reserved "Controllable"
+     return Controllable
+
+-- | Parse the no-modal flag
+noModal =
+  do reservedOp "#"
+     reserved "NoModal"
+     return NoModal
+
+-- | Parse the boxable flag
+boxable =
+  do reservedOp "#"
+     reserved "Boxable"
+     return Boxable
+
+-- | Parse the reversible flag
+reversible =
+  do reservedOp "#"
+     reserved "Reversible"
+     return Reversible
+
 -- | Parse a gate declaration.
 gateDecl :: Parser Decl
 gateDecl =
-  do reserved "gate"
+  do isCtrl <- option False isControl
+     reserved "gate"
      p <- getPosition
-     m <- parseMode
      g <- const
      args <- many (const >>= \ a -> return $ Pos (P p) (Base a))
      reservedOp ":"
-     ty <- typeExp
-     return $ GateDecl (P p) g args ty m
+     ty <- simpleType
+     inv <- option Nothing $ do {reservedOp ":";
+                                 g' <- const;
+                                 return $ Just g'
+                                }
+     let m = (True, isCtrl, isJust inv)
+     return $ GateDecl (P p) g args ty m inv
 
-circuitDecl :: Parser Decl
-circuitDecl =
-  do reserved "circuit"
-     p <- getPosition
-     name <- var
-     reservedOp ":"
-     circType <- typeExp
-     reservedOp "="
-     m <- morphism
-     return $ CircuitDecl (P p) name circType m
 
 -- | Parse a data type declaration. We allow data type without any constructor,
 -- in that case, one should not use '='. The syntax is similar to Haskell 98
@@ -637,13 +668,12 @@ forallType =
 circType :: Parser Exp
 circType =
   do reserved "Circ"
-     m <- option Nothing (parseMode >>= \ x -> return (Just x))
      (t, u) <- parens $ do
                 t <- typeExp
                 comma
                 u <- typeExp
                 return (t, u)
-     return $ Circ t u m
+     return $ Circ t u Nothing
 
 -- | Parse @Type@.
 set :: Parser Exp
@@ -722,57 +752,6 @@ reverseExp = reserved "reverse" >> return Reverse
 controlExp :: Parser Exp
 controlExp = reserved "controlled" >> return Controlled
 
-morphism :: Parser A.Morphism
-morphism = do
-  input <- braces value
-  gs <- block gate
-  output <- braces value
-  return $ A.Morphism input gs output
-
-gate = do
-  name <- const
-  comma
-  ps <- brackets $ sepBy value comma 
-  comma
-  ins <- value
-  comma
-  outs <- value
-  comma 
-  ctrl <- value
-  comma
-  b <- const
-  return $ A.Gate (Id name) ps ins outs ctrl (read b)
-
-vlabel = do
-  l <- naturals
-  return (A.VLabel (L $ fromIntegral l))
-
-vconst = do
-  c <- const
-  return (A.VConst (Id c))
-
-vstar = reservedOp "()" >> return A.VStar
-
-vpair =
-  parens $ do
-    v1 <- value
-    comma
-    v2 <- value
-    return $ A.VPair v1 v2
-
-vvector :: Parser A.Value
-vvector =
-  do elems <- brackets (value `sepBy` comma)
-     return $ foldr (\ x y -> A.VApp (A.VApp (A.VConst (Id "VCons")) x) y) (A.VConst (Id "VNil")) elems
-
-value = 
-  manyLines (do{ head <- headExp;
-                 return $ foldl (\ z x -> A.VApp z x) head}) arg
-  where headExp = vlabel <|> try vpair <|> vvector <|> try vstar <|> try vconst
-                  <|> parens value 
-
-        arg =  vlabel <|> try vpair <|> try vstar <|> try vvector <|> try vconst
-                         <|> parens value
 
               
 withComputedExp :: Parser Exp

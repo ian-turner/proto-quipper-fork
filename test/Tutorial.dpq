@@ -16,41 +16,44 @@ object Bit
 -- ----------------------------------------------------------------------
 -- * Gates
 
--- Qubit initialization.
-gate {1,0,1} Init0 : Unit -> Qubit
-gate {1,0,1} Init1 : Unit -> Qubit
+-- Qubit initialization and termination
+gate Init0 : Unit -> Qubit : Term0
+gate Init1 : Unit -> Qubit : Term1
 
--- Qubit termination. 
-gate {1,0,1} Term0 : Qubit -> Unit
-gate {1,0,1} Term1 : Qubit -> Unit
 
--- Hadamard gate. 
-gate {1,1,1} H : Qubit -> Qubit  
 
--- CNot gate, the second qubit is the control bit. 
-gate {1,1,1} CNot : Qubit -> Qubit -> Qubit * Qubit
+-- Hadamard gate.
+#Controllable
+gate H : Qubit -> Qubit : H 
 
--- Controlled R gate, the second qubit is the control bit. 
-gate {1,1,1} R Nat : Qubit -> Qubit -> Qubit * Qubit
+-- CNot gate, the second qubit is the control bit.
+#Controllable
+gate CNot : Qubit -> Qubit -> Qubit * Qubit : CNot
+
+-- Controlled R gate, the second qubit is the control bit.
+#Controllable
+gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv
 
 -- Toffoli gate with signed controls. The first qubit is the target.
 -- The second qubit is a control with sign indicated
 -- by the first boolean parameter (positive or negative).
 -- Similarly, the third qubit is also a control with
 -- sign indicated by the second boolean parameter.
-gate {1,1,1} ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+
+#Controllable
+gate ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate
 
 -- Bit discard gate.
-gate {1,0,0} Discard : Bit -> Unit
+gate Discard : Bit -> Unit
 
 -- Classical controlled X gate.
-gate {1,0,1} C_X : Qubit -> Bit -> Qubit * Bit
+gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
 
 -- Classical controlled Z gate.
-gate {1,0,1} C_Z : Qubit -> Bit -> Qubit * Bit
+gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
 
 -- Measurement gate.
-gate {1,0,0} Meas : Qubit -> Bit
+gate Meas : Qubit -> Bit
 
 -- ----------------------------------------------------------------------
 -- * Addition function

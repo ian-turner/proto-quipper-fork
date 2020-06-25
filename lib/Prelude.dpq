@@ -79,7 +79,8 @@ withBasisChange a b circ1 circ2 =
 
 -- Warning: noted the result type is not directly related to input.
 class Initialize b a where
-  init {1,0,1} : b -> a
+  #Boxable, #Reversible
+  init : b -> a
 
 
 instance Initialize Bool Qubit where
@@ -106,7 +107,8 @@ instance forall a a' (n : Nat) -> (Initialize a a') =>
 -- Also, it does not work with stabilizer formalism, because stabilizer formalism
 -- require all qubits are measured before dynamic lifting. 
 class Measurement a b where
-  measure {0,0,0} : a -> b
+  #NoModal
+  measure : a -> b
 
 instance Measurement Qubit Bool where
   measure x = dynlift (meas x)

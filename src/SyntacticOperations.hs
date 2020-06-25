@@ -317,6 +317,11 @@ unTensor n (Tensor x y) | n > 2 =
      return (r++[y])
 unTensor _ _ = Nothing
 
+flattenTensor (Pos _ e) = flattenTensor e
+flattenTensor (Tensor x y) = 
+  flattenTensor x ++ flattenTensor y
+flattenTensor a = [a]
+
 -- | Flatten a type expression into bodies and head, with variables intact.
 -- e.g. @flattenArrows ((x : A1) -> A2 -> (P) => H)@ produces
 -- @([(Just x, A1), (Nothing, A2), (Nothing, P)], H)@
@@ -938,7 +943,7 @@ gateCount Nothing (VCircuit morph) = length (gates morph)
 gateCount (Just n) (VCircuit morph) =
   helper n (gates morph) 0
   where helper n [] m = m
-        helper n (Gate d _ _ _ _ _:s) m
+        helper n (Gate d _ _ _ _ _ _:s) m
           | getName d == n = helper n s (m+1)
           | otherwise = helper n s m
         
@@ -951,43 +956,43 @@ gateCount (Just n) (VCircuit morph) =
 
 refresh_gates ::  Map Label Label -> [Gate] -> [Label] -> ([Gate], Map Label Label)
 refresh_gates m [] s = ([], m)
-refresh_gates m (Gate name [] input VStar VStar b: gs) s
+refresh_gates m (Gate name [] input VStar VStar b inv: gs) s
   | getName name == "Term0" || getName name == "Term1" =
     let newInput = renameTemp input m
         (gs', newMap') = refresh_gates m gs (getWires newInput ++ s)
-    in (Gate name [] newInput VStar VStar b : gs', newMap')
+    in (Gate name [] newInput VStar VStar b inv: gs', newMap')
 
-refresh_gates m (Gate name [] input VStar VStar b : gs) s
+refresh_gates m (Gate name [] input VStar VStar b inv : gs) s
   | getName name == "Discard" =
     let newInput = renameTemp input m
         (gs', newMap') = refresh_gates m gs (getWires newInput ++ s)
-    in (Gate name [] newInput VStar VStar b : gs', newMap')
+    in (Gate name [] newInput VStar VStar b inv: gs', newMap')
 
-refresh_gates m (Gate name [] VStar output VStar b : gs) []
+refresh_gates m (Gate name [] VStar output VStar b inv: gs) []
   | getName name == "Init0" || getName name == "Init1" =
     let (gs', newMap') = refresh_gates m gs []
-    in (Gate name [] VStar output VStar b : gs', newMap')
+    in (Gate name [] VStar output VStar b inv : gs', newMap')
 
-refresh_gates m (Gate name [] VStar output VStar b : gs) (h:s)
+refresh_gates m (Gate name [] VStar output VStar b inv : gs) (h:s)
   | getName name == "Init0" || getName name == "Init1" =
     let x:[] = getWires output
         m' = m `Map.union` Map.fromList [(x, h)]
         (gs', newMap') = refresh_gates m' gs s
-    in (Gate name [] VStar (VLabel h) VStar b : gs', newMap')
+    in (Gate name [] VStar (VLabel h) VStar b inv : gs', newMap')
 
 -- All the other possible initialization.
-refresh_gates m (Gate name vs VStar output ctrl b : gs) s =
+refresh_gates m (Gate name vs VStar output ctrl b inv : gs) s =
   let (gs', newMap') = refresh_gates m gs s
-  in (Gate name vs VStar output ctrl b : gs', newMap')
+  in (Gate name vs VStar output ctrl b inv : gs', newMap')
 
 -- All the other possible termination.
-refresh_gates m (Gate name vs input VStar ctrl b : gs) s =
+refresh_gates m (Gate name vs input VStar ctrl b inv : gs) s =
   let input' = renameTemp input m
       (gs', newMap') = refresh_gates m gs s
-  in (Gate name vs input' VStar ctrl b : gs', newMap')
+  in (Gate name vs input' VStar ctrl b inv : gs', newMap')
 
 
-refresh_gates m (Gate name vs input output ctrl b : gs) s =
+refresh_gates m (Gate name vs input output ctrl b inv : gs) s =
   let newInput = renameTemp input m
       newCtrl = renameTemp ctrl m
       outWires = getWires output
@@ -995,7 +1000,7 @@ refresh_gates m (Gate name vs input output ctrl b : gs) s =
       ins = getWires newInput
       newMap = m `Map.union` Map.fromList (zip outWires ins)
       (gs', newMap') = refresh_gates newMap gs s
-  in (Gate name vs newInput newOutput newCtrl b : gs', newMap')
+  in (Gate name vs newInput newOutput newCtrl b inv : gs', newMap')
 
 -- | Check whether a value is a boolean constant.
 isBool :: Value -> Bool
@@ -1043,75 +1048,8 @@ renameTemp a m = error "applying renameTemp function to an ill-formed template"
 -- | Rename a list of gates according to a binding.
 renameGs :: [Gate] -> Map Label Label -> [Gate]
 renameGs gs m = map helper gs
-  where helper (Gate id params ins outs ctrls b) =
-          Gate id params (renameTemp ins m) (renameTemp outs m) (renameTemp ctrls m) b
-
--- | Get the set of free variables from a 'EExp'. This is to be used
--- productively with the erasure to gather free variable information.        
-
--- evarsHelper :: EExp -> S.MultiSet Variable
--- evarsHelper a@(EVar y) = S.insert y S.empty
--- evarsHelper (EApp t tm) =
---   (evarsHelper t) `S.union` (evarsHelper tm)
--- evarsHelper (ELam vs bind) = S.fromList vs
--- evarsHelper (EPair t tm) =
---   (evarsHelper t) `S.union` (evarsHelper tm)
-
--- evarsHelper (EForce t) = (evarsHelper t)
--- evarsHelper (ELift vs t) = S.fromList vs
--- evarsHelper (ELet m bd) =
---   let m' = evarsHelper m in
---     open bd $ \ (y, _) b -> S.union m'(difference' (evarsHelper b) (S.fromList [y])) 
-
--- evarsHelper (ELetPair m bd) =
---   let m' = evarsHelper m in
---     open bd $ \ y b -> S.union m'(difference' (evarsHelper b) (S.fromList $ map fst y)) 
-
-
--- evarsHelper (ELetPat m bd) =
---   let m' = evarsHelper m in
---    open bd $ \ (EPApp id ps) b ->
---     S.union m' (difference' (evarsHelper b) (S.fromList $ map fst ps)) 
-
-        
--- evarsHelper (ECase tm (EB br)) =
---   (evarsHelper tm) `S.union` (helper' br)
---   where helper' br =
---           S.unions $ map (\ b -> open b $
---                                  \ (EPApp id ps) m ->
---                                  difference' (evarsHelper m) $ S.fromList $ map fst ps)
---                         br
--- evarsHelper _ = S.empty
-
--- -- | Get the list of free variables in an 'EExp'.
--- evars :: EExp -> [Variable]
--- evars e = S.distinctElems $ evarsHelper e
-
-
--- | Retrieve the variables that a closure refers to. This
--- must be done efficiently since it is used during evaluation.
--- Each time a definition is added, it will be called. It is essential
--- to pre-computed free variables for 'VLam', 'VLift' and 'VApp', as
--- they occur 99%. 
-
--- vars :: Value -> [Variable]
--- vars (VLam ws _) = ws
--- vars (VLift ws e) = ws
--- vars (VApp ws e1 e2) = ws
-
--- vars (VPair e1 e2) =
---     let vs1 = vars e1
---         vs2 = vars e2
---     in vs1 `union` vs2
-
--- vars (VTensor e1 e2) =
---     let vs1 = vars e1
---         vs2 = vars e2
---     in vs1 `union` vs2        
-
--- vars (VVar _) = error "from vars"
--- vars (VForce _) = error "from vars"
--- vars _ = []
+  where helper (Gate id params ins outs ctrls b inv) =
+          Gate id params (renameTemp ins m) (renameTemp outs m) (renameTemp ctrls m) b inv
 
 -- | Generate a fresh modality.
 freshMode :: [String] -> Modality

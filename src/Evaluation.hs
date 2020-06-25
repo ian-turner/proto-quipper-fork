@@ -266,9 +266,10 @@ evalApp (VApp (VApp (VApp VControlled _) _) _) (VCircuit m') =
                        (EForce $ EApp EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
       return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
   where controlledGates a gs = map (helper a) gs
-        helper a (Gate id ps ins outs b False) = Gate id ps ins outs b False
-        helper a (Gate id ps ins outs VStar flag) = Gate id ps ins outs (VVar a) flag
-        helper a (Gate id ps ins outs b flag) = Gate id ps ins outs (VPair b (VVar a)) flag
+        helper a (Gate id ps ins outs b False inv) = Gate id ps ins outs b False inv
+        helper a (Gate id ps ins outs VStar flag inv) = Gate id ps ins outs (VVar a) flag inv
+        helper a (Gate id ps ins outs b flag inv) =
+          Gate id ps ins outs (VPair b (VVar a)) flag inv
 
 evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _)_)_) m =
   return $ VComputed m 
@@ -297,7 +298,7 @@ evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
       a' = output circ3
       res = VCircuit (Morphism (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d))
   return res
-  where negateCtrl (Gate e1 e2 e3 e4 e5 b) = Gate e1 e2 e3 e4 e5 False
+  where negateCtrl (Gate e1 e2 e3 e4 e5 b inv) = Gate e1 e2 e3 e4 e5 False inv
         fstVPair (VPair a _) = a
         sndVPair (VPair _ b) = b
 evalApp a@(VCircuit _) w = return a
@@ -346,7 +347,8 @@ evalApp v w =
                  params' = map (\ p -> helper p sub) params1
                  ctrls' = helper ctrls sub
                  gs' = zipWith3 (\ p c g ->
-                                  Gate (gateName g) p (inputVal g) (outputVal g) c (ctrlFlag g))
+                                  Gate (gateName g) p (inputVal g)
+                                  (outputVal g) c (ctrlFlag g) (inv g))
                        params' ctrls' gs
                  circ' = (VCircuit (Morphism ins gs' outs))
              in [(x, circ')]
@@ -451,31 +453,8 @@ makeBinding w v =
 -- already stored in reverse order due to the way we implement 'appendMorph'.
 revGates :: [Gate] -> [Gate]
 revGates xs = map invertGateName $ reverse xs
-  where invertGateName (Gate id params ins outs ctrls flag) =
-          Gate (invertName id) params outs ins ctrls flag
-
-
--- | Change the name of a gate to its adjoint
-invertName :: Id -> Id             
-invertName id | getName id == "Init0" =  Id "Term0"
-invertName id | getName id == "Init1" =  Id "Term1"
-invertName id | getName id == "Term1" =  Id "Init1"
-invertName id | getName id == "Term0" =  Id "Init0"
-invertName id | getName id == "H" =  Id "H"
-invertName id | getName id == "CNot" =  Id "CNot"
-invertName id | getName id == "Not_g" =  Id "Not_g"
-invertName id | getName id == "C_Not" =  Id "C_Not"
-invertName id | getName id == "QNot" =  Id "QNot"
-invertName id | getName id == "CNotGate" =  Id "CNotGate"
-invertName id | getName id == "ToffoliGate_10" =  Id "ToffoliGate_10"
-invertName id | getName id == "ToffoliGate_01" =  Id "ToffoliGate_01"
-invertName id | getName id == "ToffoliGate" =  Id "ToffoliGate"
-invertName id | getName id == "Toffoli" =  Id "Toffoli"
-invertName id | getName id == "Mea" = error "cannot invert Mea gate"
-invertName id | getName id == "Discard" = error "cannot invert Discard gate"
-invertName id | "_inv" `isSuffixOf` (getName id)  =  Id $ getName id \\ "_inv"
-              | otherwise = Id $ getName id ++ "_inv"
-
+  where invertGateName (Gate id params ins outs ctrls flag (Just g)) =
+          Gate g params outs ins ctrls flag (Just id)
 
 -- | Rename /uv/ using fresh labels draw from /vs/.
 toVal :: Value -> [Label] -> Value
@@ -526,7 +505,7 @@ refresh (Morphism ins gs outs) =
      let outs' = renameTemp outs m'
      return (Morphism ins' gs' outs')
   where helper m [] = return ([], m)
-        helper m ((Gate id ps input output ctrl flag):gs) =
+        helper m ((Gate id ps input output ctrl flag inv):gs) =
           do newOutputWires <- freshL (size output)
              let outputWires = getWires output
                  m' = Map.fromList (zip outputWires newOutputWires)
@@ -534,6 +513,6 @@ refresh (Morphism ins gs outs) =
                  output' = renameTemp output m'
                  ctrl' = renameTemp ctrl m
              (gs', m'') <- helper (m `Map.union` m') gs
-             return ((Gate id ps input' output' ctrl' flag):gs', m'')
+             return ((Gate id ps input' output' ctrl' flag inv):gs', m'')
 
 

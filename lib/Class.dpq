@@ -15,18 +15,18 @@ infixl 12 <
 infixl 12 >
 
 class Num a where
-  (+) {1,1,1} : a -> a -> a
-  (-) {1,1,1} : a -> a -> a
-  (/) {1,1,1} : a -> a -> a
-  (@) {1,1,1} : a -> a -> a
-  (>) {1,1,1} : a -> a -> Bool
-  (<) {1,1,1} : a -> a -> Bool
-  (>=) {1,1,1} : a -> a -> Bool
-  (<=) {1,1,1} : a -> a -> Bool
+  (+)  : a -> a -> a
+  (-)  : a -> a -> a
+  (/)  : a -> a -> a
+  (@)  : a -> a -> a
+  (>)  : a -> a -> Bool
+  (<)  : a -> a -> Bool
+  (>=)  : a -> a -> Bool
+  (<=)  : a -> a -> Bool
 
 
 class Equal a where
-  (==) {1,1,1} : (Parameter a) => a -> a -> Bool
+  (==)  : (Parameter a) => a -> a -> Bool
 
 instance Equal Nat where
   (==) x y =
@@ -50,9 +50,10 @@ instance Num Nat where
   (<=) x y = x < y || x == y
 
 class QuantumOp a where
-  unary {1,1,1} : (Simple a) => !(Qubit -> Qubit) -> a -> a
-  copy {1,0,1} : (Simple a) => a -> a * a
-  cnots {1,1,1} : (Simple a) => a -> a -> a * a
+  unary : (Simple a) => !(Qubit -> Qubit) -> a -> a
+  #Boxable, #Reversible
+  copy  : (Simple a) => a -> a * a
+  cnots : (Simple a) => a -> a -> a * a
 
 instance QuantumOp Qubit where
   unary g q = g q

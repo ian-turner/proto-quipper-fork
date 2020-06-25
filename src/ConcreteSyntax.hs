@@ -63,9 +63,10 @@ data Binding =
   deriving (Show, Eq)
 
 -- | Top-level declarations.
-data Decl = GateDecl Position String [Exp] Exp (Bool, Bool, Bool)
+data Decl = GateDecl Position String [Exp] Exp (Bool, Bool, Bool) (Maybe String)
             -- ^ Gate declaration, ['Exp'] are the parameters for the gate, 'Exp' is
-            -- a type expression specifying the input and output of the gate.
+            -- a type expression specifying the input and output of the gate. 'Maybe String'
+            -- is the possible inverse gate.
           | CircuitDecl Position String Exp Morphism
           | Object Position String
             -- ^  Object declaration for simple types such as @Qubit@ or @Bit@.
