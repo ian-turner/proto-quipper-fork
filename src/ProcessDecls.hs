@@ -280,7 +280,7 @@ process (GateDecl pos id params t m@(M _ (BConst flag) _) inv) =
      case inv of
        Nothing -> return ()
        Just id' ->
-         do gate' <- makeGate id params' t_inv' flag (Just id)
+         do gate' <- makeGate id' params' t_inv' flag (Just id)
             let fp' = Info {classifier = tk_inv',
                             identification = DefinedGate gate'
                            }
