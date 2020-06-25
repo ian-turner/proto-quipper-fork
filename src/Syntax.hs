@@ -433,8 +433,7 @@ data Value =
   | VLiftCirc (Bind [Variable] (Bind LEnv EExp))
     -- ^ Circuit binding, [Variable] is like a lambda that handles the parameter arguments
     -- and the control argument, LEnv binds a variable to a circuit value.
-  | VCircuit Morphism
-    -- ^ Unbound circuit (incomplete).
+  | Wired (Bind [Label] Morphism)
     -- ^ Complete circuit.
   | VApp Value Value
     -- ^ Applicative value, for runtime efficiency, we also
@@ -508,10 +507,10 @@ instance Disp Value where
   display flag (VControlled) = text "controlled"
   display flag (VWithComputed) = text "withComputed"
   display flag (VDynlift) = text "dynlift"
-  display flag (VCircuit m) = display flag m
-  display flag (VLam _) = text "lam"
-  display flag (VLift _) = text "vlift"
-  display flag (VLiftCirc (Abst vs (Abst env e))) = text "vliftCirc"
+  display flag (Wired (Abst _ m)) = display flag m
+  display flag (VLam _) = text "<fun-value>"
+  display flag (VLift _) = text "<lift-value>"
+  display flag (VLiftCirc (Abst vs (Abst env e))) = text "<fun-value>"
 
   display flag a@(VApp t t') = 
     case toNat a of

@@ -10,6 +10,7 @@ module Utils
          getName,
          pattern Abst,
          freshNames,
+         freshLabels,
          Disp(..),
          Variable,
          Id(..),
@@ -64,20 +65,17 @@ instance Disp Variable where
   
 -- | An empty data type for labels.
 
--- data L
+data L
 
--- instance AtomKind L where
---   suggested_names _ = ["u"]
---   expand_names _ xs = xs ++ [ x ++ (show n) | n <- [1..], x <- xs ]
+instance AtomKind L where
+  suggested_names _ = ["l"]
+  expand_names _ xs = xs ++ [ x ++ (show n) | n <- [1..], x <- xs ]
 
--- | Labels are integers used for representing the input/output of circuits. 
-newtype Label = L {l :: Int} deriving (NominalSupport, Nominal, Generic, NominalShow, Ord, Eq)
+
+type Label = AtomOfKind L
 
 instance Disp Label where
-  display _ (L t) = text $ show t
-  
-instance Show Label where
-  show (L t) = show t
+  display _ t = text $ show t
 
 
 -- | A prefix pattern definition for opening a binder.  
@@ -98,6 +96,14 @@ freshNames (n:ns) body =
   where freshName s k =
           with_fresh $ \a -> k (Variable a (NoBind s))
 
+freshLabels :: Int -> ([Label] -> t) -> t
+freshLabels n body | n == 0  = body []
+freshLabels n body | otherwise  =
+  freshLabel $ \ a ->
+  freshLabels (n-1) $ \ as ->
+  body (a:as)
+  where freshLabel k =
+          with_fresh $ \a -> k a
 
 -- | Constant identifiers, they are used for top-level definitions and constructors.
 data Id = Id String

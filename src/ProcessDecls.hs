@@ -94,16 +94,6 @@ process (Instance pos f ty mths) =
        Just (Right d', args) ->
          elaborateInstance pos f ty mths
 
-process (CircuitDecl pos f ty m) =
-  do (_, ty') <- tcTop $ typeChecking True ty Set
-     let ty'' = erasePos ty'
-     case ty'' of
-       Circ _ _ (M (BConst _) (BConst _) (BConst _)) -> return ()
-       _ -> throwError $ CompileErr $ ErrPos pos (CircuitErr ty)
-     let info = Info { classifier = ty'',
-                       identification = DefinedFunction
-                                        (Just (Const f, VCircuit m, Just (Const f)))}
-     tcTop $ addNewId f info
      
 process (Def pos f' ty' def' isClifford) =
   do tcTop $ checkVacuous pos ty'
@@ -523,18 +513,18 @@ makeGate id ps t flag inv =
                 else foldl VTensor (head inss) (tail inss)
       inNames = size inExp
   in
-      freshNames ns $ \ (y:xs) -> do
-        ins <- freshLabels inNames -- $ \ ins ->
-        outs <- freshLabels outNames -- $ \ outs ->
-        let params = map VVar xs
-            inExp' = toVal inExp ins
-            outExp' = toVal outExp outs
-            g = Gate id params inExp' outExp' VStar flag inv
-            morph = VCircuit $ Morphism inExp' [g] outExp'
-            env = Map.fromList [(y, morph)] 
-            unbox_morph = ELam $ etaPair y (length inss) (EForce $ EApp EUnBox (EVar y))
-            res = VLiftCirc (abst xs (abst env unbox_morph))
-        return res
+      freshNames ns $ \ (y:xs) -> 
+        freshLabels inNames $ \ ins ->
+          freshLabels outNames $ \ outs ->
+          let params = map VVar xs
+              inExp' = toVal inExp ins
+              outExp' = toVal outExp outs
+              g = Gate id params inExp' outExp' VStar flag inv
+              morph = Wired $ abst (ins ++ outs) (Morphism inExp' [g] outExp')
+              env = Map.fromList [(y, morph)] 
+              unbox_morph = ELam $ etaPair y (length inss) (EForce $ EApp EUnBox (EVar y))
+              res = VLiftCirc (abst xs (abst env unbox_morph))
+          in return res
   where makeInOut (Arrow t t') =
           let (ins, outs) = makeInOut t'
           in (toV t:ins, outs)

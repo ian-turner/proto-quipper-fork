@@ -502,7 +502,7 @@ isConst _ = False
 
 -- | Determine if a value is a circuit.
 isCirc :: Value -> Bool
-isCirc (VCircuit _) = True
+isCirc (Wired _) = True
 isCirc _ = False
 
 
@@ -939,8 +939,8 @@ toEigen t =
 
 -- | Count the number of gates in a circuit.
 gateCount :: Maybe String -> Value -> Int
-gateCount Nothing (VCircuit morph) = length (gates morph)
-gateCount (Just n) (VCircuit morph) =
+gateCount Nothing (Wired (Abst _ morph)) = length (gates morph)
+gateCount (Just n) (Wired (Abst _ morph)) =
   helper n (gates morph) 0
   where helper n [] m = m
         helper n (Gate d _ _ _ _ _ _:s) m
@@ -1020,7 +1020,7 @@ toBool (VConst x) | getName x == "False" = False
 toNum (VConst x) | getName x == "Z" = 0
 toNum (VApp (VConst s) n) | getName s == "S" =
   toNum n + 1
-toNum (VLabel n) = l n
+
 
 -- | Rename the labels of a morphism according to a binding.
 rename :: Morphism -> Map Label Label -> Morphism            

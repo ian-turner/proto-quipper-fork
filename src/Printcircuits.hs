@@ -709,10 +709,8 @@ wirelist (Gate _ _ input output ctrl _ _: gs) =
 --                                                                              
 -- \[image coord.png]                                                            
 page_of_ocircuit :: FormatStyle -> Value -> Document ()
--- page_of_ocircuit fs (Wired bd) =
---  open bd $ \ ws (VCircuit (Morphism q1 ocirc q2)) ->
--- (Morphism q1 ocirc q2)
-page_of_ocircuit fs (VCircuit morph) =
+page_of_ocircuit fs (Wired bd) =
+ open bd $ \ ws morph ->
   let sc = 10
       q1 = input morph
       ocirc = gates morph

@@ -94,7 +94,6 @@ data InterpreterState = InterpreterState {
                            -- preventing cyclic importing.
   importedFiles :: [String], -- ^ Imported files, for preventing double importing.
   counter :: Int, -- ^ A counter.
-  currentWire :: Label, -- ^ Current fresh label
   path :: String, -- ^ DPQ project path.
   topGates :: [Gate]
   }
@@ -222,7 +221,6 @@ emptyState p = InterpreterState {
   parentFiles = [],
   importedFiles = [],
   counter = 0,
-  currentWire = L 0,
   path = p,
   topGates = []
   }
@@ -246,10 +244,6 @@ getCounter = do
   s <- getInterpreterState
   return (counter s)
 
-getCurrentLabel :: Top Label
-getCurrentLabel = do
-  s <- getInterpreterState
-  return (currentWire s)
 
 -- | Add a build in identifier according to the third argument.
 -- For example, @addBuiltin (BuiltIn i) "Simple" A.Base@.
@@ -287,11 +281,6 @@ putGates gs = do
   let s' = s {topGates = gs}
   putInterpreterState s'
 
-putLabel :: Label -> Top ()
-putLabel i = do
-  s <- getInterpreterState
-  let s' = s {currentWire = i}
-  putInterpreterState s'
 
 -- | Update current file name.
 putFilename :: String -> Top ()
@@ -386,9 +375,3 @@ putMain v t = do
 
 
 
-freshLabels :: Int -> Top [Label]
-freshLabels n =
-  do c <- getCurrentLabel
-     let r = map L $ take n [l c..]
-     putLabel $ L (l c + n)
-     return r

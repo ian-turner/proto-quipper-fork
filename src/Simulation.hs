@@ -83,7 +83,7 @@ interaction (RW_Return a) h map ls = return (a, [])
 
 interaction (RW_Read l k) h map ls =
           do let (VLabel l') = renameTemp (VLabel l) map
-             hPutStrLn h ("R "++ show l')
+             hPutStrLn h ("R "++ labelToNum l')
              r <- hGetLine h
              case read r of
                Reply str | str == "0" ->
@@ -99,15 +99,15 @@ interaction (RW_Read l k) h map ls =
 interaction (RW_Write g@(Gate name []  (VLabel w) VStar VStar _ _) c) h map ls
           | getName name == "Discard" =
             do let (VLabel w') = renameTemp (VLabel w) map
-               hPutStrLn h ("D " ++ show w')
+               hPutStrLn h ("D " ++ labelToNum w')
                let res = interaction c h map (w':ls)
                fmap (\ (x, y) -> (x, g:y)) res
                
 interaction (RW_Write g@(Gate name []  (VLabel w) VStar VStar _ _) c) h map ls
           | getName name == "Term0" =
             do let (VLabel w') = renameTemp (VLabel w) map
-               hPutStrLn h ("M " ++ show w')
-               hPutStrLn h ("R " ++ show w')
+               hPutStrLn h ("M " ++ labelToNum w')
+               hPutStrLn h ("R " ++ labelToNum w')
                r' <- hGetLine h
                case read r' of
                  Reply s | s == "0" -> 
@@ -117,8 +117,8 @@ interaction (RW_Write g@(Gate name []  (VLabel w) VStar VStar _ _) c) h map ls
                    error $ "Wire termination error: expecting to terminate with 0, but get: " ++ s
           | getName name == "Term1" =
             do let (VLabel w') = renameTemp (VLabel w) map
-               hPutStrLn h ("M " ++ show w')
-               hPutStrLn h ("R " ++ show w')
+               hPutStrLn h ("M " ++ labelToNum w')
+               hPutStrLn h ("R " ++ labelToNum w')
                r' <- hGetLine h
                case read r' of
                  Reply s | s == "1" ->
@@ -129,13 +129,13 @@ interaction (RW_Write g@(Gate name []  (VLabel w) VStar VStar _ _) c) h map ls
                 
 interaction (RW_Write g@(Gate name [] VStar (VLabel w) VStar _ _) c) h map []
           | getName name == "Init0" =
-          do let cmd = ("Q " ++ show w)
+          do let cmd = ("Q " ++ labelToNum w)
              hPutStrLn h cmd
              let res = interaction c h map []
              fmap (\ (x, y) -> (x, g:y)) res 
              
           | getName name == "Init1" =
-          do hPutStrLn h ("Q " ++ show w ++ " 1")
+          do hPutStrLn h ("Q " ++ labelToNum w ++ " 1")
              let res = interaction c h map []
              fmap (\ (x, y) -> (x, g:y)) res
              
@@ -143,13 +143,13 @@ interaction (RW_Write g@(Gate name [] VStar (VLabel w) VStar _ _) c) h map []
 interaction (RW_Write g@(Gate name [] VStar (VLabel w) VStar _ _) c) h map (v:vs)
           | getName name == "Init0" =
           do let map' = map `Map.union` Map.fromList [(w, v)]
-             hPutStrLn h ("Q " ++ show v)
+             hPutStrLn h ("Q " ++ labelToNum v)
              let res = interaction c h map' vs
              fmap (\ (x, y) -> (x, g:y)) res
              
           | getName name == "Init1" =
           do let map' = map `Map.union` Map.fromList [(w, v)]
-             hPutStrLn h ("Q " ++ show v ++ " 1")
+             hPutStrLn h ("Q " ++ labelToNum v ++ " 1")
              let res = interaction c h map' vs
              fmap (\ (x, y) -> (x, g:y)) res
              
@@ -158,7 +158,7 @@ interaction (RW_Write g@(Gate name [] (VLabel v) (VLabel w) VStar _ _) c) h map 
           do let (VLabel v') = renameTemp (VLabel v) map
                  map' = map `Map.union` Map.fromList [(w, v')]
                  gn = toGateName (getName name)
-             hPutStrLn h (gn ++ " "++ show v')
+             hPutStrLn h (gn ++ " "++ labelToNum v')
              let res = interaction c h map' ls
              fmap (\ (x, y) -> (x, g:y)) res
              
@@ -169,7 +169,7 @@ interaction (RW_Write g@(Gate name [] v@(VPair (VLabel _) (VLabel _))
                  (VPair (VLabel c) (VLabel d)) = w
                  map' = map `Map.union` Map.fromList [(c, a), (d, b)]
                  gn = toGateName (getName name)
-             hPutStrLn h (gn++ " "++ show a ++ " " ++ show b)
+             hPutStrLn h (gn++ " "++ labelToNum a ++ " " ++ labelToNum b)
              let res = interaction cs h map' ls
              fmap (\ (x, y) -> (x, g:y)) res
              
@@ -180,13 +180,13 @@ interaction (RW_Write g@(Gate name [] v@(VPair (VPair _ _) _)
                  (VPair (VPair (VLabel c) (VLabel d)) (VLabel e')) = w
                  map' = map `Map.union` Map.fromList [(c, a), (d, b), (e', e)]
                  gn = toGateName (getName name)
-             hPutStrLn h (gn++ " "++ show a ++ " " ++ show b ++ " " ++ show e)
+             hPutStrLn h (gn++ " "++ labelToNum a ++ " " ++ labelToNum b ++ " " ++ labelToNum e)
              let res = interaction cs h map' ls
              fmap (\ (x, y) -> (x, g:y)) res
              
 
 interaction (RW_Write g res) h map ls =
-  error $ "Unsupported gate: " ++ (show g)
+  error $ "Unsupported gate: " ++ (labelToNum g)
 
                                                    
 toGateName "CNot" = "CNOT"
@@ -216,3 +216,5 @@ runTCPClient host port client = withSocketsDo $ do
         connect sock $ addrAddress addr
         return sock
 
+labelToNum l =
+  let r = tail (show l) in if null r then "0" else r
