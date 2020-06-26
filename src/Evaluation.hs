@@ -494,36 +494,3 @@ size (VTensor e1 e2) = size e1 + size e2
 size (VPair e1 e2) = size e1 + size e2
 size a = error $ "applying size function to an ill-formed template:" ++ (show $ disp a)     
 
-
-
--- refresh (Morphism ins gs outs) =
---   do insWires' <- freshL (size ins)
---      let insWires = getWires ins
---          m = Map.fromList (zip insWires insWires')
---          ins' = renameTemp ins m
---      (gs', m') <- helper m gs
---      let outs' = renameTemp outs m'
---      return (Morphism ins' gs' outs')
---   where helper m [] = return ([], m)
---         helper m ((Gate id ps input output ctrl flag inv):gs) =
---           do newOutputWires <- freshL (size output)
---              let outputWires = getWires output
---                  m' = Map.fromList (zip outputWires newOutputWires)
---                  input' = renameTemp input m
---                  output' = renameTemp output m'
---                  ctrl' = renameTemp ctrl m
---              (gs', m'') <- helper (m `Map.union` m') gs
---              return ((Gate id ps input' output' ctrl' flag inv):gs', m'')
-
-getAllWires :: Morphism -> [Label]
-getAllWires (Morphism ins gs outs) =
-  let inWires = S.fromList $ getWires ins
-      outWires = S.fromList $ getWires outs
-      gsWires = S.unions $ map getGateWires gs
-  in S.toList (inWires `S.union` outWires `S.union` gsWires)
-  where getGateWires (Gate _ _ ins outs ctrls _ _) =
-          S.fromList (getWires ins) `S.union`
-          S.fromList (getWires outs) `S.union`
-          S.fromList (getWires ctrls)
-
-

@@ -733,7 +733,20 @@ instance Disp BExp where
   
 instance Disp Modality where
   display flag (M x y z) =
-    braces $ display flag x <> comma
-    <> display flag y <> comma <> display flag z 
+    braces $ dispBoxable x <> comma
+    <+> dispControllable y <> comma <+> dispReversible z 
 
-  
+dispBoxable (BConst True) = text "Boxable"
+dispBoxable (BConst False) = text "NonBoxable"
+dispBoxable (BAnd e1 e2) = dispBoxable e1 <> text "&" <> dispBoxable e2
+dispBoxable (BVar x) = dispRaw x
+
+dispControllable (BConst True) = text "Controllable"
+dispControllable (BConst False) = text "NonControllable"
+dispControllable (BAnd e1 e2) = dispControllable e1 <> text "&" <> dispControllable e2
+dispControllable (BVar x) = dispRaw x
+
+dispReversible (BConst True) = text "Reversible"
+dispReversible (BConst False) = text "NonReversible"
+dispReversible (BAnd e1 e2) = dispReversible e1 <> text "&" <> dispReversible e2
+dispReversible (BVar x) = dispRaw x
