@@ -375,7 +375,8 @@ resolveDecl scope (C.GateDecl p gn params t (a, b, c) inv) =
        Just g' -> 
          do (id', scope'') <- addConst p g' Const scope'
                               `catchError`
-                              (\ err -> return (id, scope'))
+                              (\ err -> if g' == gn then return (id, scope')
+                                        else throwError err)
             return (GateDecl p id params' e
                     (M (BConst a) (BConst b) (BConst c)) (Just id'), scope'')
               

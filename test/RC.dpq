@@ -23,6 +23,7 @@ gate CNot : Qubit -> Qubit -> Qubit * Qubit : CNot
 #Controllable
 gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv
 
+
 -- Toffoli gate with signed controls. The first qubit is the target.
 -- The second qubit is a control with sign indicated
 -- by the first boolean parameter (positive or negative).
@@ -40,7 +41,6 @@ gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
 
 -- Measurement gate.
 gate Meas : Qubit -> Bit
-
 
 -- * Addition by recursion
 add : !(Nat -> Nat -> Nat)
@@ -145,6 +145,26 @@ class Monad (m : Type -> Type) where
   return : forall a -> a -> m a
   bind : forall a b -> m a -> (a -> m b) -> m b
 
+pure : ! forall (m : Type -> Type) ->
+          (Monad m) => forall (a : Type) -> a -> m a
+pure x = return x
+
+seq : ! forall (m : Type -> Type) ->
+            (Monad m) =>
+              forall b ->
+                 m Unit -> m b -> m b
+seq x f = bind x (λ u -> f)
+
+join : ! forall a (m : Type -> Type) -> (Monad m) => m (m a) -> m a
+join mma =
+  bind mma (λ ma -> ma)
+
+ap : ! forall a b (m : Type -> Type) -> (Monad m) =>  m (a -> b) -> m a -> m b
+ap f x =
+  bind f (λ g ->
+  bind x (λ y ->
+  return (g y)))
+
 
 instance Monad WithGarbage where
   return x =
@@ -163,11 +183,11 @@ class Disposable a where
 instance Disposable Qubit where
   dispose q = WG (1, VCons q VNil) ()
 
-with_computed : ! forall d ->  (a b c : Type) ->(Simple a, Simple b) =>
+with_computed : ! forall d -> (a b c : Type) ->(Simple a, Simple b) =>
                 !(a -> WithGarbage b) -> !(c * b -> d * b) -> (c * a -> d * a)
 with_computed a b c f g input =
   let (y, x) = input
-      (_, circ) = existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
+      (_, circ) = existsBox a (\x -> Vec Qubit x * b) (\z -> unGarbage (f z))
       h' = unbox circ
       (v, r) = h' x
       circ_rev = unbox (reverse circ)
@@ -175,19 +195,87 @@ with_computed a b c f g input =
       res = circ_rev (v, r')
   in (d, res)
 
-runGarbage : ! forall c -> (a b d : Type) -> (Simple a , Simple b, Simple c, Simple d) =>
+runGarbage : ! forall c -> {a b d : Type} -> (Simple a , Simple b, Simple c, Simple d) =>
                      !(a -> WithGarbage b) -> !(d * b -> c * b) -> Circ(d * a, c * a)
 runGarbage a b d f g =
    box (d * a) (λ x -> with_computed a b d f g x)
 
--- adder : !(Qubit -> Qubit -> Qubit -> WithGarbage (Qubit * Qubit))
--- adder a b carryIn = do
---   let (a1, a2, a3) = copy3 a
---       (b1, b2, b3) = copy3 b 
---       (carryIn1, carryIn2, carryIn3) = copy3 carryIn 
---   s <- [| (a1 `xor` b1) `xor` (pure carryIn1)|]   
---   carryOut <- [| [| (a2 && b2) || (a3 && carryIn2) |] || (b3 && carryIn3) |]
---   return (s, carryOut)
+infixl 13 ||
+infixl 8 &&
+
+(&&) : !(Qubit -> Qubit -> WithGarbage Qubit)
+(&&) x y = do
+  let z = Init0 ()
+      (z', y', x') =  ToffoliGate True True z y x
+  dispose x'
+  dispose y'
+  return z'
+
+(||) : !(Qubit -> Qubit -> WithGarbage Qubit)
+(||) x y = do
+  let z = Init0 ()
+      (z', y', x') = ToffoliGate False False z y x
+  dispose x'
+  dispose y'
+  return z'
+
+xor : !(Qubit -> Qubit -> WithGarbage Qubit)
+xor x y = do
+  let z = Init0 ()
+      (z', x') = CNot z x
+      (z'', y') = CNot z' y
+  dispose x'
+  dispose y'
+  return z''
+
+copy3 : !(Qubit -> Qubit * Qubit * Qubit)
+copy3 q =
+   let (q1, q2) = CNot (Init0 ()) q
+       (q1, q3) = CNot (Init0 ()) q1
+   in (q1, q2, q3)
+
+-- Adder: 
+-- s = a `xor` b `xor` carryIn1
+-- carryOut = (a && b) || (a && carryIn) || (b && carryIn)
+
+adder : !(Qubit * Qubit * Qubit -> WithGarbage (Qubit * Qubit))
+adder input = do
+  let (a, b, carryIn) = input
+      (a1, a2, a3) = copy3 a
+      (b1, b2, b3) = copy3 b 
+      (carryIn1, carryIn2, carryIn3) = copy3 carryIn
+  r1 <- a1 `xor` b1
+  s <- r1 `xor` carryIn1
+  r2 <- a2 && b2
+  r3 <- a3 && carryIn2
+  r4 <- r2 || r3
+  r5 <- b3 && carryIn3
+  carryOut <- r4 || r5
+  return (s, carryOut)
+
+-- A much better version using idiom brackets.
+adder2 : !(Qubit * Qubit * Qubit -> WithGarbage (Qubit * Qubit))
+adder2 input = do
+  let (a, b, carryIn) = input
+      (a1, a2, a3) = copy3 a
+      (b1, b2, b3) = copy3 b 
+      (carryIn1, carryIn2, carryIn3) = copy3 carryIn 
+  s <- [| (a1 `xor` b1) `xor` (pure carryIn1)|]   
+  carryOut <- [| [| (a2 && b2) || (a3 && carryIn2) |] || (b3 && carryIn3) |]
+  return (s, carryOut)
+
+-- first two qubit are 0's. the second two qubits are copied to output.
+copy : !((Qubit * Qubit) * (Qubit * Qubit) -> (Qubit * Qubit) * (Qubit * Qubit))
+copy p = 
+  let (in1, in2, q) = p
+      (q1, q2) = q
+      (q3, q4) = CNot in1 q1
+      (q5, q6) = CNot in2 q2
+  in (q3, q5, (q4, q6))
+
+adderRev : Circ(Qubit * Qubit * (Qubit * Qubit * Qubit),
+                 Qubit * Qubit * (Qubit * Qubit * Qubit))
+adderRev = runGarbage adder2 copy
 
 
 
