@@ -1,46 +1,22 @@
 module RC where
 
-data Bool = True | False
-
-data Nat = Z | S Nat
-
+-- Basic linear resources
 object Qubit
-
 object Bit
 
+-- Parameters
+data Bool = True | False
+data Nat = Z | S Nat
+
+-- Some basic circuits
 gate Init0 : Unit -> Qubit : Term0
 
-gate Init1 : Unit -> Qubit : Term1
-
-#Controllable
 gate H : Qubit -> Qubit : H 
 
-
-#Controllable
 gate CNot : Qubit -> Qubit -> Qubit * Qubit : CNot
 
--- Controlled R gate, the second qubit is the control bit.
-#Controllable
-gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv
-
-
--- Toffoli gate with signed controls. The first qubit is the target.
--- The second qubit is a control with sign indicated
--- by the first boolean parameter (positive or negative).
--- Similarly, the third qubit is also a control with
--- sign indicated by the second boolean parameter.
-
-#Controllable
-gate ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate
-
-gate Discard : Bit -> Unit
-
-gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
-
-gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
-
--- Measurement gate.
-gate Meas : Qubit -> Bit
+-- f1 : ! (Qubit -> Qubit * Qubit)
+-- f1 x = CNot x x
 
 -- * Addition by recursion
 add : !(Nat -> Nat -> Nat)
@@ -49,7 +25,11 @@ add n m =
     Z -> m
     S n' -> S (add n' m)
 
-bell00 : ! (Unit -> Qubit * Qubit)
+test1 : Nat
+test1 = let x = 1 in add x x
+
+
+bell00 : !(Unit -> Qubit * Qubit)
 bell00 u = 
   let x = Init0 ()
       y = Init0 ()
@@ -60,28 +40,6 @@ bell00Box : Circ(Unit, Qubit * Qubit)
 bell00Box = box Unit bell00
 
 
-bellMeas : ! (Qubit -> Qubit -> Bit * Bit)
-bellMeas x y = 
-  let (x', y') = CNot x y
-      y'' = H y'
-  in (Meas x', Meas y'') 
-
-bellMeasBox : Circ(Qubit * Qubit, Bit * Bit)
-bellMeasBox =
-  box (Qubit * Qubit) (\ x -> let (a, b) = x in bellMeas a b)
-
-tele : ! (Qubit -> Qubit)
-tele phi =
-  let (bob, alice) = bell00 ()
-      (a', phi') = bellMeas alice phi
-      (bob', a'') = C_X bob a'
-      (r, phi'') = C_Z bob' phi'
-      u = Discard phi''
-      u = Discard a''
-  in r         
-
-teleBox : Circ(Qubit, Qubit)
-teleBox = box Qubit tele
 
 simple Vec a : Nat -> Type where
   Vec a Z = VNil
@@ -91,24 +49,15 @@ simple DVec a : Nat -> Type where
   DVec a Z = DNil 
   DVec a (S n) = DCons (Vec a n) (DVec a n)
 
--- The following are two examples of non-simple declarations. Both
--- are rejected by the type checker. 
-
--- simple ColorVec a : Nat -> Type where
---        ColorVec a Z = CNil
---        ColorVec a (S n) = VConsBlue a (ColorVec a n)
---        ColorVec a (S n) = VConsRed a (ColorVec a n)
-
--- simple InfVec a : Nat -> Type where
---        InfVec a Z = InfNil
---        InfVec a (S n) = VConsInf a (InfVec a (S n))
-
 -- Dependent vector appending
 append : ! forall a (n m : Nat) -> Vec a n -> Vec a m -> Vec a (add n m)
 append v1 v2 =
   case v1 of
     VNil -> v2
     VCons x xs -> VCons x (append xs v2)
+
+-- Controlled R gate, the second qubit is the control bit.
+gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv
 
 rotate : ! forall (y : Nat) -> Nat -> Qubit -> Vec Qubit y -> Qubit * Vec Qubit y
 rotate m q v =
@@ -132,14 +81,15 @@ qft v =
 qftBox : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 qftBox n = box (Vec Qubit n) (\x -> qft x)
 
--- Existential vector data type. 
-data WithGarbage a = WG ((n : Nat) * Vec Qubit n) a
 
-unGarbage : ! forall a -> WithGarbage a -> (n : Nat) * Vec Qubit n * a
-unGarbage z =
-  let WG ex a = z
-      (n, v) = ex
-  in (n, (v, a))
+
+-- Toffoli gate with signed controls. The first qubit is the target.
+-- The second qubit is a control with sign indicated
+-- by the first boolean parameter (positive or negative).
+-- Similarly, the third qubit is also a control with
+-- sign indicated by the second boolean parameter.
+
+gate ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate
 
 class Monad (m : Type -> Type) where
   return : forall a -> a -> m a
@@ -165,6 +115,15 @@ ap f x =
   bind x (λ y ->
   return (g y)))
 
+-------------------------
+
+data WithGarbage a = WG ((n : Nat) * Vec Qubit n) a
+
+unGarbage : ! forall a -> WithGarbage a -> (n : Nat) * Vec Qubit n * a
+unGarbage z =
+  let WG ex a = z
+      (n, v) = ex
+  in (n, (v, a))
 
 instance Monad WithGarbage where
   return x =
@@ -176,29 +135,12 @@ instance Monad WithGarbage where
         (m, g') = mg'
     in WG (add n m, append g g') r'
 
-
 class Disposable a where
   dispose : a -> WithGarbage Unit
 
 instance Disposable Qubit where
   dispose q = WG (1, VCons q VNil) ()
 
-with_computed : ! forall d -> (a b c : Type) ->(Simple a, Simple b) =>
-                !(a -> WithGarbage b) -> !(c * b -> d * b) -> (c * a -> d * a)
-with_computed a b c f g input =
-  let (y, x) = input
-      (_, circ) = existsBox a (\x -> Vec Qubit x * b) (\z -> unGarbage (f z))
-      h' = unbox circ
-      (v, r) = h' x
-      circ_rev = unbox (reverse circ)
-      (d, r') = g (y, r)
-      res = circ_rev (v, r')
-  in (d, res)
-
-runGarbage : ! forall c -> {a b d : Type} -> (Simple a , Simple b, Simple c, Simple d) =>
-                     !(a -> WithGarbage b) -> !(d * b -> c * b) -> Circ(d * a, c * a)
-runGarbage a b d f g =
-   box (d * a) (λ x -> with_computed a b d f g x)
 
 infixl 13 ||
 infixl 8 &&
@@ -264,6 +206,32 @@ adder2 input = do
   carryOut <- [| [| (a2 && b2) || (a3 && carryIn2) |] || (b3 && carryIn3) |]
   return (s, carryOut)
 
+
+adderE : (n : Nat) * Circ(Qubit * Qubit * Qubit, Vec Qubit n * (Qubit * Qubit))
+adderE =
+  let (n, circ) =
+    existsBox (Qubit * Qubit * Qubit)
+     (λx -> Vec Qubit x * (Qubit * Qubit)) (λz -> unGarbage (adder z))
+  in (n, circ)
+
+
+with_computed : ! forall d -> (a b c : Type) ->(Simple a, Simple b) =>
+                !(a -> WithGarbage b) -> !(c * b -> d * b) -> (c * a -> d * a)
+with_computed a b c f g input =
+  let (y, x) = input
+      (_, circ) = existsBox a (\x -> Vec Qubit x * b) (\z -> unGarbage (f z))
+      h' = unbox circ
+      (v, r) = h' x
+      circ_rev = unbox (reverse circ)
+      (d, r') = g (y, r)
+      res = circ_rev (v, r')
+  in (d, res)
+
+runGarbage : ! forall c -> {a b d : Type} -> (Simple a , Simple b, Simple c, Simple d) =>
+                     !(a -> WithGarbage b) -> !(d * b -> c * b) -> Circ(d * a, c * a)
+runGarbage a b d f g =
+   box (d * a) (λ x -> with_computed a b d f g x)
+
 -- first two qubit are 0's. the second two qubits are copied to output.
 copy : !((Qubit * Qubit) * (Qubit * Qubit) -> (Qubit * Qubit) * (Qubit * Qubit))
 copy p = 
@@ -275,8 +243,51 @@ copy p =
 
 adderRev : Circ(Qubit * Qubit * (Qubit * Qubit * Qubit),
                  Qubit * Qubit * (Qubit * Qubit * Qubit))
-adderRev = runGarbage adder2 copy
+adderRev = runGarbage adder copy
 
 
 
 
+-- gate Discard : Bit -> Unit
+
+-- gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
+
+-- gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
+
+-- Measurement gate.
+-- gate Meas : Qubit -> Bit
+
+
+-- bell00 : ! (Unit -> Qubit * Qubit)
+-- bell00 u = 
+--   let x = Init0 ()
+--       y = Init0 ()
+--       x' = H x
+--   in CNot y x'
+
+-- bell00Box : Circ(Unit, Qubit * Qubit)
+-- bell00Box = box Unit bell00
+
+
+-- bellMeas : ! (Qubit -> Qubit -> Bit * Bit)
+-- bellMeas x y = 
+--   let (x', y') = CNot x y
+--       y'' = H y'
+--   in (Meas x', Meas y'') 
+
+-- bellMeasBox : Circ(Qubit * Qubit, Bit * Bit)
+-- bellMeasBox =
+--   box (Qubit * Qubit) (\ x -> let (a, b) = x in bellMeas a b)
+
+-- tele : ! (Qubit -> Qubit)
+-- tele phi =
+--   let (bob, alice) = bell00 ()
+--       (a', phi') = bellMeas alice phi
+--       (bob', a'') = C_X bob a'
+--       (r, phi'') = C_Z bob' phi'
+--       u = Discard phi''
+--       u = Discard a''
+--   in r         
+
+-- teleBox : Circ(Qubit, Qubit)
+-- teleBox = box Qubit tele
