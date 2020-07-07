@@ -763,6 +763,7 @@ unEigenBound vars a@(Case e (B br)) =
           let (bv, fv) = pvar xs
               x' = unEigenBound vars x
           in (bv, (Left (NoBind x')):fv)
+unEigenBound vars (Mod (Abst vs b)) = Mod (abst vs (unEigenBound vars b))
 unEigenBound vars a = error $ "from unEigenBound" ++ (show $ disp a)
 
 -- | Flags for the 'unwind' function.

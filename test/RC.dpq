@@ -6,6 +6,9 @@ object Bit
 
 -- Parameters, reusable
 data Bool = True | False
+
+data List a = Nil | Cons a (List a)
+
 data Nat = Z | S Nat
 
 -- Some basic circuits
@@ -25,6 +28,10 @@ add n m =
   case n of
     Z -> m
     S n' -> S (add n' m)
+
+-- test0 : Circ(List Qubit, List Qubit)
+-- test0 = box (List Qubit) (\ x ->  x)
+
 
 test1 : Nat
 test1 = let x = 1 in add x x
@@ -49,6 +56,8 @@ simple Vec a : Nat -> Type where
 simple DVec a : Nat -> Type where
   DVec a Z = DNil 
   DVec a (S n) = DCons (Vec a n) (DVec a n)
+
+-- DCons [1,2,3] (DCons [4,5] (DCons [6] DNil))  : DVec Nat 4
 
 -- Dependent vector appending
 append : ! forall a (n m : Nat) ->
