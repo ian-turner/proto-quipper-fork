@@ -906,12 +906,14 @@ updateModeSubst s@(s1, s2, s3) =
      put ts{ modeSubstitution = (s1'', s2'', s3'')}
 
 
+-- | Update an expression with mode substitution.
 updateWithModeSubst :: Exp -> TCMonad Exp
 updateWithModeSubst e =
   do ts <- get
      let s@(s1, s2, s3) = modeSubstitution ts
      return $ bSubstitute s e
 
+-- | Update a given modality with current substitution.
 updateModality :: Modality -> TCMonad Modality
 updateModality m =
   do ts <- get

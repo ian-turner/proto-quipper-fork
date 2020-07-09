@@ -14,7 +14,10 @@ data Nat = Z | S Nat
 -- Some basic circuits
 gate Init0 : Unit -> Qubit : Term0
 
-gate H : Qubit -> Qubit : H 
+gate H : Qubit -> Qubit : H
+
+gate Sum : Qubit -> Qubit : Sum
+gate CarryOut : Qubit -> Qubit : CarryOut
 
 gate CNot : Qubit -> Qubit ->
                Qubit * Qubit : CNot
@@ -31,7 +34,6 @@ add n m =
 
 -- test0 : Circ(List Qubit, List Qubit)
 -- test0 = box (List Qubit) (\ x ->  x)
-
 
 test1 : Nat
 test1 = let x = 1 in add x x
@@ -57,7 +59,7 @@ simple DVec a : Nat -> Type where
   DVec a Z = DNil 
   DVec a (S n) = DCons (Vec a n) (DVec a n)
 
--- DCons [1,2,3] (DCons [4,5] (DCons [6] DNil))  : DVec Nat 4
+-- DCons [1,2,3] (DCons [4,5] (DCons [6] (DCons [] DNil))) : DVec Nat 4
 
 -- Dependent vector appending
 append : ! forall a (n m : Nat) ->
@@ -222,7 +224,8 @@ adder input = do
   r4 <- r2 || r3
   r5 <- b3 && carryIn3
   carryOut <- r4 || r5
-  return (s, carryOut)
+--  return (s, carryOut)
+  return (Sum s, CarryOut carryOut)
 
 -- A much better version using idiom brackets.
 adder2 : !(Qubit * Qubit * Qubit ->

@@ -455,7 +455,8 @@ revGates :: [Gate] -> [Gate]
 revGates xs = map invertGateName $ reverse xs
   where invertGateName (Gate id params ins outs ctrls flag (Just g)) =
           Gate g params outs ins ctrls flag (Just id)
-
+        invertGateName (Gate id params ins outs ctrls flag Nothing) =
+          error $ "non-invertable gate:" ++ getName id
 -- | Rename /uv/ using fresh labels draw from /vs/.
 toVal :: Value -> [Label] -> Value
 toVal uv vs = evalState (templateToVal uv) vs

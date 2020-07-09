@@ -297,7 +297,7 @@ instance Disp Exp where
            dParen flag (precedence a) t']
     
   display flag a@(Bang t m) =
-    text "!" <> dParen flag (precedence a - 1) t
+    text "!" <> display flag m <> dParen flag (precedence a - 1) t
 
   display flag a@(Arrow t1 t2) =
     fsep [dParen flag (precedence a) t1, text "->" , dParen flag (precedence a - 1) t2]
@@ -324,7 +324,7 @@ instance Disp Exp where
   display flag (Lift m) = text "lift" <+> display flag m
 
   display flag (Circ u t m) =
-    text "Circ" <> (parens $ fsep [display flag u <> comma, display flag t])
+    text "Circ"<> display flag m <> (parens $ fsep [display flag u <> comma, display flag t])
   display flag (Pi bd t) =
     open bd $ \ vs b ->
     fsep [parens ((hsep $ map (display flag) vs) <+> text ":" <+> display flag t)
@@ -733,8 +733,11 @@ instance Disp BExp where
   
 instance Disp Modality where
   display flag (M x y z) =
-    braces $ dispBoxable x <> comma
-    <+> dispControllable y <> comma <+> dispReversible z 
+        braces $ display flag x <> comma
+        <+> display flag y <> comma <+> display flag z 
+
+    -- braces $ dispBoxable x <> comma
+    -- <+> dispControllable y <> comma <+> dispReversible z 
 
 dispBoxable (BConst True) = text "Boxable"
 dispBoxable (BConst False) = text "NonBoxable"

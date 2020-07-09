@@ -221,7 +221,7 @@ flattenB a@(BConst x) = [a]
 flattenB a@(BVar x) = [a]
 flattenB (BAnd x y) = flattenB x ++ flattenB y
 
-
+-- | Simplify the boolean constraint.
 simplify (M e1 e2 e3) = M (simplifyB e1) (simplifyB e2) (simplifyB e3)
 
 simplifyB :: BExp -> BExp
@@ -235,6 +235,8 @@ simplifyB e =
                e' = foldr BAnd (head bs') (tail bs')
            in e'
 
+-- | Eliminate excessive boolean mode variables, i.e., replace all the variables that
+-- occur once by 0/1 (depending on polarity).
 booleanVarElim :: Exp -> Exp
 booleanVarElim e =
   let s = getVars GetModVar e

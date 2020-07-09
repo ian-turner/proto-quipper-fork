@@ -11,7 +11,7 @@
         ("\\b[[:upper:]][[:alnum:]'_]*\\b" . font-lock-type-face)
         
         ("\\b\\(let\\|in\\|do\\|simple\\|forall\\|infixr\\|infixl\\|infix\\|import\\|type\\|gate\\|data\\|class\\|exists\\|instance\\|object\\|case\\|of\\|module\\|where\\|if\\|then\\|else\\)\\b" . font-lock-keyword-face)
-        ("\\b\\(box\\|unbox\\|reverse\\|dynlift\\|controlled\\|existsBox\\|runCirc\\)\\b" . font-lock-constant-face)
+        ("\\b\\(box\\|unbox\\|reverse\\|dynlift\\|controlled\\|existsBox\\|withComputed\\|runCirc\\)\\b" . font-lock-constant-face)
         ("\\([\\λ=*]\\|:\\|->\\|<-\\|\\.\\|`[[:lower:]][[:alnum:]'_]*`\\|()\\|!\\|&\\||\\|<\\|>\\|[[]\\|[]]\\|{\\|}\\|[$]\\)" . font-lock-constant-face)
 
         )
