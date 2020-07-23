@@ -311,13 +311,13 @@ f1' (a b : Type) (Simple a) (Simple b) (x : a) (f : !(a -> WithGarbage b)) = -- 
 --   in (n, circ)
 
 rev : ! (a b : Type) -> (Simple a, Simple b) => !(a -> WithGarbage b) ->
-          (n : Nat) * !(a -> Vec Qubit n * b)
+          (n : Nat) * Circ(Vec Qubit n * b, a)
           -- !(a -> a)
 rev a b f =
   let (n, circ) = existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
       circ_f = unbox circ
-      circ_rev = unbox (reverse circ)
-  in (n, circ_f)
+      circ_rev = (reverse circ)
+  in (n, circ_rev)
 
 with_computed : ! forall d ->  (a b c : Type) ->
                     (Simple a, Simple b) =>
@@ -474,4 +474,23 @@ e : ! (a : Type) ->
          (p : b -> Type) ->
            !(a -> ((n : b) * p n)) ->
            ((n : b) * (Simple (p n)) => Circ(a, p n))
-e a p f = existsBox a p f           
+e a p f = existsBox a p f
+
+
+rev' : ! (a : Type) -> forall b ->
+           (Simple a, Simple b) => !(a -> b) -> Circ(b, a)
+rev' a f =
+  let c = box a f
+      y = unbox c
+      x = reverse c in x
+
+rev'' : ! forall a b ->
+           (Simple a, Simple b) => Circ(a, b) -> Nat
+rev'' f =
+  let g = f
+      h = g
+      y = unbox f
+      x = reverse f
+      h = x
+      u = h
+      in 3

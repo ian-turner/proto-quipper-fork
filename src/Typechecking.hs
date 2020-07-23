@@ -859,9 +859,11 @@ equality flag tm ty =
                         let sub' = s `mergeSub` ss
                         updateSubst sub'
                         updateModeSubst bs
+                        st <- get
+                        let msub = modeSubstitution st
                         ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
                         mode' <- updateModality mode
-                        return (ty1', ann, mode')
+                        trace ("subeq:"++ show (disp msub)) $ return (ty1', ann, mode')
 
 
 -- | Normalize and unify two expressions (/head/ and /t/), taking
@@ -1158,6 +1160,8 @@ inferAddAnn flag a ty =
               let sub' = s `mergeSub` ss
               updateSubst sub'
               updateModeSubst bs
+              st <- get
+              let msub = modeSubstitution st
               ty1' <- updateWithModeSubst ty1 >>= updateWithSubst 
               mode'' <- updateModality mode'
-              return (ty1', a2, mode'')
+              trace ("addAnn:"++ show (disp msub)) $ return (ty1', a2, mode'')

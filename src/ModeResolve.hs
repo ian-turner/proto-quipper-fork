@@ -5,7 +5,7 @@ import Syntax
 import SyntacticOperations
 import Utils
 import Substitution
-
+import Debug.Trace
 import Control.Monad
 import Nominal
 import Text.PrettyPrint
@@ -109,8 +109,9 @@ modeResolve' b (BAnd e1 e2) (BAnd e1' e2') =
 
 modeResolve' LEq e1 e2 = modeResolve' GEq e2 e1
 
+mergeModeSubst s1 s2 | trace ("merging:" ++ (show s1) ++ "with "++ (show s2)) $ False = undefined
 mergeModeSubst s1 s2 =
-  s1 ++ [ (x, bSubst s1 t) | (x, t)<- s2]
+  unionBy (\ (a, _) (b, _) -> a == b) s1 [ (x, bSubst s1 t) | (x, t) <- s2 ]
 
 
 bSubstitute :: (ModeSubst, ModeSubst, ModeSubst) -> Exp -> Exp           
@@ -147,11 +148,11 @@ bSubstitute s (Tensor t t') =
 bSubstitute s (Circ t t' m) =
   let t1' = bSubstitute s t
       t2' = bSubstitute s t'
-      m' = simplify $ modeSubst s m
+      m' = modeSubst s m
   in Circ t1' t2' m'
 
 bSubstitute s (Bang t m) =
-  Bang (bSubstitute s t) (simplify $ modeSubst s m)
+  Bang (bSubstitute s t) (modeSubst s m)
 
 bSubstitute s (Pi bind t) =
   open bind $

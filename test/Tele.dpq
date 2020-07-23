@@ -68,7 +68,7 @@ tele q = let (a, b) = unbox bell00 ()
 teleCirc : Circ (Qubit, Qubit)
 teleCirc = box Qubit tele
 
-reverseTele = reverse teleCirc
+-- reverseTele = reverse teleCirc
 
 plus_minus_generic : ! (n : Nat) -> Bool -> Vec Qubit n
 plus_minus_generic n b = let qs = initVec n b in map H qs
