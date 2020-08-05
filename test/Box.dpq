@@ -1,0 +1,8 @@
+module Box where
+
+rev : ! (a : Type) -> forall b ->
+           (Simple a, Simple b) => !(a -> b) -> Circ(b, a)
+rev a f =
+  let c = box a f
+      y = unbox c
+      x = reverse c in x
