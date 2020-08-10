@@ -109,7 +109,7 @@ modeResolve' b (BAnd e1 e2) (BAnd e1' e2') =
 
 modeResolve' LEq e1 e2 = modeResolve' GEq e2 e1
 
-mergeModeSubst s1 s2 | trace ("merging:" ++ (show s1) ++ "with "++ (show s2)) $ False = undefined
+-- mergeModeSubst s1 s2 | trace ("merging:" ++ (show s1) ++ "with "++ (show s2)) $ False = undefined
 mergeModeSubst s1 s2 =
   unionBy (\ (a, _) (b, _) -> a == b) s1 [ (x, bSubst s1 t) | (x, t) <- s2 ]
 

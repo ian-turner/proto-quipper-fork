@@ -35,7 +35,8 @@ data Info =
        }
 
 -- | Definition and other related information about a top-level identifier.
-data Identification = DataConstr Id  -- ^ Data constructor, 'Id' is its type constructor. 
+data Identification = DataConstr Id
+                    -- ^ Data constructor, 'Id' is its type constructor. 
                     | DefinedGate Value -- ^ Gate value.
                     | DefinedFunction (Maybe (Exp, Value, Maybe Exp))
                       -- ^ Defined function. Exp: annotation, Value: function value,
@@ -109,8 +110,10 @@ makeInstanceCxt gl =
 
 
 -- | The type checking monad transformer. 
-newtype TCMonadT m a = TC{runTC :: ExceptT TypeError (StateT TypeState m) a}
-  deriving (Functor, Monad, Applicative, MonadError TypeError, MonadState TypeState)
+newtype TCMonadT m a =
+  TC {runTC :: ExceptT TypeError (StateT TypeState m) a}
+  deriving (Functor, Monad, Applicative, MonadError TypeError,
+            MonadState TypeState)
 
 instance MonadTrans TCMonadT where
   lift ma = TC (lift (lift ma))
@@ -126,7 +129,8 @@ data TypeState =
     subst :: Subst, -- ^ Substitution generated during the type checking.
     clock :: Int, -- ^ A counter.  
     instanceContext :: InstanceContext, -- ^ A local instance context.
-    checkForallBound :: Bool, -- ^ Whether or not to check if a Forall variable
+    checkForallBound :: Bool,
+    -- ^ Whether or not to check if a Forall variable
     -- is well-quantified. It is unchecked when the
     -- type is intended to be used as an instance type.
     infer :: Bool, -- ^ If it is in infer mode.
@@ -182,10 +186,11 @@ lookupVar x =
      let gamma = lcontext ts
          lg = localCxt gamma
          s = subst ts
+         m = modeSubstitution ts
      case Map.lookup x lg of
        Nothing -> throwError $ UnBoundErr x 
        Just lp -> 
-         do let a = substitute s $ varClassifier lp
+         do let a = substitute s $ bSubstitute m $ varClassifier lp
                 varid = varIdentification lp
             case varid of
               TermVar c _ -> return (a, Just c)

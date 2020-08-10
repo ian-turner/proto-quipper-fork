@@ -24,9 +24,11 @@ runUnify b t1 t2 =
       t2' = erasePos t2
       (r, s) = runState (unify b t1' t2') (Map.empty, ([], [], []))
   in (r, s)
-   -- if r then Just s else Nothing
 
-data UnifResult = Success | ModeError (Modality, Exp) (Modality, Exp) | UnifError
+
+data UnifResult = Success
+                | ModeError (Modality, Exp) (Modality, Exp)
+                | UnifError
                 deriving (Eq, Show)
 
 -- | Unify two expressions. 
@@ -34,7 +36,8 @@ data UnifResult = Success | ModeError (Modality, Exp) (Modality, Exp) | UnifErro
 -- the unification of a eigenvariable [x] with itself and its variable counterpart x.
 -- (the unification of x and [x] can happen due to dependent pattern matching).
 unify :: InEquality -> Exp -> Exp -> State (Subst, BSubst) UnifResult
-unify _ a b | trace (show $ dispRaw a <+> text ":" <+> dispRaw b) $ False = undefined
+
+-- unify _ a b | trace (show $ dispRaw a <+> text ":" <+> dispRaw b) $ False = undefined
 unify b Unit Unit = return Success
 unify b Set Set = return Success
 unify b (Base x) (Base y) | x == y = return Success
@@ -54,7 +57,8 @@ unify b (Var x) t
   | x `S.member` getVars AllowEigen t = return UnifError
   | otherwise = 
     do (sub, bsub) <- get
-       let subst' = mergeSub (Map.fromList [(x, t)]) sub
+       let subst' =
+             mergeSub (Map.fromList [(x, bSubstitute bsub t)]) sub
        put (subst', bsub)
        return Success
 
@@ -64,7 +68,8 @@ unify b t (Var x)
   | x `S.member` getVars AllowEigen t = return UnifError
   | otherwise =
     do (sub, bsub) <- get
-       let subst' = mergeSub (Map.fromList [(x, t)]) sub
+       let subst' =
+             mergeSub (Map.fromList [(x, bSubstitute bsub t)]) sub
        put (subst', bsub)
        return Success
 
@@ -74,7 +79,7 @@ unify b (GoalVar x) t
   | x `S.member` getVars GetGoal t = return UnifError
   | otherwise = 
     do (sub, bsub) <- get
-       let subst' = mergeSub (Map.fromList [(x, t)]) sub
+       let subst' = mergeSub (Map.fromList [(x, bSubstitute bsub t)]) sub
        put (subst', bsub)
        return Success
 
@@ -83,7 +88,7 @@ unify b t (GoalVar x)
   | x `S.member` getVars GetGoal t = return UnifError
   | otherwise = 
     do (sub, bsub) <- get
-       let subst' = mergeSub (Map.fromList [(x, t)]) sub
+       let subst' = mergeSub (Map.fromList [(x, bSubstitute bsub t)]) sub
        put (subst', bsub)
        return Success
 
@@ -95,8 +100,8 @@ unify b (Exists (Abst x m) ty1) (Exists (Abst y n) ty2) =
        do let m' = apply [(x, EigenVar e)] m
               n' = apply [(x, EigenVar e)] n
           (sub, bsub) <- get
-          unify b (substitute sub m')
-            (substitute sub n')
+          unify b (substitute sub $ bSubstitute bsub m')
+            (substitute sub $ bSubstitute bsub n')
        else return r
 
 -- We also allow unifying two case expression,
@@ -109,58 +114,57 @@ unify b (Arrow t1 t2) (Arrow t3 t4) =
   do a <- unify (flipSide b) t1 t3
      if a == Success
        then do (sub, bsub) <- get
-               unify b (substitute sub t2)
-                 (substitute sub t4)
+               unify b (substitute sub $ bSubstitute bsub t2)
+                 (substitute sub $ bSubstitute bsub t4)
        else return a
 
 unify b (Arrow' t1 t2) (Arrow' t3 t4) =
   do a <- unify (flipSide b) t1 t3
      if a == Success
        then do (sub, bsub) <- get
-               unify b (substitute sub t2)
-                 (substitute sub t4)
+               unify b (substitute sub $ bSubstitute bsub t2)
+                 (substitute sub $ bSubstitute bsub t4)
        else return a
 
 unify b (Tensor t1 t2) (Tensor t3 t4) =
   do a <- unify b t1 t3
      if a == Success
        then do (sub, bsub) <- get
-               unify b (substitute sub t2)
-                 (substitute sub t4)
+               unify b (substitute sub $ bSubstitute bsub t2)
+                 (substitute sub $ bSubstitute bsub t4)
        else return a
 
 unify b e1@(Circ t1 t2 mode1) e2@(Circ t3 t4 mode2) =
-  do
-     let r = modeResolution b mode1 mode2
-     case r of
+  case modeResolution b mode1 mode2 of
        Just bsub'@(bsub1', bsub2', bsub3') -> 
          do (sub, (bsub1, bsub2, bsub3)) <- get
-            let sub' = Map.map (\ x -> bSubstitute bsub' x) sub
-                new = (mergeModeSubst bsub1' bsub1, mergeModeSubst bsub2' bsub2,
+            let new = (mergeModeSubst bsub1' bsub1,
+                       mergeModeSubst bsub2' bsub2,
                        mergeModeSubst bsub3' bsub3)
+                sub' = Map.map (\ x -> bSubstitute new x) sub
             put (sub', new)
             let t1' = bSubstitute new t1
                 t3' = bSubstitute new t3
             a <- unify b t1' t3'
             if a == Success then
-              do (sub, bsub'') <- get
+              do (sub'', bsub'') <- get
                  let t2' = bSubstitute bsub'' t2
                      t4' = bSubstitute bsub'' t4
-                 unify b (substitute sub t2') (substitute sub t4')
+                 unify b (substitute sub'' t2') (substitute sub'' t4')
               else return a
        Nothing -> return $ ModeError (mode1, e1) (mode2, e2)
 
 unify b e1@(Bang t mode1) e2@(Bang t' mode2) =
-  do let r = modeResolution b  mode1 mode2
-     case r of 
-       Just bsub'@(bsub1', bsub2', bsub3') -> 
-         do (sub, (bsub1, bsub2, bsub3)) <- get
-            let sub' = Map.map (\ x -> bSubstitute bsub' x) sub
-                new = (mergeModeSubst bsub1' bsub1, mergeModeSubst bsub2' bsub2,
-                       mergeModeSubst bsub3' bsub3)
-            put (sub', new)
-            unify b (bSubstitute new t) (bSubstitute new t')
-       Nothing -> return $ ModeError (mode1, e1) (mode2, e2)
+  case modeResolution b mode1 mode2 of 
+    Just bsub'@(bsub1', bsub2', bsub3') -> 
+      do (sub, (bsub1, bsub2, bsub3)) <- get
+         let new = (mergeModeSubst bsub1' bsub1,
+                    mergeModeSubst bsub2' bsub2,
+                    mergeModeSubst bsub3' bsub3)
+             sub' = Map.map (\ x -> bSubstitute new x) sub
+         put (sub', new)
+         unify b (bSubstitute new t) (bSubstitute new t')
+    Nothing -> return $ ModeError (mode1, e1) (mode2, e2)
 
 unify b (Force t) (Force t') = unify b t t'
 unify b (Force' t) (Force' t') = unify b t t'
@@ -170,56 +174,71 @@ unify b (App t1 t2) (App t3 t4) =
   do a <- unify b t1 t3
      if a == Success
        then
-       do (sub, _) <- get
-          unify b (substitute sub t2) (substitute sub t4)
+       do (sub, bsub) <- get
+          unify b (substitute sub $ bSubstitute bsub t2)
+            (substitute sub  $ bSubstitute bsub t4)
        else return a
 
 unify b (App' t1 t2) (App' t3 t4) =
   do a <- unify b t1 t3
      if a == Success
        then
-       do (sub, _) <- get
-          unify b (substitute sub t2) (substitute sub t4)
+       do (sub, bsub) <- get
+          unify b (substitute sub $ bSubstitute bsub t2)
+            (substitute sub $ bSubstitute bsub t4)
        else return a
 
 unify b (AppDict t1 t2) (AppDict t3 t4) =
   do a <- unify b t1 t3
      if a == Success
        then
-       do (sub, _) <- get
-          unify b (substitute sub t2) (substitute sub t4)
+       do (sub, bsub) <- get
+          unify b (substitute sub $ bSubstitute bsub t2)
+            (substitute sub $ bSubstitute bsub t4)
        else return a
 
 unify b (AppDep t1 t2) (AppDep t3 t4) =
   do a <- unify b t1 t3
      if a == Success
        then
-       do (sub, _) <- get
-          unify b (substitute sub t2) (substitute sub t4)
+       do (sub, bsub) <- get
+          unify b (substitute sub $ bSubstitute bsub t2)
+            (substitute sub $ bSubstitute bsub t4)
        else return a
 
 
 unify b (AppType t1 t2) (AppType t3 t4) =
   do a <- unify b t1 t3
      if a == Success
-       then do (sub, _) <- get
-               unify b (substitute sub t2) (substitute sub t4)
+       then do (sub, bsub) <- get
+               unify b (substitute sub $ bSubstitute bsub t2)
+                 (substitute sub $ bSubstitute bsub t4)
        else return a
 
 unify b (AppTm t1 t2) (AppTm t3 t4) =
   do a <- unify b t1 t3
      if a == Success
-       then do (sub, _) <- get
-               unify b (substitute sub t2) (substitute sub t4)
+       then do (sub, bsub) <- get
+               unify b (substitute sub $ bSubstitute bsub t2)
+                 (substitute sub $ bSubstitute bsub t4)
        else return a
 
-unify b (Imply t1 t2) (Imply t3 t4) =
-  do a <- zipWithM (unify b) t1 t3
-     if all (\ r -> r == Success) a
-       then do (sub, _) <- get
-               unify b (substitute sub t2) (substitute sub t4)
+unify b (Imply [] t2) (Imply [] t4) =
+  unify b t2 t2
+  
+unify b (Imply (t1:ts1) t2) (Imply (t3:ts3) t4) =
+  do r <- unify b t1 t3
+     if r == Success
+       then do (sub, bsub) <- get
+               let ts1' =
+                     map (\x -> substitute sub $ bSubstitute bsub x) ts1
+                   ts3' =
+                     map (\x -> substitute sub $ bSubstitute bsub x) ts3
+                   t2' = substitute sub $ bSubstitute bsub t2
+                   t4' = substitute sub $ bSubstitute bsub t4
+               unify b (Imply ts1' t2') (Imply ts3' t4')
        else return UnifError
-
+    
 unify b t t' = return UnifError
 
 

@@ -43,7 +43,8 @@ typeCheck :: Bool -> Exp -> Exp -> TCMonad (Exp, Exp, Modality)
 typeInfer :: Bool -> Exp -> TCMonad (Exp, Exp, Modality)
 
 typeInfer flag (Pos p e) =
-  do (ty, ann, m) <- typeInfer flag e `catchError` \ e -> throwError $ addErrPos p e
+  do (ty, ann, m) <- typeInfer flag e `catchError`
+                     \ e -> throwError $ addErrPos p e
      return (ty, (Pos p ann), m)
 
 typeInfer flag Set = return (Sort, Set, identityMod)
@@ -616,9 +617,10 @@ typeCheck flag (Let m bd) goal =
               addVarDef x t' m'' 
               (goal', ann2, mode') <- typeCheck flag t goal
               checkUsage x t
-              -- If the goal resolution fails, delay it for upper level to resolve 
-              ann2' <- (resolveGoals ann2 >>= updateWithSubst) `catchError`
-                          \ e -> return ann2
+              -- If the goal resolution fails,
+              -- delay it for upper level to resolve 
+              ann2' <- (resolveGoals ann2 >>= updateWithSubst)
+                       `catchError` \ e -> return ann2
               removeVar x
               let res = Let ann (abst x ann2')
               return (goal', res, modalAnd mode mode')
@@ -863,7 +865,7 @@ equality flag tm ty =
                         let msub = modeSubstitution st
                         ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
                         mode' <- updateModality mode
-                        trace ("subeq:"++ show (disp msub)) $ return (ty1', ann, mode')
+                        return (ty1', ann, mode')
 
 
 -- | Normalize and unify two expressions (/head/ and /t/), taking
@@ -1164,4 +1166,4 @@ inferAddAnn flag a ty =
               let msub = modeSubstitution st
               ty1' <- updateWithModeSubst ty1 >>= updateWithSubst 
               mode'' <- updateModality mode'
-              trace ("addAnn:"++ show (disp msub)) $ return (ty1', a2, mode'')
+              return (ty1', a2, mode'')
