@@ -110,7 +110,8 @@ vacuousForall (Pos p e) =
 vacuousForall a = Nothing
 
 -- | Flags for getting various of variables.
-data VarSwitch = GetGoal -- ^ Get goal variables only.
+data VarSwitch =
+  GetGoal -- ^ Get goal variables only.
   | OnlyEigen  -- ^ Obtain only eigenvariables from an expression.
   | AllowEigen  -- ^ Free variables include eigenvariables
   | NoEigen -- ^ Free variables do not include eigenvariables

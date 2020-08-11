@@ -43,7 +43,8 @@ secondLayer n v =
             in VCons x (VCons y xs')
 
 
--- The following program should not pass the type checker-> Implicit arguments
+-- The following program should not pass the type checker
+-- Implicit arguments
 -- in case pattern is used explicitly-> 
 -- rounding : !  (n : Nat) -> Nat -> Vec Qubit n -> Vec Qubit n
 -- rounding n p v =
