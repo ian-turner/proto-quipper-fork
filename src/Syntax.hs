@@ -71,7 +71,7 @@ data Exp =
   
   | LamP (Bind [Variable] Exp)
   -- ^ Parameter lambda abstraction for parameter arrow type.
-  | Arrow Exp Exp BExp -- ^ Linear arrow type.
+  | Arrow Exp Exp -- ^ Linear arrow type.
   | ArrowP Exp Exp -- ^ Parameter arrow type.
   | App Exp Exp -- ^ Function application.
   | AppTop Exp Exp -- ^ Top level function Application. 
@@ -84,6 +84,7 @@ data Exp =
 
 
   | Tensor Exp Exp -- ^ Tensor product. 
+
   | Pair Exp Exp
   -- ^ Pair constructor, also works for constructing existential pair. 
   | Let Exp (Bind Variable Exp)  -- ^ Single let expression. 
@@ -94,7 +95,7 @@ data Exp =
   | Case Exp Branches -- ^ Case expression.
 
     -- Lift and force  
-  | Bang Exp Modality BExp -- ^ Linear exponential type.
+  | Bang Exp Modality -- ^ Linear exponential type.
   | Force Exp -- ^ Force.
   | ForceTop Exp -- ^ Top level force. 
   | ForceP Exp -- ^ The parameter version of Force.
@@ -117,7 +118,7 @@ data Exp =
   | Sort  -- ^ The sort for all kinds. 
 
     -- Dependent types
-  | Pi (Bind [Variable] Exp) Exp BExp -- ^ Linear dependent types. 
+  | Pi (Bind [Variable] Exp) Exp -- ^ Linear dependent types. 
   | PiInt (Bind [Variable] Exp) Exp -- ^ Intuitionistic dependent types.
     
   | PiImp (Bind [Variable] Exp) Exp -- ^ Implicit dependent types. 
@@ -175,12 +176,12 @@ data BExp = BConst Bool
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal, Eq)
 
 -- | A data type for boxing modality
-data Modality = M BExp BExp 
+data Modality = M BExp BExp BExp 
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal, Eq)
 
 
 identityMod :: Modality
-identityMod = M (BConst True) (BConst True)
+identityMod = M (BConst True) (BConst True) (BConst True)
 
 
 instance Disp Pattern where
@@ -323,8 +324,9 @@ instance Disp Exp where
      fsep [dParen flag (precedence a - 1) t <> dispAt flag "AppTm",
            dParen flag (precedence a) t']
     
-  display flag a@(Bang t m b) =
-    text "!" <> display flag m <> dParen flag (precedence a - 1) t
+  display flag a@(Bang t m) =
+    text "!" <> display flag m <> 
+    dParen flag (precedence a - 1) t
 
   display flag a@(Arrow t1 t2) =
     fsep [ dParen flag (precedence a) t1, text "->" ,
@@ -357,6 +359,7 @@ instance Disp Exp where
   display flag (Circ u t m) =
     text "Circ"<> display flag m <>
     (parens $ fsep [display flag u <> comma, display flag t])
+ 
   display flag (Pi bd t) =
     open bd $ \ vs b ->
     fsep [ parens ((hsep $ map (display flag) vs) <+>
@@ -766,9 +769,8 @@ instance Disp BExp where
 instance Disp Modality where
   display flag (M x y z) =
         braces $ display flag x <> comma
-        <+> display flag y <> comma <+> display flag z 
+        <+> display flag y <> comma <+> display flag z
 
-    -- braces $ dispBoxable x <> comma
     -- <+> dispControllable y <> comma <+> dispReversible z 
 
 dispBoxable (BConst True) = text "Boxable"

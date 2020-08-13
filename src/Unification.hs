@@ -47,14 +47,10 @@ unify b (LBase x) (LBase y) | x == y = return Success
 unify b (Const x) (Const y) | x == y = return Success
                             | otherwise = return UnifError
 
-unify b (EigenVar x) (EigenVar y) | x == y = return Success
-                                  | otherwise = return UnifError
-
  
 unify b (Var x) t
   | Var x == t = return Success
-  | (EigenVar y) <- t, x == y = return Success
-  | x `S.member` getVars AllowEigen t = return UnifError
+  | x `S.member` getVars All t = return UnifError
   | otherwise = 
     do (sub, bsub) <- get
        let subst' =
@@ -64,8 +60,7 @@ unify b (Var x) t
 
 unify b t (Var x)
   | Var x == t = return Success
-  | (EigenVar y) <- t, x == y = return Success  
-  | x `S.member` getVars AllowEigen t = return UnifError
+  | x `S.member` getVars All t = return UnifError
   | otherwise =
     do (sub, bsub) <- get
        let subst' =
@@ -74,35 +69,16 @@ unify b t (Var x)
        return Success
 
 
-unify b (GoalVar x) t
-  | GoalVar x == t = return Success
-  | x `S.member` getVars GetGoal t = return UnifError
-  | otherwise = 
-    do (sub, bsub) <- get
-       let subst' = mergeSub (Map.fromList [(x, bSubstitute bsub t)]) sub
-       put (subst', bsub)
-       return Success
-
-unify b t (GoalVar x) 
-  | GoalVar x == t = return Success
-  | x `S.member` getVars GetGoal t = return UnifError
-  | otherwise = 
-    do (sub, bsub) <- get
-       let subst' = mergeSub (Map.fromList [(x, bSubstitute bsub t)]) sub
-       put (subst', bsub)
-       return Success
-
-
 -- We allow unifying two first-order existential types.  
-unify b (Exists (Abst x m) ty1) (Exists (Abst y n) ty2) =
-  do r <- unify b ty1 ty2
-     if r == Success then freshNames ["#existUnif"] $ \ (e:[]) ->
-       do let m' = apply [(x, EigenVar e)] m
-              n' = apply [(x, EigenVar e)] n
-          (sub, bsub) <- get
-          unify b (substitute sub $ bSubstitute bsub m')
-            (substitute sub $ bSubstitute bsub n')
-       else return r
+-- unify b (Exists (Abst x m) ty1) (Exists (Abst y n) ty2) =
+--   do r <- unify b ty1 ty2
+--      if r == Success then freshNames ["#existUnif"] $ \ (e:[]) ->
+--        do let m' = apply [(x, EigenVar e)] m
+--               n' = apply [(x, EigenVar e)] n
+--           (sub, bsub) <- get
+--           unify b (substitute sub $ bSubstitute bsub m')
+--             (substitute sub $ bSubstitute bsub n')
+--        else return r
 
 -- We also allow unifying two case expression,
 -- but only a very simple kind of unification
@@ -118,7 +94,7 @@ unify b (Arrow t1 t2) (Arrow t3 t4) =
                  (substitute sub $ bSubstitute bsub t4)
        else return a
 
-unify b (Arrow' t1 t2) (Arrow' t3 t4) =
+unify b (ArrowP t1 t2) (ArrowP t3 t4) =
   do a <- unify (flipSide b) t1 t3
      if a == Success
        then do (sub, bsub) <- get
@@ -167,7 +143,7 @@ unify b e1@(Bang t mode1) e2@(Bang t' mode2) =
     Nothing -> return $ ModeError (mode1, e1) (mode2, e2)
 
 unify b (Force t) (Force t') = unify b t t'
-unify b (Force' t) (Force' t') = unify b t t'
+unify b (ForceP t) (ForceP t') = unify b t t'
 unify b (Lift t) (Lift t') = unify b t t'
 
 unify b (App t1 t2) (App t3 t4) =
@@ -179,7 +155,7 @@ unify b (App t1 t2) (App t3 t4) =
             (substitute sub  $ bSubstitute bsub t4)
        else return a
 
-unify b (App' t1 t2) (App' t3 t4) =
+unify b (AppP t1 t2) (AppP t3 t4) =
   do a <- unify b t1 t3
      if a == Success
        then

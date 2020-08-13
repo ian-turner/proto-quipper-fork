@@ -30,10 +30,12 @@ modeSubst (s1, s2, s3) (M e1 e2 e3) = M e1' e2' e3'
         e3' = bSubst s3 e3
 
 bSubst s a@(BConst _) = a
+
 bSubst s (BVar x) =
   case lookup x s of
     Nothing -> BVar x
     Just e -> e
+
 bSubst s (BAnd e1 e2) = BAnd (bSubst s e1) (bSubst s e2)
 
 type ModeSubst = [(Variable, BExp)]
@@ -111,13 +113,12 @@ modeResolve' LEq e1 e2 = modeResolve' GEq e2 e1
 
 -- mergeModeSubst s1 s2 | trace ("merging:" ++ (show s1) ++ "with "++ (show s2)) $ False = undefined
 mergeModeSubst s1 s2 =
-  unionBy (\ (a, _) (b, _) -> a == b) s1 [ (x, bSubst s1 t) | (x, t) <- s2 ]
+  unionBy (\ (a, _) (b, _) -> a == b) s1
+  [(x, bSubst s1 t) | (x, t) <- s2 ]
 
 
 bSubstitute :: (ModeSubst, ModeSubst, ModeSubst) -> Exp -> Exp           
 bSubstitute s a@(Var y) = a
-bSubstitute s a@(GoalVar y) = a
-bSubstitute s a@(EigenVar y) = a
 bSubstitute s a@(Base _) = a
 bSubstitute s a@(LBase _) = a      
 bSubstitute s a@(Unit) = a
@@ -133,10 +134,10 @@ bSubstitute s (WithType t t') =
   let t1' = bSubstitute s t
       t2' = bSubstitute s t'
   in WithType t1' t2'     
-bSubstitute s (Arrow' t t') =
+bSubstitute s (ArrowP t t') =
   let t1' = bSubstitute s t
       t2' = bSubstitute s t'
-  in Arrow' t1' t2'  
+  in ArrowP t1' t2'  
 bSubstitute s (Imply t t') =
   let t1' = map (bSubstitute s) t
       t2' = bSubstitute s t'
@@ -164,9 +165,9 @@ bSubstitute s (PiImp bind t) =
   \ ys m -> PiImp (abst ys (bSubstitute s m))
            (bSubstitute s t) 
 
-bSubstitute s (Pi' bind t) =
+bSubstitute s (PiInt bind t) =
   open bind $
-  \ ys m -> Pi' (abst ys (bSubstitute s m))
+  \ ys m -> PiInt (abst ys (bSubstitute s m))
             (bSubstitute s t) 
 
 bSubstitute s (Exists bind t) =
@@ -187,8 +188,8 @@ bSubstitute s (Mod bind) =
 bSubstitute s (App t tm) =
   App (bSubstitute s t) (bSubstitute s tm)
 
-bSubstitute s (App' t tm) =
-  App' (bSubstitute s t) (bSubstitute s tm)
+bSubstitute s (AppP t tm) =
+  AppP (bSubstitute s t) (bSubstitute s tm)
   
 bSubstitute s (AppType t tm) =
   AppType (bSubstitute s t) (bSubstitute s tm)
@@ -198,11 +199,12 @@ bSubstitute s (AppTm t tm) =
 
 bSubstitute s (AppDep t tm) =
   AppDep (bSubstitute s t) (bSubstitute s tm)
+
 bSubstitute s (AppDepTy t tm) =
   AppDepTy (bSubstitute s t) (bSubstitute s tm)
   
-bSubstitute s (AppDep' t tm) =
-  AppDep' (bSubstitute s t) (bSubstitute s tm)  
+bSubstitute s (AppDepInt t tm) =
+  AppDepInt (bSubstitute s t) (bSubstitute s tm)  
 bSubstitute s (AppDict t tm) =
   AppDict (bSubstitute s t) (bSubstitute s tm)
 
@@ -210,7 +212,7 @@ bSubstitute s (AppDict t tm) =
 bSubstitute s (Pair t tm) =
   Pair (bSubstitute s t) (bSubstitute s tm)
 
-bSubstitute s (Force' t) = Force' (bSubstitute s t)
+bSubstitute s (ForceP t) = ForceP (bSubstitute s t)
 bSubstitute s (Lift t) = Lift (bSubstitute s t) 
 
 bSubstitute s (Pos p e) = Pos p (bSubstitute s e)
@@ -240,7 +242,7 @@ simplifyB e =
 -- occur once by 0/1 (depending on polarity).
 booleanVarElim :: Exp -> Exp
 booleanVarElim e =
-  let s = getVars GetModVar e
+  let s = getVars ModVars e
       s1 = S.filter (\ x -> S.occur x s == 1) s
   in helper True s1 e
   where elim b s e =

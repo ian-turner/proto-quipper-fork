@@ -32,16 +32,6 @@ substitute s a@(Var y) =
     Nothing -> a
     Just t -> t
 
-substitute s a@(GoalVar y) =
-  case Map.lookup y s of
-    Nothing -> a
-    Just t -> t
-    
-substitute s a@(EigenVar y) = 
-  case Map.lookup y s of
-    Nothing -> a
-    Just t -> t
-
 substitute s a@(Base _) = a
 substitute s a@(LBase _) = a      
 substitute s a@(Unit) = a
@@ -52,15 +42,15 @@ substitute s a@(Const _) = a
 substitute s (Arrow t t') =
   let t1' = substitute s t
       t2' = substitute s t'
-  in Arrow t1' t2'
+  in Arrow t1' t2' 
 substitute s (WithType t t') =
   let t1' = substitute s t
       t2' = substitute s t'
   in WithType t1' t2'     
-substitute s (Arrow' t t') =
+substitute s (ArrowP t t') =
   let t1' = substitute s t
       t2' = substitute s t'
-  in Arrow' t1' t2'  
+  in ArrowP t1' t2'  
 substitute s (Imply t t') =
   let t1' = map (substitute s) t
       t2' = substitute s t'
@@ -74,7 +64,7 @@ substitute s (Circ t t' m) =
       t2' = substitute s t'
   in Circ t1' t2' m
 
-substitute s (Bang t m) = Bang (substitute s t) m
+substitute s (Bang t m) = Bang (substitute s t) m 
 
 substitute s (Pi bind t) =
   open bind $
@@ -86,9 +76,9 @@ substitute s (PiImp bind t) =
   \ ys m -> PiImp (abst ys (substitute s m))
            (substitute s t) 
 
-substitute s (Pi' bind t) =
+substitute s (PiInt bind t) =
   open bind $
-  \ ys m -> Pi' (abst ys (substitute s m))
+  \ ys m -> PiInt (abst ys (substitute s m))
             (substitute s t) 
 
 substitute s (Exists bind t) =
@@ -109,8 +99,8 @@ substitute s (Mod bind) =
 substitute s (App t tm) =
   App (substitute s t) (substitute s tm)
 
-substitute s (App' t tm) =
-  App' (substitute s t) (substitute s tm)
+substitute s (AppP t tm) =
+  AppP (substitute s t) (substitute s tm)
   
 substitute s (AppType t tm) =
   AppType (substitute s t) (substitute s tm)
@@ -123,8 +113,9 @@ substitute s (AppDep t tm) =
 substitute s (AppDepTy t tm) =
   AppDepTy (substitute s t) (substitute s tm)
   
-substitute s (AppDep' t tm) =
-  AppDep' (substitute s t) (substitute s tm)  
+substitute s (AppDepInt t tm) =
+  AppDepInt (substitute s t) (substitute s tm)  
+
 substitute s (AppDict t tm) =
   AppDict (substitute s t) (substitute s tm)
 
@@ -136,13 +127,13 @@ substitute s (LamAnn ty bind) =
   open bind $
   \ ys m -> LamAnn (substitute s ty) (abst ys (substitute s m)) 
 
-substitute s (LamAnn' ty bind) =
+substitute s (LamAnnP ty bind) =
   open bind $
-  \ ys m -> LamAnn' (substitute s ty) (abst ys (substitute s m)) 
+  \ ys m -> LamAnnP (substitute s ty) (abst ys (substitute s m)) 
 
-substitute s (Lam' bind) =
+substitute s (LamP bind) =
   open bind $
-  \ ys m -> Lam' (abst ys (substitute s m)) 
+  \ ys m -> LamP (abst ys (substitute s m)) 
 
 substitute s (LamType bind) =
   open bind $
@@ -165,15 +156,15 @@ substitute s (LamDepTy bind) =
   open bind $
   \ ys m -> LamDepTy (abst ys (substitute s m)) 
 
-substitute s (LamDep' bind) =
+substitute s (LamDepInt bind) =
   open bind $
-  \ ys m -> LamDep' (abst ys (substitute s m)) 
+  \ ys m -> LamDepInt (abst ys (substitute s m)) 
 
 substitute s (Pair t tm) =
   Pair (substitute s t) (substitute s tm)
 
 substitute s (Force t) = Force (substitute s t)
-substitute s (Force' t) = Force' (substitute s t)
+substitute s (ForceP t) = ForceP (substitute s t)
 substitute s (Lift t) = Lift (substitute s t) 
 substitute s (UnBox) = UnBox
 substitute s (Reverse) = Reverse
