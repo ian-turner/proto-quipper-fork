@@ -90,17 +90,19 @@ fromGlobal :: Context -> LContext
 fromGlobal gl = LContext {localCxt = Map.empty, globalCxt = gl }
 
 
--- | Global instance context. 
 type GlobalInstanceCxt = [(Id, Exp)]
 
 
 -- | A record for local type class instance context.
 data InstanceContext = IC {
-  localInstance :: [(Variable, Exp)],  -- ^ Local instance assumptions.  
-  globalInstance  :: GlobalInstanceCxt,  -- ^ Global instance identifiers and their types.
-  goalInstance :: [(Variable, (Exp, Exp))]  -- ^ Current goal (constraint) variables that
-                                             -- needed to be resolved. It has the format:
-                                  -- (variable, (type, original-term-for-error-info)).
+  localInstance :: [(Variable, Exp)],
+  -- ^ Local instance assumptions.  
+  globalInstance  :: GlobalInstanceCxt,
+  -- ^ Global instance declarations.
+  goalInstance :: [(Variable, (Exp, Exp))]
+  -- ^ Current goal (constraint) variables that
+  -- needed to be resolved. It has the format:
+  -- (variable, (type, original-term-for-error-info)).
   }
 
 -- | Convert a global instance context into a local one.
@@ -126,7 +128,7 @@ type TCMonad a = TCMonadT Identity a
 data TypeState =
   TS {
     lcontext :: LContext, -- ^ Current local typing context.
-    subst :: Subst, -- ^ Substitution generated during the type checking.
+    subst :: Subst, -- ^ Substitution generated during type checking.
     clock :: Int, -- ^ A counter.  
     instanceContext :: InstanceContext, -- ^ A local instance context.
     checkForallBound :: Bool,
@@ -135,6 +137,7 @@ data TypeState =
     -- type is intended to be used as an instance type.
     infer :: Bool, -- ^ If it is in infer mode.
     modeSubstitution :: (ModeSubst, ModeSubst, ModeSubst)
+    -- ^ Mode substitution generated during type checking.
     }
 
 -- | Initial type state from a global typing context and a
@@ -214,20 +217,12 @@ isSemiSimple id =
 -- | Determine if a type expression is a parameter type. 
 isParam :: Exp -> TCMonad Bool
 isParam a | isKind a = return True
-isParam (Unit) = return True
-isParam (LBase id) = return False
-isParam (Var x) =
-   do ts <- get
-      let gamma = lcontext ts
-          lg = localCxt gamma
-      case Map.lookup x lg of
-        Nothing -> return False
-        Just lti ->
-          case varIdentification lti of
-            TypeVar b _ -> return b
-            _ -> return False
 
-isParam (EigenVar x) =
+isParam (Unit) = return True
+
+isParam (LBase id) = return False
+
+isParam (Var x) =
    do ts <- get
       let gamma = lcontext ts
           lg = localCxt gamma
@@ -266,7 +261,7 @@ isParam t@(App x _) =
                          else if isKind i then return False else return True) m
              return $ and s
 
-isParam t@(App' x _) =
+isParam t@(AppP x _) =
   case flatten t of
     Nothing -> return False
     Just (Right id, args) ->
@@ -292,8 +287,8 @@ isParam (Tensor t t') =
      r2 <- isParam t'
      return $ r1 && r2
 
-isParam (Arrow' t t') = return True
-isParam (Pi' (Abst x t) ty) = return True
+isParam (ArrowP t t') = return True
+isParam (PiInt (Abst x t) ty) = return True
 isParam (Imply xs t) = isParam t     
 isParam (Bang q _) = return True
 isParam (Circ t1 t2 _) = return True
@@ -313,7 +308,6 @@ isSemiParam (Unit) = return True
 isSemiParam (LBase id) = return False
 isSemiParam (Base id) = return False
 isSemiParam (Var _) = return True
-isSemiParam (EigenVar _) = return True
 isSemiParam t@(App _ _) =
   case flatten t of
     Nothing -> return False
@@ -392,39 +386,27 @@ shape a@(Var x) =
                        | otherwise -> return a
 
        
-shape a@(EigenVar x) =
-  do ts <- get
-     let gamma = lcontext ts
-         lty = localCxt gamma
-     case Map.lookup x lty of
-       Nothing -> return a
-       Just lpkg ->
-         case varIdentification lpkg of
-           TermVar _ _ -> return a
-           TypeVar _ s | s -> return Unit
-                       | otherwise -> return a
-  
-shape a@(GoalVar _) = return a
 shape a@(Bang _ _) = return a
 shape a@(Lift _) = return a
 shape a@(Circ _ _ _) = return a
 
-shape a@(Force' m) = return a
+shape a@(ForceP m) = return a
+
 shape (Force m) =
   do m' <- shape m
-     return (Force' m)
+     return (ForceP m)
      
 shape a@(App t1 t2) =
   do t1' <- shape t1
      t2' <- shape t2
-     return $ App' t1' t2'
+     return $ AppP t1' t2'
 
 shape a@(WithType t1 t2) =
   do t1' <- shape t1
      t2' <- shape t2
      return $ WithType t1' t2'
 
-shape a@(App' t1 t2) = 
+shape a@(AppP t1 t2) = 
   case flatten a of
     Just (Right k, _) ->
       do p <- isParam a
@@ -434,15 +416,15 @@ shape a@(App' t1 t2) =
   where shapeApp t1 t2 = 
           do t1' <- shape t1
              t2' <- shape t2
-             return (App' t1' t2')         
+             return (AppP t1' t2')         
 
 shape a@(AppDep t1 t2) =
   case erasePos t1 of
-    Box -> return $ AppDep' Box t2
+    Box -> return $ AppDepInt Box t2
     _ -> 
       do t1' <- shape t1
          t2' <- shape t2
-         return (AppDep' t1' t2')         
+         return (AppDepInt t1' t2')         
 
 shape (AppDepTy t t') =
   do t1 <- shape t
@@ -471,7 +453,7 @@ shape (Pair t1 t2) =
   Pair <$> shape t1 <*> shape t2
 
 shape (Arrow t1 t2) =
-  Arrow' <$> shape t1 <*> shape t2
+  ArrowP <$> shape t1 <*> shape t2
 
 shape (Imply bds h) =
   Imply <$> return bds <*> shape h
@@ -485,13 +467,13 @@ shape (Forall (Abst x t) t2) =
   do t' <- shape t
      return $ Forall (abst x t') t2
 
-shape a@(Arrow' a1 a2) = 
-  Arrow' <$> shape a1 <*> shape a2
+shape a@(ArrowP a1 a2) = 
+  ArrowP <$> shape a1 <*> shape a2
 
 shape (Pi (Abst x t) t2) =
   do t' <- shape t
      t2' <- shape t2
-     return $ Pi' (abst x t') t2'
+     return $ PiInt (abst x t') t2'
 
 shape (PiImp (Abst x t) t2) =
   do t' <- shape t
@@ -500,17 +482,17 @@ shape (PiImp (Abst x t) t2) =
 
 shape (Lam (Abst x t)) = 
   do t' <- shape t
-     return $ Lam' (abst x t')
+     return $ LamP (abst x t')
 
 shape (LamAnn ty (Abst x t)) = 
   do t' <- shape t
      ty' <- shape ty
-     return $ LamAnn' ty' (abst x t')
+     return $ LamAnnP ty' (abst x t')
 
 
 shape (LamDep (Abst x t)) =
   do t' <- shape t
-     return $ LamDep' (abst x t')
+     return $ LamDepInt (abst x t')
      
 shape (LamType (Abst x t)) =
   do t' <- shape t
@@ -620,7 +602,8 @@ checkClass h =
   where ensureDict (DictionaryType _ _) _ = return ()
         ensureDict x h = throwError $ NotAValidClass h
 
--- | Update parameter info if a type variable has a 'Parameter' assumption
+-- | Update parameter info if a type variable has
+-- a 'Parameter' assumption
 updateParamInfo :: [Exp] -> TCMonad ()
 updateParamInfo [] = return ()
 updateParamInfo (p:ps) =
@@ -628,7 +611,6 @@ updateParamInfo (p:ps) =
     Just (Right i, [arg]) | getName i == "Parameter"  ->
       case erasePos arg of
         Var x -> updateParam x >> updateParamInfo ps
-        EigenVar x -> updateParam x >> updateParamInfo ps
         _ -> updateParamInfo ps
     _ -> updateParamInfo ps
   where updateParam :: Variable -> TCMonad ()
@@ -655,7 +637,6 @@ updateSimpleInfo (p:ps) =
     Just (Right i, [arg]) | getName i == "Simple"  ->
       case erasePos arg of
         Var x -> updateSimple x >> updateSimpleInfo ps
-        EigenVar x -> updateSimple x >> updateSimpleInfo ps
         _ -> updateSimpleInfo ps
     _ -> updateSimpleInfo ps
   where updateSimple :: Variable -> TCMonad ()
@@ -709,16 +690,14 @@ isValue (Pos p e) = isValue e
 isValue (Var _) = return True
 isValue Star = return True
 isValue (Const _) = return True
-isValue (EigenVar _) = return True
-isValue (GoalVar _) = return True
 isValue (Lam _) = return True
 isValue (LamAnn _ _) = return True
-isValue (LamAnn' _ _) = return True
-isValue (Lam' _) = return True
+isValue (LamAnnP _ _) = return True
+isValue (LamP _) = return True
 isValue (Lift _) = return True
 isValue (LamDepTy _) = return True
 isValue (LamDep _) = return True
-isValue (LamDep' _) = return True
+isValue (LamDepInt _) = return True
 isValue (LamType (Abst xs m)) = isValue m
 isValue (LamTm (Abst xs m)) = isValue m
 isValue (LamDict _) = return True
@@ -728,14 +707,14 @@ isValue (Pair x y) =
      return $ x' && y'
      
 isValue (Force (App UnBox t)) = isValue t
-isValue (Force' (App' UnBox t)) = isValue t
+isValue (ForceP (AppP UnBox t)) = isValue t
 isValue a@(App UnBox t) = isValue t
-isValue a@(App' UnBox t) = isValue t
+isValue a@(AppP UnBox t) = isValue t
 
 isValue a@(App t t') = checkApp a
-isValue a@(App' t t') = checkApp a
+isValue a@(AppP t t') = checkApp a
 isValue a@(AppDep t t') = checkApp a
-isValue a@(AppDep' t t') = checkApp a
+isValue a@(AppDepInt t t') = checkApp a
 isValue a@(AppDict t t') = checkApp a
 isValue a@(AppType t t') = isValue t
 isValue a@(AppTm t t') = isValue t
@@ -784,7 +763,7 @@ isBasicValue _ = return False
 -- used for checking a lift term. 
 checkParamCxt :: Exp -> TCMonad ()
 checkParamCxt t =
-  let fvars = getVars AllowEigen t
+  let fvars = getVars All t
   in do env <- get >>= \ x -> return (lcontext x)
         mapM_ (checkFVars env) fvars
   where

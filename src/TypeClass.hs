@@ -26,13 +26,12 @@ resolveGoals a =
      let env = instanceContext ts
          goals = goalInstance env
          subs = subst ts
-         goals' = map (\ (x, (t, e)) -> (x, (substitute subs t, e))) goals
-         goalVars = getVars GetGoal a
-         goals'' = [ (x, (t, e)) | (x, (t, e)) <- goals', x `S.member` goalVars]
-     if (not (S.null goalVars)) then
-       helper a goals''
-       else  return a
-       
+         goals' =
+           map (\ (x, (t, e)) -> (x, (substitute subs t, e))) goals
+         vars = getVars All a
+         goals'' = [ (x, (t, e)) | (x, (t, e)) <- goals',
+                     x `S.member` vars]
+     helper a goals''
   where helper ann [] = return ann
         helper ann ((x, (t, e)):xs) = 
           do t' <- resolveInst t `catchError`
@@ -114,24 +113,15 @@ match (LBase x) (LBase y) | x == y = return True
 match (Const x) (Const y) | x == y = return True
                           | otherwise = return False
 
-match (EigenVar x) (EigenVar y) | x == y = return True
-                                | otherwise = return False
-
 -- Note that matching will need to check consistency of the substitution.
 match (Var x) t =
   do s <- get
      case lookup x s of
        Nothing -> modify (\ s -> (x, t):s) >> return True
        Just t' | t == t' -> return True
-               | (varToEigen t) == (varToEigen t') ->
-                 let s' = (x, varToEigen t) : delete (x, t') s
-                 in put s' >> return True
                | otherwise -> return False
-  where varToEigen (EigenVar x) = EigenVar x
-        varToEigen (Var x) = EigenVar x
-        varToEigen a = a
 
-match (Force' t) (Force' t') = match t t'
+match (ForceP t) (ForceP t') = match t t'
 match (Lift t) (Lift t') = match t t'
 match (Bang t _) (Bang t' _) = match t t'
 
@@ -140,7 +130,7 @@ match (App t1 t2) (App t3 t4) =
      if r then match t2 t4
        else return False
 
-match (App' t1 t2) (App' t3 t4) =
+match (AppP t1 t2) (AppP t3 t4) =
   do r <- match t1 t3
      if r then match t2 t4
        else return False

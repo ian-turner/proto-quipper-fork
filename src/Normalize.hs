@@ -27,22 +27,20 @@ import Debug.Trace
 -- when instantiating a type/type function.
 betaNormalize :: Exp -> TCMonad Exp
 betaNormalize a@(Var x) = return a
-betaNormalize a@(EigenVar x) = return a
-betaNormalize a@(GoalVar x) = return a
 betaNormalize a@(Unit) = return a
 betaNormalize a@(Set) = return a
 betaNormalize a@(Sort) = return a
 betaNormalize a@(LBase _) = return a          
 betaNormalize a@(Base _) = return a
-betaNormalize a@(Lam' bd) = return a
+betaNormalize a@(LamP bd) = return a
 betaNormalize a@(Lam bd) = return a
-betaNormalize a@(LamDep' bd) = return a
+betaNormalize a@(LamDepInt bd) = return a
 betaNormalize a@(LamDep bd) = return a
 betaNormalize a@(LamDepTy bd) = return a
 betaNormalize a@(LamType bd) = return a
 betaNormalize a@(LamTm bd) = return a
 betaNormalize a@(LamAnn _ _) = return a
-betaNormalize a@(LamAnn' _ _) = return a
+betaNormalize a@(LamAnnP _ _) = return a
 betaNormalize a@(Lift x) = 
   do x' <- betaNormalize x
      return $ Lift x' 
@@ -53,12 +51,12 @@ betaNormalize (Force x) =
        Lift m -> betaNormalize m
        a -> return $ Force a
 
-betaNormalize (Force' x) =
+betaNormalize (ForceP x) =
   do x' <- betaNormalize x
      case x' of
        Lift m ->
          shape m >>= betaNormalize 
-       a -> return $ Force' a
+       a -> return $ ForceP a
 
 betaNormalize a@(Tensor t1 t2) = 
   do t1' <- betaNormalize t1
@@ -74,10 +72,10 @@ betaNormalize a@(Arrow t1 t2) =
      t2' <- betaNormalize t2
      return $ Arrow t1' t2'
 
-betaNormalize a@(Arrow' t1 t2) =
+betaNormalize a@(ArrowP t1 t2) =
   do t1' <- betaNormalize t1
      t2' <- betaNormalize t2
-     return $ Arrow' t1' t2'
+     return $ ArrowP t1' t2'
 
 betaNormalize a@(Imply t1 t2) =
   do t1' <- mapM betaNormalize t1
@@ -173,17 +171,17 @@ betaNormalize (AppDep t1 t2) =
            t -> return $ LamDep (abst t (apply [(x, t2')] m))
        b -> return (AppDep b t2')
 
-betaNormalize (AppDep' t1 t2) =
+betaNormalize (AppDepInt t1 t2) =
   do t1' <- betaNormalize t1
      t2' <- betaNormalize t2
      case t1' of
-       LamDep' bd -> 
+       LamDepInt bd -> 
          open bd $ \ xs m ->
          let x = head xs in
          case tail xs of
            [] -> betaNormalize $ apply [(x, t2')] m
-           t -> return $ LamDep' (abst t (apply [(x, t2')] m))
-       b -> return (AppDep' b t2')
+           t -> return $ LamDepInt (abst t (apply [(x, t2')] m))
+       b -> return (AppDepInt b t2')
 
 betaNormalize (AppDepTy t1 t2) =
   do t1' <- betaNormalize t1
@@ -210,17 +208,17 @@ betaNormalize (AppDict t1 t2) =
        b -> return (AppDict b t2')       
 
 
-betaNormalize (App' t1 t2) =
+betaNormalize (AppP t1 t2) =
   do t1' <- betaNormalize t1
      t2' <- betaNormalize t2
      case t1' of
-       Lam' bd -> 
+       LamP bd -> 
          open bd $ \ xs m ->
          let x = head xs in
          case tail xs of
            [] -> betaNormalize $ apply [(x, t2')] m
-           t -> return $ Lam' (abst t (apply [(x, t2')] m))
-       b -> return (App' b t2')
+           t -> return $ LamP (abst t (apply [(x, t2')] m))
+       b -> return (AppP b t2')
 
 betaNormalize (App t1 t2) =
   do t1' <- betaNormalize t1
@@ -259,20 +257,6 @@ normalize a@(Var x) =
            TermVar _ (Just d) -> normalize d
 
 
-normalize a@(EigenVar x) = 
-  do ts <- get
-     let lc = localCxt $ lcontext ts
-     case Map.lookup x lc of
-       Nothing -> return a
-       Just lti ->
-         case varIdentification lti of
-           TypeVar _ _ -> return a
-           TermVar _ Nothing -> return a
-           TermVar _ (Just d) -> normalize d
-  
-
-normalize a@(GoalVar x) = return a
-
 normalize a@(Const k) =
   do funPac <- lookupId k
      let f = identification funPac
@@ -293,49 +277,49 @@ normalize a@(LBase k) = return a
 
 normalize a@(Base k) = return a
 
-normalize (Force' m) =
+normalize (ForceP m) =
   do m' <- normalize m 
      case erasePos m' of
        Lift n ->
          shape n >>= normalize
-       n -> return (Force' n)
+       n -> return (ForceP n)
 
-normalize (App' m n) =
+normalize (AppP m n) =
   do m' <- normalize m
      n' <- normalize n
      case m' of
-       Lam' bd -> 
+       LamP bd -> 
          open bd $ \ xs b ->
          let x = head xs in 
          case tail xs of
            [] -> normalize $ apply [(x, n')] b
-           t -> return $ Lam' (abst t (apply [(x, n')] b))
-       LamAnn' ty bd -> 
+           t -> return $ LamP (abst t (apply [(x, n')] b))
+       LamAnnP ty bd -> 
          open bd $ \ xs b ->
          let x = head xs in 
          case tail xs of
            [] -> normalize $ apply [(x, n')] b
-           t -> return $ LamAnn' ty (abst t (apply [(x, n')] b)) 
+           t -> return $ LamAnnP ty (abst t (apply [(x, n')] b)) 
            
-       _ -> return $ App' m' n'
+       _ -> return $ AppP m' n'
 
-normalize (AppDep' m n) =
+normalize (AppDepInt m n) =
   do m' <- normalize m
      n' <- normalize n
      case m' of
-       LamDep' bd -> 
+       LamDepInt bd -> 
          open bd $ \ xs b ->
          let x = head xs in 
          case tail xs of
            [] -> normalize $ apply [(x, n')] b
-           t -> return $ LamDep' (abst t (apply [(x, n')] b))
-       LamAnn' ty bd -> 
+           t -> return $ LamDepInt (abst t (apply [(x, n')] b))
+       LamAnnP ty bd -> 
          open bd $ \ xs b ->
          let x = head xs in 
          case tail xs of
            [] -> normalize $ apply [(x, n')] b
-           t -> return $ LamAnn' ty (abst t (apply [(x, n')] b))            
-       _ -> return $ AppDep' m' n'
+           t -> return $ LamAnnP ty (abst t (apply [(x, n')] b))            
+       _ -> return $ AppDepInt m' n'
 
 normalize (AppDepTy m n) =
   do m' <- normalize m
@@ -347,12 +331,12 @@ normalize (AppDepTy m n) =
          case tail xs of
            [] -> normalize $ apply [(x, n')] b
            t -> return $ LamDepTy (abst t (apply [(x, n')] b))
-       LamAnn' ty bd -> 
+       LamAnnP ty bd -> 
          open bd $ \ xs b ->
          let x = head xs in 
          case tail xs of
            [] -> normalize $ apply [(x, n')] b
-           t -> return $ LamAnn' ty (abst t (apply [(x, n')] b))            
+           t -> return $ LamAnnP ty (abst t (apply [(x, n')] b))            
        _ -> return $ AppDepTy m' n'
 
 normalize (AppDict m n) =
@@ -402,10 +386,10 @@ normalize (Circ m n mode) =
      w <- normalize n 
      return (Circ v w mode)
 
-normalize (Arrow' m n) = 
+normalize (ArrowP m n) = 
   do v <- normalize m 
      w <- normalize n 
-     return (Arrow' v w)
+     return (ArrowP v w)
 
 normalize (Arrow m n) = 
   do v <- normalize m 
@@ -415,7 +399,7 @@ normalize (Arrow m n) =
 normalize a@(Forall _ _) = return a
 normalize a@(Pi _ _) = return a
 normalize a@(PiImp _ _) = return a
-normalize a@(Pi' _ _) = return a
+normalize a@(PiInt _ _) = return a
 
 normalize a@(Exists _ _) = return a
 
@@ -501,13 +485,13 @@ normalize b@(Case m (B bd)) =
 
 normalize a@(Lift _) = return a
 normalize a@(Mod _) = return a
-normalize a@(Lam' _) = return a
+normalize a@(LamP _) = return a
 normalize a@(Lam _) = return a
-normalize a@(LamDep' _) = return a
+normalize a@(LamDepInt _) = return a
 normalize a@(LamDep _) = return a
 normalize a@(LamDepTy _) = return a
 normalize a@(LamAnn _ _) = return a
-normalize a@(LamAnn' _ _) = return a
+normalize a@(LamAnnP _ _) = return a
 normalize a@(LamDict _) = return a
 normalize a@(LamType _) = return a
 normalize a@(LamTm _) = return a

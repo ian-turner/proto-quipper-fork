@@ -27,6 +27,43 @@ difference' s1 s2 =
            helper (S.deleteAll x s1) xs
                     
 
+-- | Remove vacuous Pi quantifiers.
+
+removeVacuousPi :: Exp -> Exp
+removeVacuousPi (Pos p e) = removeVacuousPi e
+
+removeVacuousPi (Forall (Abst xs m) ty) =
+  Forall (abst xs $ removeVacuousPi m) (removeVacuousPi ty)
+
+-- Currently there should be no way to construct a vacuous
+-- implicit Pi. 
+removeVacuousPi (PiImp (Abst xs m) ty) =
+ PiImp (abst xs $ removeVacuousPi m) (removeVacuousPi ty)
+
+removeVacuousPi (Pi (Abst xs m) ty) =
+  let fvs = getVars All m
+      xs' = map (\ x ->
+                  if S.member x fvs then
+                    Just x
+                  else Nothing
+                ) xs
+      ty' = removeVacuousPi ty
+      m' = removeVacuousPi m
+  in foldr (\ x y ->
+               case x of
+                 Nothing -> Arrow ty' y
+                 Just x' -> Pi (abst [x'] y) ty')
+     m' xs'
+     
+removeVacuousPi (Arrow ty1 ty2) =
+  Arrow (removeVacuousPi ty1) (removeVacuousPi ty2)
+
+removeVacuousPi (Imply ps ty2) =
+  Imply ps (removeVacuousPi ty2)
+
+removeVacuousPi (Bang ty m) = Bang (removeVacuousPi ty) m
+removeVacuousPi a = a
+
 -- | Detect vacuous forall and implicit quantifications,
 -- return a list of vacuous variables, their type
 -- and the expression that they should occur in. 
