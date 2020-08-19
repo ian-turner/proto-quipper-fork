@@ -1,7 +1,7 @@
 -- | This module implements a version of first-order unification. We support
 -- a restricted version of unification for case expression and existential types.
 
-module Unification (runUnify, UnifResult(..)) where
+module Unification (runUnify, runDUnify, UnifResult(..)) where
 
 import Syntax
 import Substitution
@@ -25,11 +25,22 @@ runUnify b t1 t2 =
       (r, s) = runState (unify b t1' t2') (Map.empty, ([], [], []))
   in (r, s)
 
+-- | Unify two expressions using dUnify. 
+runDUnify :: Exp -> Exp -> (UnifResult, Subst)
+runDUnify t1 t2 =
+  let t1' = erasePos t1
+      t2' = erasePos t2
+      (r, s) = runState (dUnify t1' t2') Map.empty
+  in (r, s)
+
 
 data UnifResult = Success
                 | ModeError (Modality, Exp) (Modality, Exp)
                 | UnifError
+                | DUnifError
                 deriving (Eq, Show)
+
+
 
 -- | Unify two expressions. 
 unify :: InEquality -> Exp -> Exp -> State (Subst, BSubst) UnifResult
@@ -219,4 +230,103 @@ unify b (Imply (t1:ts1) t2) (Imply (t3:ts3) t4) =
 unify b t t' = return UnifError
 
 
+-- | Unify two expressions in dependent pattern matching. 
+dUnify :: Exp -> Exp -> State Subst UnifResult
 
+-- dUnify _ a b | trace (show $ dispRaw a <+> text ":" <+> dispRaw b) $ False = undefined
+dUnify Unit Unit = return Success
+dUnify Set Set = return Success
+dUnify (Base x) (Base y) | x == y = return Success
+                         | otherwise = return DUnifError
+dUnify (LBase x) (LBase y) | x == y = return Success
+                           | otherwise = return DUnifError
+
+dUnify (Const x) (Const y) | x == y = return Success
+                           | otherwise = return DUnifError
+
+dUnify (MetaVar x) (MetaVar y) | x == y = return Success
+                               | otherwise = return DUnifError
+
+ 
+dUnify (Var x) t
+  | Var x == t = return Success
+  | x `S.member` getVars All t = return DUnifError
+  | otherwise = 
+    do sub <- get
+       let subst' =
+             mergeSub (Map.fromList [(x, t)]) sub
+       put subst'
+       return Success
+
+dUnify t (Var x)
+  | Var x == t = return Success
+  | x `S.member` getVars All t = return DUnifError
+  | otherwise =
+    do sub <- get
+       let subst' =
+             mergeSub (Map.fromList [(x, t)]) sub
+       put subst'
+       return Success
+
+
+
+dUnify (Force t) (Force t') = dUnify t t'
+dUnify (ForceP t) (ForceP t') = dUnify t t'
+dUnify (Lift t) (Lift t') = dUnify t t'
+
+dUnify (App t1 t2) (App t3 t4) =
+  do a <- dUnify t1 t3
+     if a == Success
+       then
+       do sub <- get
+          dUnify (substitute sub t2)
+            (substitute sub t4)
+       else return a
+
+dUnify (AppP t1 t2) (AppP t3 t4) =
+  do a <- dUnify t1 t3
+     if a == Success
+       then
+       do sub <- get
+          dUnify (substitute sub t2)
+            (substitute sub t4)
+       else return a
+
+dUnify (AppDict t1 t2) (AppDict t3 t4) =
+  do a <- dUnify t1 t3
+     if a == Success
+       then
+       do sub <- get
+          dUnify (substitute sub t2)
+            (substitute sub t4)
+       else return a
+
+dUnify (AppDep t1 t2) (AppDep t3 t4) =
+  do a <- dUnify t1 t3
+     if a == Success
+       then
+       do sub <- get
+          dUnify (substitute sub t2)
+            (substitute sub t4)
+       else return a
+
+
+dUnify (AppType t1 t2) (AppType t3 t4) =
+  do a <- dUnify t1 t3
+     if a == Success
+       then
+       do sub <- get
+          dUnify (substitute sub t2)
+            (substitute sub t4)
+       else return a
+
+dUnify (AppTm t1 t2) (AppTm t3 t4) =
+  do a <- dUnify t1 t3
+     if a == Success
+       then
+       do sub <- get
+          dUnify (substitute sub t2)
+            (substitute sub t4)
+       else return a
+
+dUnify t t' = return DUnifError

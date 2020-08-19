@@ -5,6 +5,13 @@ module Equality where
 data (Parameter a) => Eq a (x : a) (y : a) =
       E (! (p : a -> Type) -> p x -> p y)
 
+
+-- data List a = Nil | Cons a (List a)
+
+-- data Bool = F | T
+-- f : ! forall a -> (Parameter a) => List a -> Bool
+-- f l = case l of
+--          Cons x xs -> xs
 -- Combinators for manual equality conversion->
 
 refl : ! forall a -> (Parameter a) => forall (x : a) -> Eq a x x
@@ -15,8 +22,8 @@ sym : ! forall a -> (Parameter a) =>
               forall (y : a) -> (x : a) -> Eq a x y -> Eq a y x
 sym x q = 
   let E q1 = q in
-    E ( \ p l -> q1 (\ z -> p z -> p x) (\ b -> b) l)
-
+    E ( \ f l -> q1 (\ z -> f z -> f x) )
+{-
 trans : ! forall a -> (Parameter a) =>
               forall (x y z : a) -> Eq a x y -> Eq a y z -> Eq a x z
 trans p1 p2 =
@@ -34,3 +41,4 @@ cong f pf =
 subst : ! forall a -> (Parameter a) =>
              forall (n m : a) -> (p : a -> Type) -> Eq a n m -> p n -> p m
 subst p eq = let E eq = eq in eq p 
+-}

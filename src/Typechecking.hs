@@ -718,8 +718,9 @@ typeCheck flag (LetPat m bd) goal =
      open bd $ \ (PApp kid vs) n ->
        do funPac <- lookupId kid
           let dt = classifier funPac
+          semi <- isSemiSimple kid 
           (head, axs, ins, kid') <- extendEnv vs dt (Const kid)
-          (unifRes, (sub', bs)) <- normalizeUnif Equal head t'
+          (unifRes, (sub', bs)) <- patternUnif semi m head t'
           case unifRes of
             UnifError ->
               throwError $ withPosition m (UnifErr head t') 
@@ -801,10 +802,11 @@ typeCheck flag a@(Case tm (B brs)) goal =
              PApp kid vs ->
                do funPac <- lookupId kid
                   let dt = classifier funPac
+                  semi <- isSemiSimple kid
                   updateCountWith (\ c -> nextCase c kid)
                   (head, axs, ins, kid') <- extendEnv vs dt (Const kid)
                   ss <- getSubst
-                  (unifRes, (sub', bs)) <- normalizeUnif Equal head t
+                  (unifRes, (sub', bs)) <- patternUnif semi m head t
                   case unifRes of
                     UnifError ->
                       throwError $ withPosition tm (UnifErr head t)
@@ -856,7 +858,7 @@ equality flag tm ty =
        else 
        do (tym, ann, mode) <- typeInfer flag tm
           tym1 <- updateWithSubst tym
-          (unifRes, (sub, bs)) <- normalizeUnif Equal tym1 ty'
+          (unifRes, (sub, bs)) <- normalizeUnif GEq tym1 ty'
           case unifRes of
              UnifError ->
                throwError $ withPosition tm (UnifErr tym1 ty')
@@ -907,33 +909,38 @@ equality flag tm ty =
 -- | Normalize and unify two expressions (/head/ and /t/),
 -- used by dependent pattern matching.
 
--- patternUnif :: Exp -> Exp -> Exp -> TCMonad (UnifResult, (Subst, BSubst))
--- patternUnif m head t =
---   if isDpm then
---     case index of
---         Nothing -> normalizeUnif GEq head t
---         Just i ->
---           case flatten t of
---             Just (Right h, args) -> 
---               let (bs, a:as) = splitAt i args
---                   vars = S.distinctElems $ getVars OnlyEigen a
---                   eSub = zip vars (map EigenVar vars)
---                   a' = unEigenBound vars a
---                   t' = foldl App' (LBase h) (bs++(a':as))
---               in do res@(r, (subst, bs)) <- normalizeUnif GEq head t'
---                     case r of
---                       Success ->
---                         let subst' = helper subst vars eSub
---                         in return (r, (subst', bs))
---                       _ -> return res
---             _ -> throwError $ withPosition m (UnifErr head t)
---   else normalizeUnif GEq head t
---   where -- change relavent variables back into eigenvariables after dependent pattern-matching. 
---         helper subst (v:vars) eSub =
---           let subst' = Map.mapWithKey (\ k val -> if k == v then toEigen val else val) subst
---               subst'' = Map.map (\ val -> apply eSub val) subst'
---           in helper subst'' vars eSub
---         helper subst [] eSub = subst
+patternUnif :: (Bool, Maybe Int) ->
+                 Exp -> Exp -> Exp ->
+                  TCMonad (UnifResult, (Subst, BSubst))
+patternUnif (isDpm, index) m head t =
+  if isDpm then
+    case index of
+        Nothing -> normalizeUnif GEq head t 
+        Just i ->
+          case (flatten head, flatten t) of
+            (Just (Right h1, args1), Just (Right h2, args2))
+              | h1 == h2 && length args1 == length args2 ->
+              
+              let (bs1, a1:as1) = splitAt i args1
+                  (bs2, a2:as2) = splitAt i args2
+              in do (r1, subst1) <- normalizeDUnif a1 a2
+                    case r1 of
+                      Success ->
+                        do let a1' = substitute subst1 a1
+                               a2' = substitute subst1 a2
+                               head' = foldl AppP (Base h1) (bs1++a1':as1)
+                               t' = foldl AppP (Base h2) (bs2++a2':as2)
+                               
+                           (res, (sub, bs)) <- normalizeUnif GEq head' t'                  
+                           return (res, (sub `mergeSub` subst1, bs))
+            _ -> throwError $ withPosition m (UnifErr head t)
+  else normalizeUnif GEq head t
+  -- where -- change relavent variables back into eigenvariables after dependent pattern-matching. 
+  --       helper subst (v:vars) eSub =
+  --         let subst' = Map.mapWithKey (\ k val -> if k == v then toEigen val else val) subst
+  --             subst'' = Map.map (\ val -> apply eSub val) subst'
+  --         in helper subst'' vars eSub
+  --       helper subst [] eSub = subst
           
       
 -- | Normalize two expressions and then unify them.  
@@ -951,6 +958,19 @@ normalizeUnif b t1 t2 = do
       t1'' <- normalize t1'
       t2'' <- normalize t2'
       return $ runUnify b t1'' t2''
+
+normalizeDUnif :: Exp -> Exp ->
+                 TCMonad (UnifResult, Subst)
+normalizeDUnif t1 t2 = do
+  t1' <- resolveGoals t1
+  t2' <- resolveGoals t2
+  let a@(res, _) = runDUnify t1' t2'
+  case res of
+    Success -> return a
+    _ -> do
+      t1'' <- normalize t1'
+      t2'' <- normalize t2'
+      return $ runDUnify t1'' t2''
 
 -- | Extend the typing environment with
 -- the environment induced by pattern.
@@ -975,31 +995,40 @@ extendEnv xs (Forall bind ty) kid
   | isKind ty =
     open bind $ \ys t' -> do
       mapM_ (\x -> addVar x ty) ys
-      let kid' = foldl AppType kid (map Var ys)
-      (h, vs, ins, kid'') <- extendEnv xs t' kid'
+      let mvars = map MetaVar ys
+          kid' = foldl AppType kid mvars
+          t'' = apply (zip ys mvars) t'
+      (h, vs, ins, kid'') <- extendEnv xs t'' kid'
       let vs' = map Right ys ++ vs
       return (h, vs', ins, kid'')
+
 extendEnv xs (Forall bind ty) kid
   | otherwise =
     open bind $ \ys t' -> do
       mapM_ (\x -> addVar x ty) ys
-      let kid' = foldl AppTm kid (map Var ys)
-      (h, vs, ins, kid'') <- extendEnv xs t' kid'
+      let mvars = map MetaVar ys
+          kid' = foldl AppTm kid mvars
+          t'' = apply (zip ys mvars) t'
+      (h, vs, ins, kid'') <- extendEnv xs t'' kid'
       let vs' = (map Right ys) ++ vs
       return (h, vs', ins, kid'')
+
 extendEnv xs (Imply bds ty) kid = do
   let ns1 = take (length bds) (repeat "#inst")
   ns <- newNames ns1
   freshNames ns $ \ns -> do
     mapM_ (\(x, y) -> insertLocalInst x y) (zip ns bds)
-    let kid' = foldl AppDict kid (map Var ns)
+    let kid' = foldl AppDict kid (map MetaVar ns)
     (h, vs, ins, kid'') <- extendEnv xs ty kid'
     return (h, (map Right ns) ++ vs, ns ++ ins, kid'')
+
 extendEnv [] t kid = return (t, [], [], kid)
+
 extendEnv (Right x:xs) (Arrow t1 t2) kid = do
   addVar x t1
   (h, ys, ins, kid') <- extendEnv xs t2 kid
   return (h, Right x : ys, ins, kid')
+
 extendEnv (Right x:xs) (Pi bind ty) kid
   | not (isKind ty) =
     open bind $ \ys t' -> do
@@ -1014,6 +1043,7 @@ extendEnv (Right x:xs) (Pi bind ty) kid
         else do
           (h, ys, ins, kid') <- extendEnv xs (Pi (abst (tail ys) t'') ty) kid
           return (h, (Right x : ys), ins, kid')
+
 extendEnv a b kid = throwError $ ExtendEnvErr a b
 
 -- | Infer a type for a type application.

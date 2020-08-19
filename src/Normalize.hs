@@ -27,6 +27,7 @@ import Debug.Trace
 -- when instantiating a type/type function.
 betaNormalize :: Exp -> TCMonad Exp
 betaNormalize a@(Var x) = return a
+betaNormalize a@(MetaVar x) = return a
 betaNormalize a@(Unit) = return a
 betaNormalize a@(Set) = return a
 betaNormalize a@(Sort) = return a
@@ -245,6 +246,8 @@ betaNormalize a = error $ "from betaNormalize" ++ (show (disp a))
 -- will one step normalize that function into the corresponding value expression.
 normalize :: Exp -> TCMonad Exp
 -- normalize a | trace (show $ disp a) $ False = undefined
+normalize a@(MetaVar x) = return a
+
 normalize a@(Var x) =
   do ts <- get
      let lc = localCxt $ lcontext ts

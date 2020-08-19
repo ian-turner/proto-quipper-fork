@@ -119,6 +119,7 @@ mergeModeSubst s1 s2 =
 
 bSubstitute :: (ModeSubst, ModeSubst, ModeSubst) -> Exp -> Exp           
 bSubstitute s a@(Var y) = a
+bSubstitute s a@(MetaVar y) = a
 bSubstitute s a@(Base _) = a
 bSubstitute s a@(LBase _) = a      
 bSubstitute s a@(Unit) = a

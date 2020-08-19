@@ -450,6 +450,7 @@ erasePos (Set) = Set
 erasePos (Sort) = Sort
 erasePos Star = Star
 erasePos a@(Var x) = a
+erasePos a@(MetaVar x) = a
 erasePos a@(Base x) = a
 erasePos a@(LBase x) = a
 erasePos a@(Const x) = a

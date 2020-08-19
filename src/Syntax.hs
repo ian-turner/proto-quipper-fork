@@ -455,6 +455,8 @@ instance Disp Exp where
      display flag e <+> text ":" <+> display flag ty
   display flag e = error $ "from display: " ++ show e
   precedence (Var _) = 12
+  precedence (MetaVar _) = 12
+  
   precedence (Base _) = 12
   precedence (LBase _) = 12
   precedence (Const _) = 12
