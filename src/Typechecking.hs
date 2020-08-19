@@ -44,199 +44,211 @@ typeCheck :: Bool -> Exp -> Exp -> TCMonad (Exp, Exp, Modality)
 -- | Infer a type for a term, also return elaborated term.
 typeInfer :: Bool -> Exp -> TCMonad (Exp, Exp, Modality)
 
-typeInfer flag (Pos p e) =
-  do (ty, ann, m) <- typeInfer flag e `catchError`
-                     \ e -> throwError $ addErrPos p e
-     return (ty, (Pos p ann), m)
-
+typeInfer flag (Pos p e) = do
+  (ty, ann, m) <- typeInfer flag e `catchError`
+                  \e -> throwError $ addErrPos p e
+  return (ty, (Pos p ann), m)
 typeInfer flag Set = return (Sort, Set, identityMod)
-
 typeInfer flag a@(Base kid) =
-  lookupId kid >>= \ x -> return (classifier x, a, identityMod)
-
+  lookupId kid >>= \x -> return (classifier x, a, identityMod)
 typeInfer flag a@(LBase kid) =
-  lookupId kid >>= \ x -> return (classifier x, a, identityMod)
+  lookupId kid >>= \x -> return (classifier x, a, identityMod)
 
-typeInfer flag a@(Var x) =
-  do (t, _) <- lookupVar x
-     if flag then
-       do t' <- shape t 
-          return (t', a, identityMod)
-       else
-       do updateCount x
-          return (t, a, identityMod)
+typeInfer flag a@(Var x) = do
+  (t, _) <- lookupVar x
+  if flag
+    then do
+      t' <- shape t
+      return (t', a, identityMod)
+    else do
+      updateCount x
+      return (t, a, identityMod)
 
-     
-typeInfer flag a@(Const kid) =
-  do funPac <- lookupId kid
-     let cl = classifier funPac
-     case cl of
-       Mod (Abst _ cl') -> 
-         return (cl', a, identityMod)
-       _ -> return (cl, a, identityMod)
-         
+typeInfer flag a@(Const kid) = do
+  funPac <- lookupId kid
+  let cl = classifier funPac
+  case cl of
+    Mod (Abst _ cl') -> return (cl', a, identityMod)
+    _ -> return (cl, a, identityMod)
 
-typeInfer flag a@(App t1 t2) =
-  do (t', ann, m) <- typeInfer flag t1
-     if isKind t'
-       then handleTypeApp ann t' t1 t2 m
-       else handleTermApp flag ann t1 t' t1 t2 m 
+typeInfer flag a@(App t1 t2) = do
+  (t', ann, m) <- typeInfer flag t1
+  if isKind t'
+    then handleTypeApp ann t' t1 t2 m
+    else handleTermApp flag ann t1 t' t1 t2 m
 
 typeInfer False a@(UnBox) =
-  freshNames ["a", "b", "alpha", "beta"] $ \ [a, b, alpha, beta] ->
-  let va = Var a
-      vb = Var b
-      simpClass = Id "Simple"
-      boxMode = M (BConst True) (BVar alpha) (BVar beta)
-      t1 = Arrow (Circ va vb boxMode) (Bang (Arrow va vb) boxMode)
-      t1' =
-        Imply [AppP (Base simpClass) va , AppP (Base simpClass) vb] t1
-      ty = Forall (abst [a, b] t1') Set
-      ty' = abstractMode ty
-  in return (ty', UnBox, identityMod)
+  freshNames ["a", "b", "alpha", "beta"] $ \[a, b, alpha, beta] ->
+    let va = Var a
+        vb = Var b
+        simpClass = Id "Simple"
+        boxMode = M (BConst True) (BVar alpha) (BVar beta)
+        t1 = Arrow (Circ va vb boxMode) (Bang (Arrow va vb) boxMode)
+        t1' = Imply [AppP (Base simpClass) va,
+                     AppP (Base simpClass) vb] t1
+        ty = Forall (abst [a, b] t1') Set
+        ty' = abstractMode ty
+     in return (ty', UnBox, identityMod)
 
 typeInfer False a@(Reverse) =
-  freshNames ["a", "b", "alpha"] $ \ [a, b, alpha] ->
-  let va = Var a
-      vb = Var b
-      simpClass = Id "Simple"
-      boxMode = M (BConst True) (BVar alpha) (BConst True)
-      t1 = Arrow (Circ va vb boxMode) (Circ vb va boxMode)
-      t1' =
-        Imply [AppP (Base simpClass) va , AppP (Base simpClass) vb] t1
-      ty = Forall (abst [a, b] t1') Set
-      ty' = abstractMode ty
-  in return (ty', Reverse, identityMod)
+  freshNames ["a", "b", "alpha"] $ \[a, b, alpha] ->
+    let va = Var a
+        vb = Var b
+        simpClass = Id "Simple"
+        boxMode = M (BConst True) (BVar alpha) (BConst True)
+        t1 = Arrow (Circ va vb boxMode) (Circ vb va boxMode)
+        t1' = Imply [AppP (Base simpClass) va,
+                     AppP (Base simpClass) vb] t1
+        ty = Forall (abst [a, b] t1') Set
+        ty' = abstractMode ty
+     in return (ty', Reverse, identityMod)
 
 typeInfer False a@(Controlled) =
-  freshNames ["a", "b", "s"] $ \ [a, b, s'] ->
-  let va = Var a
-      s = Var s'
-      vb = Var b
-      simpClass = Id "Simple"
-      t1 = Arrow (Circ va vb identityMod)
-           (Bang (Arrow va (Arrow s (Tensor vb s))) identityMod)
-      t1' =
-        Imply [AppP (Base simpClass) s,
-               AppP (Base simpClass) va,
-               AppP (Base simpClass) vb] t1
-      ty = Forall (abst [a, b, s'] t1') Set
-      ty' = abstractMode ty
-  in return (ty', Controlled, identityMod)
+  freshNames ["a", "b", "s"] $ \[a, b, s'] ->
+    let va = Var a
+        s = Var s'
+        vb = Var b
+        simpClass = Id "Simple"
+        t1 =
+          Arrow
+            (Circ va vb identityMod)
+            (Bang (Arrow va (Arrow s (Tensor vb s))) identityMod)
+        t1' =
+          Imply
+            [ AppP (Base simpClass) s
+            , AppP (Base simpClass) va
+            , AppP (Base simpClass) vb
+            ]
+            t1
+        ty = Forall (abst [a, b, s'] t1') Set
+        ty' = abstractMode ty
+     in return (ty', Controlled, identityMod)
 
 typeInfer False Dynlift =
-  let ty = Bang (Arrow (LBase (Id "Bit")) (Base (Id "Bool")))
-           (M (BConst False) (BConst False) (BConst False))
-  in return (ty, Dynlift, identityMod)
-     
+  let ty =
+        Bang
+          (Arrow (LBase (Id "Bit")) (Base (Id "Bool")))
+          (M (BConst False) (BConst False) (BConst False))
+   in return (ty, Dynlift, identityMod)
+
 typeInfer False a@(WithComputed) =
   freshNames ["a", "b", "c", "d", "e", "x", "y"] $
-  \ xs@[a, b, c, d, e, x, y] ->
-  let vxs@[va, vb, vc, vd, ve, vx, vy] = map Var xs
-      simpClass = Id "Simple"
-      mod1 = M (BConst True) (BConst False) (BConst True)
-      mod2 = M (BConst True) (BVar x) (BVar y)
-      t1 = Arrow (Circ va (Tensor vb ve) mod1)
-           (Arrow (Circ (Tensor vb vc) (Tensor vb vd) mod2)
-            (Circ (Tensor va vc) (Tensor va vd) mod2))
-      t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1
-      ty = Forall (abst [a, b,c,d,e] t1') Set
-      ty' = abstractMode ty
-  in return (ty', WithComputed, identityMod)
+   \xs@[a, b, c, d, e, x, y] ->
+    let vxs@[va, vb, vc, vd, ve, vx, vy] = map Var xs
+        simpClass = Id "Simple"
+        mod1 = M (BConst True) (BConst False) (BConst True)
+        mod2 = M (BConst True) (BVar x) (BVar y)
+        t1 =
+          Arrow
+            (Circ va (Tensor vb ve) mod1)
+            (Arrow
+               (Circ (Tensor vb vc) (Tensor vb vd) mod2)
+               (Circ (Tensor va vc) (Tensor va vd) mod2))
+        t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1
+        ty = Forall (abst [a, b, c, d, e] t1') Set
+        ty' = abstractMode ty
+     in return (ty', WithComputed, identityMod)
 
 typeInfer False t@(Box) =
-  freshNames ["a", "b", "alpha", "beta"] $ \ [a, b, alpha, beta] ->
-  do let va = Var a
-         vb = Var b
-         simpClass = Id "Simple"
-         boxMode = M (BConst True) (BVar alpha) (BVar beta)
-         t1 = Arrow (Bang (Arrow va vb) boxMode) (Circ va vb boxMode)
-         t1' =
-           Imply [AppP (Base simpClass) va , AppP (Base simpClass) vb] t1
-         boxType = Pi (abst [a] (Forall (abst [b] t1') Set)) Set
-         ty' = abstractMode boxType
-     return (ty', t, identityMod)
-
+  freshNames ["a", "b", "alpha", "beta"] $ \[a, b, alpha, beta] -> do
+    let va = Var a
+        vb = Var b
+        simpClass = Id "Simple"
+        boxMode = M (BConst True) (BVar alpha) (BVar beta)
+        t1 = Arrow (Bang (Arrow va vb) boxMode) (Circ va vb boxMode)
+        t1' = Imply [AppP (Base simpClass) va,
+                     AppP (Base simpClass) vb] t1
+        boxType = Pi (abst [a] (Forall (abst [b] t1') Set)) Set
+        ty' = abstractMode boxType
+    return (ty', t, identityMod)
 
 typeInfer False t@(ExBox) =
   freshNames ["a", "b", "p", "n", "alpha", "beta"] $
-  \ [a, b, p, n, alpha, beta] ->
-  do let va = Var a
-         vb = Var b
-         vp = Var p
-         vn = Var n
-         simpClass = Id "Simple"
-         paramClass = Id "Parameter"
-         kp = Arrow vb Set
-         boxMode = M (BConst True) (BVar alpha) (BVar beta)
-         simpA = AppP (Base simpClass) va
-         paramB = AppP (Base paramClass) vb
-         simpP = AppP (Base simpClass) (AppP vp vn)
-         t1Output = Exists (abst n (AppP vp vn)) vb
-         t1 = Bang (Arrow va t1Output) boxMode
-         output = Exists (abst n $ Imply [simpP] (Circ va (AppP vp vn) boxMode)) vb
-         beforePi = Arrow t1 output
-         r = Pi (abst [a] $
-                 Forall (abst [b] (Imply [simpA, paramB] $
-                                   Pi (abst [p] $ beforePi) kp)) Set)
-             Set
-         r' = abstractMode r
-     return (r', t, identityMod)
+  \[a, b, p, n, alpha, beta] -> do
+    let va = Var a
+        vb = Var b
+        vp = Var p
+        vn = Var n
+        simpClass = Id "Simple"
+        paramClass = Id "Parameter"
+        kp = Arrow vb Set
+        boxMode = M (BConst True) (BVar alpha) (BVar beta)
+        simpA = AppP (Base simpClass) va
+        paramB = AppP (Base paramClass) vb
+        simpP = AppP (Base simpClass) (AppP vp vn)
+        t1Output = Exists (abst n (AppP vp vn)) vb
+        t1 = Bang (Arrow va t1Output) boxMode
+        output =
+          Exists (abst n $ Imply [simpP]
+                           (Circ va (AppP vp vn) boxMode)) vb
+        beforePi = Arrow t1 output
+        r =
+          Pi
+            (abst [a] $
+             Forall
+               (abst [b] (Imply [simpA, paramB] $
+                     Pi (abst [p] $ beforePi) kp))
+               Set)
+            Set
+        r' = abstractMode r
+    return (r', t, identityMod)
 
 typeInfer flag Star = return (Unit, Star, identityMod)
 typeInfer flag Unit = return (Set, Unit, identityMod)
 
+typeInfer flag a@(Pair t1 t2) = do
+  (ty1, ann1, mode1) <- typeInfer flag t1
+  (ty2, ann2, mode2) <- typeInfer flag t2
+  return (Tensor ty1 ty2, Pair ann1 ann2, modalAnd mode1 mode2)
 
-typeInfer flag a@(Pair t1 t2) =
-  do (ty1, ann1, mode1) <- typeInfer flag t1 
-     (ty2, ann2, mode2) <- typeInfer flag t2
-     return (Tensor ty1 ty2, Pair ann1 ann2, modalAnd mode1 mode2)
+typeInfer False a@(LamAnn ty (Abst xs m)) = do
+  (_, tyAnn1, _) <-
+    if isKind ty
+      then typeCheck True ty Sort
+      else typeCheck True ty Set
+  mapM_ (\x -> addVar x (erasePos tyAnn1)) xs
+  p <- isParam tyAnn1
+  (ty', ann, mode') <- typeInfer False m
+  foldM (helper p tyAnn1) (ty', ann, mode') xs
+  where
+    helper p tyAnn1 (ty', ann, mode') x = do
+      when (not p) $ checkUsage x m >> return ()
+      removeVar x
+      let resTy =
+            if x `S.member` getVars All ty'
+              then Pi (abst [x] ty') tyAnn1
+              else Arrow tyAnn1 ty'
+      return (resTy, LamAnn tyAnn1 (abst [x] ann), mode')
 
-typeInfer False a@(LamAnn ty (Abst xs m)) =
-  do (_, tyAnn1, _) <- if isKind ty then typeCheck True ty Sort
-                       else typeCheck True ty Set
-     mapM_ (\ x -> addVar x (erasePos tyAnn1)) xs
-     p <- isParam tyAnn1
-     (ty', ann, mode') <- typeInfer False m
-     foldM (helper p tyAnn1) (ty', ann, mode') xs
-       where helper p tyAnn1 (ty', ann, mode') x =
-               do when (not p) $ checkUsage x m >> return ()
-                  removeVar x
-                  let resTy = if x `S.member` getVars All ty'
-                              then Pi (abst [x] ty') tyAnn1
-                              else Arrow tyAnn1 ty'
-                  return (resTy, LamAnn tyAnn1 (abst [x] ann), mode')
-                           
+typeInfer flag (WithType a t) = do
+  (_, tAnn1, _) <- typeCheck True t Set
+  let tAnn' = erasePos tAnn1
+  (tAnn2, ann, mode) <- typeCheck False a tAnn'
+  return (tAnn2, WithType ann tAnn2, mode)
 
-typeInfer flag (WithType a t) =
-  do (_, tAnn1, _) <- typeCheck True t Set
-     let tAnn' = erasePos tAnn1
-     (tAnn2, ann, mode) <- typeCheck False a tAnn' 
-     return (tAnn2, WithType ann tAnn2, mode)
+typeInfer flag a@(Case _ _) =
+  freshNames ["#case"] $ \[n] -> do
+    (t, ann, mode) <- typeCheck flag a (MetaVar n)
+    return (t, WithType ann t, mode)
 
+typeInfer flag a@(Let _ _) =
+  freshNames ["#let"] $ \[n] -> do
+    (t, ann, mode) <- typeCheck flag a (MetaVar n)
+    return (t, WithType ann t, mode)
 
-typeInfer flag a@(Case _ _) = freshNames ["#case"] $ \ [n] ->
-  do (t, ann, mode) <- typeCheck flag a (Var n)
-     return (t, WithType ann t, mode)
-
-typeInfer flag a@(Let _ _) = freshNames ["#let"] $ \ [n] ->
-  do (t, ann, mode) <- typeCheck flag a (Var n)
-     return (t, WithType ann t, mode)
-
-typeInfer flag a@(LetPair _ _) = freshNames ["#letPair"] $ \ [n] ->
-  do (t, ann, mode) <- typeCheck flag a (Var n)
-     return (t, WithType ann t, mode)
+typeInfer flag a@(LetPair _ _) =
+  freshNames ["#letPair"] $ \[n] -> do
+    (t, ann, mode) <- typeCheck flag a (MetaVar n)
+    return (t, WithType ann t, mode)
 
 typeInfer flag a@(Lam _) = throwError $ LamInferErr a
 
-
 typeInfer flag e = throwError $ Unhandle e
 
-
-typeCheck flag (Pos p e) ty =
-  do (ty', ann, mode) <- typeCheck flag e ty `catchError`
-       \ e -> throwError $ addErrPos p e
-     return (ty', Pos p ann, mode)
+typeCheck flag (Pos p e) ty = do
+  (ty', ann, mode) <-
+    typeCheck flag e ty `catchError` \e -> throwError $ addErrPos p e
+  return (ty', Pos p ann, mode)
 
 -- using fresh modality variables.
 typeCheck flag (Mod (Abst _ e)) ty = typeCheck flag e ty
@@ -244,344 +256,378 @@ typeCheck flag (Mod (Abst _ e)) ty = typeCheck flag e ty
 -- Sort check
 typeCheck True Set Sort = return (Sort, Set, identityMod)
 
-typeCheck True (Arrow ty1 ty2) Sort =
-  do (_, ty1', _) <- if isKind ty1 then typeCheck True ty1 Sort
-                  else typeCheck True ty1 Set
-     (_, ty2', _) <- typeCheck True ty2 Sort
-     return (Sort, Arrow ty1' ty2', identityMod)
+typeCheck True (Arrow ty1 ty2) Sort = do
+  (_, ty1', _) <-
+    if isKind ty1
+      then typeCheck True ty1 Sort
+      else typeCheck True ty1 Set
+  (_, ty2', _) <- typeCheck True ty2 Sort
+  return (Sort, Arrow ty1' ty2', identityMod)
 
-
-typeCheck True (Pi (Abst xs m) ty) Sort = 
-  do (_, ty', _) <- if isKind ty then typeCheck True ty Sort
-            else typeCheck True ty Set
-     mapM_ (\ x -> addVar x (erasePos ty')) xs
+typeCheck True (Pi (Abst xs m) ty) Sort = do
+  (_, ty', _) <-
+    if isKind ty
+      then typeCheck True ty Sort
+      else typeCheck True ty Set
+  mapM_ (\x -> addVar x (erasePos ty')) xs
      -- let sub = zip xs (map EigenVar xs)
      --     m' = apply sub m
-     (_, ann2, _) <- typeCheck True m Sort
-     let res = Pi (abst xs ann2) ty'
-     mapM_ removeVar xs
-     return (Sort, res, identityMod)
+  (_, ann2, _) <- typeCheck True m Sort
+  let res = Pi (abst xs ann2) ty'
+  mapM_ removeVar xs
+  return (Sort, res, identityMod)
 
 -- Kind check
 typeCheck True Unit Set = return (Set, Unit, identityMod)
 
-typeCheck True (Bang ty m) Set =
-  do (_, a, _) <- typeCheck True ty Set
-     return (Set, Bang a m, identityMod)
+typeCheck True (Bang ty m) Set = do
+  (_, a, _) <- typeCheck True ty Set
+  return (Set, Bang a m, identityMod)
 
-typeCheck True (Arrow ty1 ty2) Set =
-  do (_, ty1', _) <- if isKind ty1 
-                     then typeCheck True ty1 Sort
-                     else typeCheck True ty1 Set
-     (_, ty2', _) <- typeCheck True ty2 Set
-     return (Set, Arrow ty1' ty2', identityMod)
+typeCheck True (Arrow ty1 ty2) Set = do
+  (_, ty1', _) <-
+    if isKind ty1
+      then typeCheck True ty1 Sort
+      else typeCheck True ty1 Set
+  (_, ty2', _) <- typeCheck True ty2 Set
+  return (Set, Arrow ty1' ty2', identityMod)
 
+typeCheck True (Imply tys ty2) Set = do
+  res <- mapM (\x -> typeCheck True x Set) tys
+  let tys1 = map (\(x, y, z) -> y) res
+  mapM checkClass tys1
+  updateParamInfo tys1
+  updateSimpleInfo tys1
+  (_, ty2', _) <- typeCheck True ty2 Set
+  return (Set, Imply tys1 ty2', identityMod)
 
-typeCheck True (Imply tys ty2) Set =
-  do res <- mapM (\ x -> typeCheck True x Set) tys
-     let tys1 = map (\ (x, y, z) -> y) res
-     mapM checkClass tys1
-     updateParamInfo tys1
-     updateSimpleInfo tys1
-     (_, ty2', _) <- typeCheck True ty2 Set
-     return (Set, Imply tys1 ty2', identityMod)
+typeCheck True (Tensor ty1 ty2) Set = do
+  (_, ty1', _) <- typeCheck True ty1 Set
+  (_, ty2', _) <- typeCheck True ty2 Set
+  return (Set, Tensor ty1' ty2', identityMod)
 
-typeCheck True (Tensor ty1 ty2) Set =
-  do (_, ty1', _) <- typeCheck True ty1 Set
-     (_, ty2', _) <- typeCheck True ty2 Set
-     return (Set, Tensor ty1' ty2', identityMod)
-     
-typeCheck True (Circ t u m) Set =
-  do (_, t', _) <- typeCheck True t Set
-     (_, u', _) <- typeCheck True u Set
-     return (Set, Circ t' u' m, identityMod)
+typeCheck True (Circ t u m) Set = do
+  (_, t', _) <- typeCheck True t Set
+  (_, u', _) <- typeCheck True u Set
+  return (Set, Circ t' u' m, identityMod)
 
-typeCheck True (Pi (Abst xs m) ty) Set = 
-    do (_, tyAnn, _) <- if isKind ty then typeCheck True ty Sort
-                        else typeCheck True ty Set
-       mapM_ (\ x -> addVar x (erasePos tyAnn)) xs
-       (_, ann2, _) <- typeCheck True m Set
-       ann2' <- updateWithSubst ann2
-       ann2'' <- resolveGoals ann2'
-       let res = Pi (abst xs ann2'') tyAnn
-       mapM_ removeVar xs
-       return (Set, res, identityMod)
+typeCheck True (Pi (Abst xs m) ty) Set = do
+  (_, tyAnn, _) <-
+    if isKind ty
+      then typeCheck True ty Sort
+      else typeCheck True ty Set
+  mapM_ (\x -> addVar x (erasePos tyAnn)) xs
+  (_, ann2, _) <- typeCheck True m Set
+  ann2' <- updateWithSubst ann2
+  ann2'' <- resolveGoals ann2'
+  let res = Pi (abst xs ann2'') tyAnn
+  mapM_ removeVar xs
+  return (Set, res, identityMod)
 
-typeCheck True pty@(PiImp (Abst xs m) ty) Set = 
-  do   isP <- isParam ty
-       when (not isP) $ throwError $ ForallLinearErr xs ty pty
-       (_, tyAnn, _) <- if isKind ty then typeCheck True ty Sort
-                     else typeCheck True ty Set
-       mapM_ (\ x -> addVar x (erasePos tyAnn)) xs
-       (_, ann2, _) <- typeCheck True m Set
-       ann2' <- updateWithSubst ann2
-       ann2'' <- resolveGoals ann2'
-       let res = PiImp (abst xs ann2'') tyAnn
-       mapM_ removeVar xs
-       return (Set, res, identityMod)
+typeCheck True pty@(PiImp (Abst xs m) ty) Set = do
+  isP <- isParam ty
+  when (not isP) $ throwError $ ForallLinearErr xs ty pty
+  (_, tyAnn, _) <-
+    if isKind ty
+      then typeCheck True ty Sort
+      else typeCheck True ty Set
+  mapM_ (\x -> addVar x (erasePos tyAnn)) xs
+  (_, ann2, _) <- typeCheck True m Set
+  ann2' <- updateWithSubst ann2
+  ann2'' <- resolveGoals ann2'
+  let res = PiImp (abst xs ann2'') tyAnn
+  mapM_ removeVar xs
+  return (Set, res, identityMod)
 
-
-typeCheck True (Forall (Abst xs m) ty) a@(Set) | isKind ty = 
-  do (_, tyAnn, _) <- typeCheck True ty Sort
-     mapM_ (\ x -> addVar x (erasePos tyAnn)) xs
+typeCheck True (Forall (Abst xs m) ty) a@(Set)
+  | isKind ty = do
+    (_, tyAnn, _) <- typeCheck True ty Sort
+    mapM_ (\x -> addVar x (erasePos tyAnn)) xs
      -- let sub = zip xs (map EigenVar xs)
      --     m' = apply sub m
-     (_, ann, mode) <- typeCheck True m a
-     ann' <- updateWithSubst ann
-     ann'' <- resolveGoals ann'
-     let res = Forall (abst xs ann'') tyAnn
-     mapM_ (\ x -> removeVar x) xs
-     return (a, res, identityMod)
+    (_, ann, mode) <- typeCheck True m a
+    ann' <- updateWithSubst ann
+    ann'' <- resolveGoals ann'
+    let res = Forall (abst xs ann'') tyAnn
+    mapM_ (\x -> removeVar x) xs
+    return (a, res, identityMod)
 
-typeCheck True exp@(Forall (Abst xs m) ty) a@(Set) | otherwise = 
-  do p <- isParam ty
-     b <- getCheckBound
-     when (not p && b) $ throwError (ForallLinearErr xs ty exp)
-     (_, tyAnn, _) <- typeCheck True ty a
-     mapM_ (\ x -> addVar x (erasePos tyAnn)) xs
+typeCheck True exp@(Forall (Abst xs m) ty) a@(Set)
+  | otherwise = do
+    p <- isParam ty
+    b <- getCheckBound
+    when (not p && b) $ throwError (ForallLinearErr xs ty exp)
+    (_, tyAnn, _) <- typeCheck True ty a
+    mapM_ (\x -> addVar x (erasePos tyAnn)) xs
      -- let sub = zip xs (map EigenVar xs)
      --     m' = apply sub m
-     (_, ann, _) <- typeCheck True m a
-     ann' <- updateWithSubst ann
-     ann'' <- resolveGoals ann'  
-     let res = Forall (abst xs ann'') tyAnn
-     mapM_ removeVar xs
-     return (a, res, identityMod)
+    (_, ann, _) <- typeCheck True m a
+    ann' <- updateWithSubst ann
+    ann'' <- resolveGoals ann'
+    let res = Forall (abst xs ann'') tyAnn
+    mapM_ removeVar xs
+    return (a, res, identityMod)
 
-typeCheck True (Exists (Abst xs m) ty) a@(Set) | not (isKind ty) = 
-    do (_, ann1, _) <- typeCheck True ty a
-       addVar xs (erasePos ann1)
+typeCheck True (Exists (Abst xs m) ty) a@(Set)
+  | not (isKind ty) = do
+    (_, ann1, _) <- typeCheck True ty a
+    addVar xs (erasePos ann1)
        -- let sub = [(xs, EigenVar xs)]
-       --     m' = apply sub m  
-       (_, ann2, _) <- typeCheck True m a
-       ann2' <- updateWithSubst ann2
-       ann2'' <- resolveGoals ann2'
-       let res = Exists (abst xs ann2'') ann1
-       removeVar xs
-       return (a, res, identityMod)
+       --     m' = apply sub m
+    (_, ann2, _) <- typeCheck True m a
+    ann2' <- updateWithSubst ann2
+    ann2'' <- resolveGoals ann2'
+    let res = Exists (abst xs ann2'') ann1
+    removeVar xs
+    return (a, res, identityMod)
 
-typeCheck True a@(Lam bind) t | isKind t =
-  case t of
-    Arrow t1 t2 -> 
-      open bind $
-      \ xs m -> 
-        case xs of
-          x:[] -> do
-             addVar x t1
-             (_, ann, _) <- typeCheck True m t2
-             ann' <- updateWithSubst ann
-             ann'' <- resolveGoals ann'
-             let res = LamP (abst [x] ann'') 
-             removeVar x
-             return (t, res, identityMod)
-          y:ys -> do
-             addVar y t1
-             (_, ann, _) <- typeCheck True (Lam (abst ys m)) t2
-             ann' <- updateWithSubst ann
-             ann'' <- resolveGoals ann'
-             let res = LamP (abst [y] ann'') 
-             removeVar y
-             return (t, res, identityMod)
-    b -> throwError $ KArrowErr a t
-
+typeCheck True a@(Lam bind) t
+  | isKind t =
+    case t of
+      Arrow t1 t2 ->
+        open bind $ \xs m ->
+          case xs of
+            x:[] -> do
+              addVar x t1
+              (_, ann, _) <- typeCheck True m t2
+              ann' <- updateWithSubst ann
+              ann'' <- resolveGoals ann'
+              let res = LamP (abst [x] ann'')
+              removeVar x
+              return (t, res, identityMod)
+            y:ys -> do
+              addVar y t1
+              (_, ann, _) <- typeCheck True (Lam (abst ys m)) t2
+              ann' <- updateWithSubst ann
+              ann'' <- resolveGoals ann'
+              let res = LamP (abst [y] ann'')
+              removeVar y
+              return (t, res, identityMod)
+      b -> throwError $ KArrowErr a t
 
 -- Type check
-typeCheck flag a (Forall (Abst xs m) ty) =
-  do mapM_ (\ x -> addVar x ty) xs
-     (t, ann, mode) <- typeCheck flag a m
-     mapM_ removeVar xs
+typeCheck flag a (Forall (Abst xs m) ty) = do
+  mapM_ (\x -> addVar x ty) xs
+  (t, ann, mode) <- typeCheck flag a m
+  mapM_ removeVar xs
      -- It is important to update the annotation with current
      -- substitution before rebinding xs, so that variables in
      -- xs does not get leaked
      -- into outer environment.
      -- Also, we will have to resolve all the constraint before
      -- going out of this forall environment.
-     ann' <- updateWithSubst ann
-     t' <- updateWithSubst t
+  ann' <- updateWithSubst ann
+  t' <- updateWithSubst t
      -- It is necessary to resolve all the goals before going out of
      -- the scope of xs as well.
-     ann'' <- resolveGoals ann'
-     mapM_ (checkExplicit ann'') xs
-     let res =
-           if isKind ty
-           then (Forall (abst xs $ t') ty,
-                 LamType (abst xs $ ann''), mode)
-           else (Forall (abst xs $ t') ty,
-                 LamTm (abst xs $ ann''), mode)
-     return res
-  where checkExplicit ann'' x =
-          when (isExplicit x ann'') $
-          throwError $ ImplicitVarErr x ann''
-
+  ann'' <- resolveGoals ann'
+  mapM_ (checkExplicit ann'') xs
+  let res =
+        if isKind ty
+          then (Forall (abst xs $ t') ty,
+                LamType (abst xs $ ann''), mode)
+          else (Forall (abst xs $ t') ty, LamTm (abst xs $ ann''), mode)
+  return res
+  where
+    checkExplicit ann'' x =
+      when (isExplicit x ann'') $ throwError $ ImplicitVarErr x ann''
 
 typeCheck False (LamDict (Abst xs e)) (Imply bds ty) =
   let lxs = length xs
       lbd = length bds
-  in if lxs <= lbd then
-       do let (pre, post) = splitAt lxs bds
-              ty' = if null post then ty else Imply post ty
-          mapM (\ (x, y) -> addVar x y) (zip xs pre)
+   in if lxs <= lbd
+        then do
+          let (pre, post) = splitAt lxs bds
+              ty' =
+                if null post
+                  then ty
+                  else Imply post ty
+          mapM (\(x, y) -> addVar x y) (zip xs pre)
           (ty'', a, mode) <- typeCheck False e ty'
           mapM_ removeVar xs
           return (Imply pre ty'', LamDict (abst xs a), mode)
-     else do let (pre, post) = splitAt lbd xs
-             mapM (\ (x, y) -> addVar x y) (zip pre bds)
-             (ty', a, mode) <- typeCheck False (LamDict (abst post e)) ty
-             mapM_ removeVar pre
-             return (Imply bds ty', LamDict (abst pre a), mode)
-       
+        else do
+          let (pre, post) = splitAt lbd xs
+          mapM (\(x, y) -> addVar x y) (zip pre bds)
+          (ty', a, mode) <- typeCheck False (LamDict (abst post e)) ty
+          mapM_ removeVar pre
+          return (Imply bds ty', LamDict (abst pre a), mode)
 
-typeCheck flag a (Imply bds ty) =
-  do let ns1 = take (length bds) (repeat "#inst")
-     ns <- newNames ns1
+typeCheck flag a (Imply bds ty) = do
+  let ns1 = take (length bds) (repeat "#inst")
+  ns <- newNames ns1
      -- We update the parameter and simple variable information here.
-     updateParamInfo bds
-     updateSimpleInfo bds
-     freshNames ns $ \ ns ->
-       do bds' <- mapM normalize bds
-          let instEnv = zip ns bds'
-          mapM_ (\ (x, t) -> insertLocalInst x t) instEnv
-          (t, ann, mode) <- typeCheck flag a ty
+  updateParamInfo bds
+  updateSimpleInfo bds
+  freshNames ns $ \ns -> do
+    bds' <- mapM normalize bds
+    let instEnv = zip ns bds'
+    mapM_ (\(x, t) -> insertLocalInst x t) instEnv
+    (t, ann, mode) <- typeCheck flag a ty
           -- Make sure we use the hypothesis before
           -- going out of the scope of Imply.
-          ann' <- resolveGoals ann
-          mapM_ (\ (x, t) -> removeLocalInst x) instEnv
-          let res = LamDict (abst ns ann') 
-          return (Imply bds t, res, mode)
+    ann' <- resolveGoals ann
+    mapM_ (\(x, t) -> removeLocalInst x) instEnv
+    let res = LamDict (abst ns ann')
+    return (Imply bds t, res, mode)
 
 typeCheck flag a@(Const _) (Bang ty m) =
   handleBangConstVar flag a (Bang ty m)
-
 typeCheck flag a@(Var _) (Bang ty m) =
   handleBangConstVar flag a (Bang ty m)
-  
 -- Inserting lift on Bang.
-typeCheck flag a (Bang ty m) =
-  handleBangValue flag a (Bang ty m)
+typeCheck flag a (Bang ty m) = handleBangValue flag a (Bang ty m)
 
-typeCheck False c@(Lam bind) t
-  | at <- updateWithSubst t, not (at == t) = typeCheck False c at
-  
-typeCheck False c@(Lam bind) t
-  | at@(Arrow t1 t2) <- updateWithSubst t = open bind $ \ xs m ->
-      case xs of
-        x:[] -> 
-          do addVar x t1 
-             (t2', ann, mode) <- typeCheck False m t2
-             checkUsage x m 
-             removeVar x
+typeCheck False c@(Lam bind) t = do
+  at <- updateWithSubst t
+  -- when (not (at == t)) $ typeCheck False c at
+  handleFunctions at c t
+--   | at <- updateWithSubst t, not (at == t) = typeCheck False c at
+  where
+    handleFunctions at _ t
+      | not (at == t) = typeCheck False c at
+    handleFunctions (Arrow t1 t2) c@(Lam bind) t =
+      open bind $ \xs m ->
+        case xs of
+          x:[] -> do
+            addVar x t1
+            (t2', ann, mode) <- typeCheck False m t2
+            checkUsage x m
+            removeVar x
                 -- x cannot appear in type annotation, so we do not
                 -- need to update the ann with current substitution.
-             let res = Lam (abst [x] ann)
-             return (Arrow t1 t2', res, mode)
-        y:ys -> 
-          do addVar y t1 
-             (t2', ann, mode) <- typeCheck False (Lam (abst ys m)) t2
-             checkUsage y m 
-             removeVar y
-             let res = Lam (abst [y] ann)
-             return (Arrow t1 t2', res, mode)
-
-typeCheck False c@(Lam bind) t
-  | at@(Pi bd ty) <- updateWithSubst t = 
-      open bind $ \ xs m -> open bd $ \ ys b ->
-      if length xs <= length ys then
-        do let sub1 = zip ys (map EigenVar xs)
-               b' = apply sub1 b
-               (vs, rs) = splitAt (length xs) ys
-               sub2 = zip xs (map EigenVar xs)
-               m' = apply sub2 m
-           mapM_ (\ x -> addVar x ty) xs
-           (t, ann, mode) <- typeCheck False m'
-                             (if null rs then b' else Pi (abst rs b') ty)
-           mapM (\ x -> checkUsage x m') xs 
-           mapM_ removeVar xs
+            let res = Lam (abst [x] ann)
+            return (Arrow t1 t2', res, mode)
+          y:ys -> do
+            addVar y t1
+            (t2', ann, mode) <- typeCheck False (Lam (abst ys m)) t2
+            checkUsage y m
+            let res = Lam (abst [y] ann)
+            return (Arrow t1 t2', res, mode)
+    handleFunctions (Pi bd ty) (Lam bind) t =
+      open bind $ \xs m ->
+        open bd $ \ys b ->
+          if length xs <= length ys
+                        -- sub1 = zip ys (map EigenVar xs)
+               -- b' = apply sub1 b
+            then do
+              let (vs, rs) = splitAt (length xs) ys
+               -- sub2 = zip xs (map EigenVar xs)
+               -- m' = apply sub2 m
+              mapM_ (\x -> addVar x ty) xs
+              (t, ann, mode) <-
+                typeCheck
+                  False
+                  m
+                  (if null rs
+                     then b
+                     else Pi (abst rs b) ty)
+              mapM (\x -> checkUsage x m) xs
+              mapM_ removeVar xs
            -- Since xs may appear in the type annotation in ann,
            -- we have to update ann with current substitution.
            -- before going out of the scope of xs. We also have to
            -- resolve the current goals because current goals may
            -- depend on xs.
-           ann2 <- updateWithSubst ann
-           ann' <- resolveGoals ann2
-           t' <- updateWithSubst t
-           let lamDep = if isKind ty then LamDepTy else LamDep
-               res = lamDep (abst xs ann') 
-               t'' = Pi (abst xs t') ty
-           return (t'', res, mode)
-      else
-        do let lamDep = if isKind ty then LamDepTy else LamDep
-               sub1 = zip ys (map EigenVar xs)
-               b' = apply sub1 b
-               (vs, rs) = splitAt (length ys) xs
-               sub2 = zip xs $ take (length ys) (map EigenVar xs)
-               m' = apply sub2 m
-           mapM_ (\ x -> addVar x ty) vs
-           (t, ann, mode) <- typeCheck False 
-                             (if null rs then m'
-                               else Lam (abst rs m'))
-                             b'
-           mapM (\ x -> checkUsage x m') vs
-           mapM_ removeVar vs
-           ann1 <- updateWithSubst ann
-           t' <- updateWithSubst t
-           ann' <- resolveGoals ann1
-           let res = lamDep (abst vs ann') 
-           return (Pi (abst vs t') ty, res, mode)
-
-typeCheck False c@(Lam bind) t
-  | pty@(PiImp bd ty) <- updateWithSubst t = 
-      open bind $ \ xs m -> open bd $ \ ys b ->
-      if length xs <= length ys then
-        do let sub1 = zip ys (map EigenVar xs)
-               b' = apply sub1 b
-               (vs, rs) = splitAt (length xs) ys
-               sub2 = zip xs (map EigenVar xs)
-               m' = apply sub2 m
-           mapM_ (\ x -> addVar x ty) xs
-           (t, ann, mode) <- typeCheck False m'
-                             (if null rs then b'
-                               else PiImp (abst rs b') ty)
-           mapM_ removeVar xs
+              ann2 <- updateWithSubst ann
+              ann' <- resolveGoals ann2
+              t' <- updateWithSubst t
+              let lamDep =
+                    if isKind ty
+                      then LamDepTy
+                      else LamDep
+                  res = lamDep (abst xs ann')
+                  t'' = Pi (abst xs t') ty
+              return (t'', res, mode)
+            else do
+              let lamDep =
+                    if isKind ty
+                      then LamDepTy
+                      else LamDep
+               -- sub1 = zip ys (map EigenVar xs)
+               -- b' = apply sub1 b
+                  (vs, rs) = splitAt (length ys) xs
+               -- sub2 = zip xs $ take (length ys) (map EigenVar xs)
+               -- m' = apply sub2 m
+              mapM_ (\x -> addVar x ty) vs
+              (t, ann, mode) <-
+                typeCheck
+                  False
+                  (if null rs
+                     then m
+                     else Lam (abst rs m))
+                  b
+              mapM (\x -> checkUsage x m) vs
+              mapM_ removeVar vs
+              ann1 <- updateWithSubst ann
+              t' <- updateWithSubst t
+              ann' <- resolveGoals ann1
+              let res = lamDep (abst vs ann')
+              return (Pi (abst vs t') ty, res, mode)
+    handleFunctions (PiImp bd ty) (Lam bind) t =
+      open bind $ \xs m ->
+        open bd $ \ys b ->
+          if length xs <= length ys
+                        -- sub1 = zip ys (map EigenVar xs)
+               -- b' = apply sub1 b
+            then do
+              let (vs, rs) = splitAt (length xs) ys
+               -- sub2 = zip xs (map EigenVar xs)
+               -- m' = apply sub2 m
+              mapM_ (\x -> addVar x ty) xs
+              (t, ann, mode) <-
+                typeCheck
+                  False
+                  m
+                  (if null rs
+                     then b
+                     else PiImp (abst rs b) ty)
+              mapM_ removeVar xs
            -- Since xs may appear in the type annotation in ann,
            -- we have to update ann with current substitution.
            -- before going out of the scope of xs. We also have to
            -- resolve the current goals because current goals may
            -- depend on xs.
-           ann2 <- updateWithSubst ann
-           ann' <- resolveGoals ann2
-           t' <- updateWithSubst t
-           let lamDep = if isKind ty then LamDepTy else LamDep
-               res = lamDep (abst xs ann') 
-               t'' = PiImp (abst xs t') ty
-           return (t'', res, mode)
-      else
-        do let sub1 = zip ys (map EigenVar xs)
-               b' = apply sub1 b
-               (vs, rs) = splitAt (length ys) xs
-               sub2 = zip xs $ take (length ys) (map EigenVar xs)
-               m' = apply sub2 m
-           mapM_ (\ x -> addVar x ty) vs
-           (t, ann, mode) <- typeCheck False 
-                             (if null rs then m' else Lam (abst rs m'))
-                             b'
-           mapM_ removeVar vs
-           ann1 <- updateWithSubst ann
-           t' <- updateWithSubst t
-           ann' <- resolveGoals ann1
-           let lamDep = if isKind ty then LamDepTy else LamDep
-               res = LamDep (abst vs ann') 
-           return (PiImp (abst vs t') ty, res, mode)
-
-typeCheck False c@(Lam bind) t
-  | b <- updateWithSubst t = throwError $ LamErr c b
+              ann2 <- updateWithSubst ann
+              ann' <- resolveGoals ann2
+              t' <- updateWithSubst t
+              let lamDep =
+                    if isKind ty
+                      then LamDepTy
+                      else LamDep
+                  res = lamDep (abst xs ann')
+                  t'' = PiImp (abst xs t') ty
+              return (t'', res, mode)
+            else do
+              let (vs, rs) = splitAt (length ys) xs
+               -- sub2 = zip xs $ take (length ys) (map EigenVar xs)
+               -- m' = apply sub2 m
+              mapM_ (\x -> addVar x ty) vs
+              (t, ann, mode) <-
+                typeCheck
+                  False
+                  (if null rs
+                     then m
+                     else Lam (abst rs m))
+                  b
+              mapM_ removeVar vs
+              ann1 <- updateWithSubst ann
+              t' <- updateWithSubst t
+              ann' <- resolveGoals ann1
+              let lamDep =
+                    if isKind ty
+                      then LamDepTy
+                      else LamDep
+                  res = LamDep (abst vs ann')
+              return (PiImp (abst vs t') ty, res, mode)
 
 typeCheck flag a@(Pair t1 t2) (Exists p ty) =
   do (ty', ann1, mode1) <- typeCheck flag t1 ty
      open p $ \ x t ->
-       do let vars = S.distinctElems $ getVars NoEigen t1
-              sub1 = zip vars (map EigenVar vars)
-          t1Eigen <- shape $ apply sub1 ann1
-          let t' = apply [(x, t1Eigen)] t
+       do let -- vars = S.distinctElems $ getVars NoEigen t1
+              -- sub1 = zip vars (map EigenVar vars)
+          t1 <- shape ann1
+          let t' = apply [(x, t1)] t
           (p', ann2, mode2) <- typeCheck flag t2 t'
           -- t' is an instance of t, it does not contain x anymore,
           -- hence the return type should be Exists p ty', not
@@ -596,9 +642,10 @@ typeCheck flag a@(Pair t1 t2) d =
        Tensor ty1 ty2 ->
          do (ty1', t1', mode1) <- typeCheck flag t1 ty1
             (ty2', t2', mode2) <- typeCheck flag t2 ty2
-            return (Tensor ty1' ty2', Pair t1' t2', modalAnd mode1 mode2)
+            return (Tensor ty1' ty2', Pair t1' t2',
+                    modalAnd mode1 mode2)
        b -> freshNames ns $ \ (x1:x2:[]) ->
-         do let ty = Tensor (Var x1) (Var x2)
+         do let ty = Tensor (MetaVar x1) (MetaVar x2)
                 (res, (s, bs)) = runUnify GEq sd ty
             case res of
               Success ->
@@ -767,14 +814,14 @@ typeCheck flag a@(Case tm (B brs)) goal =
                     Success -> do
                       sub1 <- makeSub tm sub' $
                                foldl (\ x (Right y) ->
-                                        App x (EigenVar y)) kid' vs
+                                        App x (Var y)) kid' vs
                       let sub'' = sub1 `mergeSub` ss
                       updateSubst sub''
                       updateModeSubst bs
                          -- We use special substitution for goal
                       let goal' = bSubstitute bs (substitute sub'' goal)
-                          m' = apply eSub m
-                      (goal'', ann2, mode') <- typeCheck flag m' goal'
+                          -- m' = apply eSub m
+                      (goal'', ann2, mode') <- typeCheck flag m goal'
                       subb <- getSubst 
                       mapM (\ (Right v) -> checkUsage v m >>=
                                            \ r -> return (v, r)) vs
@@ -796,24 +843,36 @@ typeCheck flag a@(Case tm (B brs)) goal =
                       mapM removeLocalInst ins
                       return (goal''', abst (PApp kid axs') ann2', mode')
 
-typeCheck flag a@(Const x) ty =
-  inferAddAnn flag a ty
-typeCheck flag a@(Var x) ty =
-  inferAddAnn flag a ty
-typeCheck flag a@(App _ _) ty =
-  inferAddAnn flag a ty  
-typeCheck flag a ty | isBuildIn a =
-  inferAddAnn flag a ty
-  
-typeCheck flag tm ty =
+typeCheck flag a@(Const x) ty = inferAddAnn flag a ty
+typeCheck flag a@(Var x) ty = inferAddAnn flag a ty
+typeCheck flag a@(App _ _) ty = inferAddAnn flag a ty
+typeCheck flag a ty
+  | isBuildIn a = inferAddAnn flag a ty
+typeCheck flag tm ty = equality flag tm ty
+
+equality flag tm ty =
   do ty' <- updateWithSubst ty
      if not (ty == ty') then typeCheck flag tm ty'
        else 
        do (tym, ann, mode) <- typeInfer flag tm
           tym1 <- updateWithSubst tym
-          if tym1 == ty' then
-            return (ty1', ann, mode)
-            else throwError $ NotEq tm ty1 tym1
+          (unifRes, (sub, bs)) <- normalizeUnif Equal tym1 ty'
+          case unifRes of
+             UnifError ->
+               throwError $ withPosition tm (UnifErr tym1 ty')
+             ModeError p1 p2 ->
+               throwError $ ModalityGEqErr tm tym1 ty' p1 p2
+             Success -> do
+               ss <- getSubst
+               let ss' = sub `mergeSub` ss 
+               updateSubst ss'
+               updateModeSubst bs
+               return (ty', ann, mode)
+          
+          
+-- if tym1 == ty' then
+          --   return (ty', ann, mode)
+          --   else throwError $ NotEq tm ty' tym1
 
 -- | Infer a type for /tm/, and check if it is unifiable with /ty/.
 
@@ -882,17 +941,16 @@ typeCheck flag tm ty =
 -- further improved.
 normalizeUnif :: InEquality -> Exp -> Exp ->
                  TCMonad (UnifResult, (Subst, BSubst))
-normalizeUnif b t1 t2 =
- do t1' <- resolveGoals t1
-    t2' <- resolveGoals t2
-    let a@(res, (s, bs)) = runUnify b t1' t2'
-    case res of
-      Success -> return a
-      _ -> 
-        do t1'' <- normalize t1'
-           t2'' <- normalize t2'
-           return $ runUnify b t1'' t2''
-
+normalizeUnif b t1 t2 = do
+  t1' <- resolveGoals t1
+  t2' <- resolveGoals t2
+  let a@(res, (s, bs)) = runUnify b t1' t2'
+  case res of
+    Success -> return a
+    _ -> do
+      t1'' <- normalize t1'
+      t2'' <- normalize t2'
+      return $ runUnify b t1'' t2''
 
 -- | Extend the typing environment with
 -- the environment induced by pattern.
@@ -905,252 +963,290 @@ normalizeUnif b t1 t2 =
 -- of pattern variables,
 -- ['Variable']: a list of dictionary variables,
 -- 'Exp': annotated version of the constructor,
+extendEnv ::
+     [Either (NoBind Exp) Variable]
+  -> Exp
+  -> Exp
+  -> TCMonad (Exp, [Either a Variable], [Variable], Exp)
 
-
-extendEnv :: [Either (NoBind Exp) Variable] -> Exp -> Exp ->
-             TCMonad (Exp, [Either a Variable], [Variable], Exp)
 extendEnv xs (Mod (Abst _ ty)) kid = extendEnv xs ty kid
-             
-extendEnv xs (Forall bind ty) kid | isKind ty =
-  open bind $
-      \ ys t' ->
-      do mapM_ (\ x -> addVar x ty) ys
-         let kid' = foldl AppType kid (map Var ys)
-         (h, vs, ins, kid'') <- extendEnv xs t' kid'
-         let vs' = map Right ys ++ vs
-         return (h, vs', ins, kid'')
 
-extendEnv xs (Forall bind ty) kid | otherwise =
-  open bind $
-      \ ys t' ->
-      do mapM_ (\ x -> addVar x ty) ys
-         let kid' = foldl AppTm kid (map Var ys)
-         (h, vs, ins, kid'') <- extendEnv xs t' kid'
-         let vs' = (map Right ys)++vs
-         return (h, vs', ins, kid'')
-
-extendEnv xs (Imply bds ty) kid =
-  do let ns1 = take (length bds) (repeat "#inst")
-     ns <- newNames ns1
-     freshNames ns $ \ ns ->
-       do mapM_ (\ (x, y) -> insertLocalInst x y) (zip ns bds)
-          let kid' = foldl AppDict kid (map Var ns)
-          (h, vs, ins, kid'') <- extendEnv xs ty kid'
-          return (h, (map Right ns)++vs, ns++ins, kid'')
-
+extendEnv xs (Forall bind ty) kid
+  | isKind ty =
+    open bind $ \ys t' -> do
+      mapM_ (\x -> addVar x ty) ys
+      let kid' = foldl AppType kid (map Var ys)
+      (h, vs, ins, kid'') <- extendEnv xs t' kid'
+      let vs' = map Right ys ++ vs
+      return (h, vs', ins, kid'')
+extendEnv xs (Forall bind ty) kid
+  | otherwise =
+    open bind $ \ys t' -> do
+      mapM_ (\x -> addVar x ty) ys
+      let kid' = foldl AppTm kid (map Var ys)
+      (h, vs, ins, kid'') <- extendEnv xs t' kid'
+      let vs' = (map Right ys) ++ vs
+      return (h, vs', ins, kid'')
+extendEnv xs (Imply bds ty) kid = do
+  let ns1 = take (length bds) (repeat "#inst")
+  ns <- newNames ns1
+  freshNames ns $ \ns -> do
+    mapM_ (\(x, y) -> insertLocalInst x y) (zip ns bds)
+    let kid' = foldl AppDict kid (map Var ns)
+    (h, vs, ins, kid'') <- extendEnv xs ty kid'
+    return (h, (map Right ns) ++ vs, ns ++ ins, kid'')
 extendEnv [] t kid = return (t, [], [], kid)
-
-extendEnv (Right x:xs) (Arrow t1 t2) kid =
-  do addVar x t1
-     (h, ys, ins, kid') <- extendEnv xs t2 kid
-     return (h,  Right x : ys, ins, kid')
-
-extendEnv (Right x : xs) (Pi bind ty) kid
+extendEnv (Right x:xs) (Arrow t1 t2) kid = do
+  addVar x t1
+  (h, ys, ins, kid') <- extendEnv xs t2 kid
+  return (h, Right x : ys, ins, kid')
+extendEnv (Right x:xs) (Pi bind ty) kid
   | not (isKind ty) =
-    open bind $ \ ys t' ->
-    do let y = head ys
-           t'' = apply [(y , Var x)] t'
+    open bind $ \ys t' -> do
+      let y = head ys
+          t'' = apply [(y, Var x)] t'
            -- note that Pi is existential
-       addVar x ty
-       if null (tail ys)
-         then
-         do (h, ys, ins, kid') <- extendEnv xs t'' kid
-            return (h, (Right x : ys), ins, kid')
-         else
-         do (h, ys, ins, kid') <- extendEnv xs
-                                  (Pi (abst (tail ys) t'') ty) kid
-            return (h, (Right x : ys), ins, kid')
-
-     
+      addVar x ty
+      if null (tail ys)
+        then do
+          (h, ys, ins, kid') <- extendEnv xs t'' kid
+          return (h, (Right x : ys), ins, kid')
+        else do
+          (h, ys, ins, kid') <- extendEnv xs (Pi (abst (tail ys) t'') ty) kid
+          return (h, (Right x : ys), ins, kid')
 extendEnv a b kid = throwError $ ExtendEnvErr a b
 
-
 -- | Infer a type for a type application.
-handleTypeApp :: Exp -> Exp -> Exp -> Exp -> Modality -> TCMonad (Exp, Exp, Modality)
+handleTypeApp ::
+     Exp -> Exp -> Exp -> Exp -> Modality -> TCMonad (Exp, Exp, Modality)
 handleTypeApp ann t' t1 t2 m =
   case erasePos t' of
-    Arrow k1 k2 ->
-        do (_, ann2, _) <- typeCheck True t2 k1
-           return (k2, AppP ann ann2, m)
+    Arrow k1 k2 -> do
+      (_, ann2, _) <- typeCheck True t2 k1
+      return (k2, AppP ann ann2, m)
     Pi b ty ->
-      open b $ \ vs b' ->
-        do (_, ann2, _) <- typeCheck True t2 ty
-           let t2' = erasePos $ toEigen ann2
-           b'' <- betaNormalize (apply [(head vs, t2')]  b')
-           let k2 = if null (tail vs) then b''
-                      else Pi (abst (tail vs) b'') ty
-           return (k2, AppP ann ann2, m)
-           
-    a -> throwError $ KAppErr t1 (App t1 t2) a  
+      open b $ \vs b' -> do
+        (_, ann2, _) <- typeCheck True t2 ty
+        let t2' = erasePos ann2
+        b'' <- betaNormalize (apply [(head vs, t2')] b')
+        let k2 =
+              if null (tail vs)
+                then b''
+                else Pi (abst (tail vs) b'') ty
+        return (k2, AppP ann ann2, m)
+    a -> throwError $ KAppErr t1 (App t1 t2) a
 
 -- | Infer a type for a term application.
-handleTermApp :: Bool -> Exp -> Exp -> Exp -> Exp -> Exp -> Modality 
-                 -> TCMonad (Exp, Exp, Modality)
-handleTermApp flag ann pos t' t1 t2 mode1 = 
-  do (a1', rt, anEnv, mode1') <- addAnn flag mode1 pos ann t' []
-     mapM (\ (x, t) -> addVar x t) anEnv
-     rt' <- updateWithSubst rt
-     case rt' of
-       Arrow ty1 ty2 | isKind ty1 ->
-         do (_, ann2, _) <- typeCheck True t2 ty1
-            let res = AppDepTy a1' ann2
-            return (ty2, res, mode1')
-       Arrow ty1 ty2 ->
-         do (_, ann2, mode2) <- typeCheck flag t2 ty1
-            let res = if flag then App' a1' ann2 else App a1' ann2
-            ty2' <- updateWithModeSubst ty2
-            mode1'' <- updateModality mode1'
-            let newMode = modalAnd mode1'' mode2
-            return (ty2', res, newMode)
-                    
-       ArrowP ty1 ty2 ->
-         do (_, ann2, _) <- typeCheck True t2 ty1
-            let res = App' a1' ann2
-            return (ty2, res, identityMod)            
-       b@(Pi bind ty) ->
-         open bind $
-         \ xs m -> 
+handleTermApp ::
+     Bool
+  -> Exp
+  -> Exp
+  -> Exp
+  -> Exp
+  -> Exp
+  -> Modality
+  -> TCMonad (Exp, Exp, Modality)
+
+handleTermApp flag ann pos t' t1 t2 mode1 = do
+  (a1', rt, anEnv, mode1') <- addAnn flag mode1 pos ann t' []
+  mapM (\(x, t) -> addVar x t) anEnv
+  rt' <- updateWithSubst rt
+  case rt' of
+    Arrow ty1 ty2
+      | isKind ty1 -> do
+        (_, ann2, _) <- typeCheck True t2 ty1
+        let res = AppDepTy a1' ann2
+        return (ty2, res, mode1')
+    Arrow ty1 ty2 -> do
+      (_, ann2, mode2) <- typeCheck flag t2 ty1
+      let res =
+            if flag
+              then AppP a1' ann2
+              else App a1' ann2
+      -- ty2' <- updateWithModeSubst ty2
+      -- mode1'' <- updateModality mode1'
+      let newMode = modalAnd mode1' mode2
+      return (ty2, res, newMode)
+    ArrowP ty1 ty2 -> do
+      (_, ann2, _) <- typeCheck True t2 ty1
+      let res = AppP a1' ann2
+      return (ty2, res, identityMod)
+    b@(Pi bind ty) ->
+      open bind $ \xs m -> do
                 -- typecheck or kind check t2
                 -- since t2 may travels to m, we
                 -- normalize [[t2]/x]m
-             do let flag' = isKind ty
-                (_, kann, mode2) <- typeCheck flag' t2 ty
-                let t2' = erasePos $ toEigen kann
-                t2'' <- if not flag' then shape t2' else return t2'
-                m' <- betaNormalize (apply [(head xs, t2'')] m)
-                let res =
-                      case (flag, flag') of
-                        (False, False) -> AppDep a1' kann
-                        (False, True) -> AppDepTy a1' kann
-                        (True, False) -> AppDep' a1' kann
-                        (True, True) -> AppDepTy a1' kann
-                if null (tail xs)
-                  then
-                  do m'' <- updateWithSubst m' >>= updateWithModeSubst
-                     res' <- updateWithSubst res
-                     mode1'' <- updateModality mode1'
-                     return (m'', res', modalAnd mode2 mode1'')
-                  else
-                  do m'' <- updateWithSubst m' >>= updateWithModeSubst
-                     ty' <- updateWithSubst ty >>= updateWithModeSubst
-                     res' <- updateWithSubst res
-                     mode1'' <- updateModality mode1'
-                     return (Pi (abst (tail xs) m'') ty', res', modalAnd mode2 mode1'')
-                     
-       b -> throwError $ ArrowErr t1 b
+        let flag' = isKind ty
+        (_, kann, mode2) <- typeCheck flag' t2 ty
+        let t2' = erasePos kann
+        t2'' <-
+          if not flag'
+            then shape t2'
+            else return t2'
+        m' <- betaNormalize (apply [(head xs, t2'')] m)
+        let res =
+              case (flag, flag') of
+                (False, False) -> AppDep a1' kann
+                (False, True) -> AppDepTy a1' kann
+                (True, False) -> AppDepInt a1' kann
+                (True, True) -> AppDepTy a1' kann
+        if null (tail xs)
+          then -- do
+            -- m'' <- updateWithSubst m' >>= updateWithModeSubst
+            -- res' <- updateWithSubst res
+            -- mode1'' <- updateModality mode1'
+            return (m', res, modalAnd mode2 mode1')
+          else -- do
+            -- m'' <- updateWithSubst m' >>= updateWithModeSubst
+            -- ty' <- updateWithSubst ty >>= updateWithModeSubst
+            -- res' <- updateWithSubst res
+            -- mode1'' <- updateModality mode1'
+            return (Pi (abst (tail xs) m') ty, res,
+                     modalAnd mode2 mode1')
+    b -> throwError $ ArrowErr t1 b
 
-
--- | Add annotations to the term /a/ according to its type if it is applied to some
--- other terms.
-addAnn :: Bool -> Modality -> Exp -> Exp -> Exp -> [(Variable, Exp)] ->
-          TCMonad (Exp, Exp, [(Variable, Exp)], Modality)
-
+-- | Add annotations to the term /a/ according to
+-- its type if it is applied to some other terms.
+addAnn ::
+     Bool
+  -> Modality
+  -> Exp
+  -> Exp
+  -> Exp
+  -> [(Variable, Exp)]
+  -> TCMonad (Exp, Exp, [(Variable, Exp)], Modality)
 addAnn flag mode e a (Pos _ t) env = addAnn flag mode e a t env
 addAnn flag mode e a (Mod (Abst _ t)) env = addAnn flag mode e a t env
-addAnn flag mode e a (Bang t m) env =
-  do let force = if flag then Force' else Force
-     t' <- if flag then shape t else return t
-     if flag then addAnn flag mode e (force a) t' env
-       else do let newMode = modalAnd mode m
-               addAnn flag newMode e (force a) t' env
+addAnn flag mode e a (Bang t m) env = do
+  let force =
+        if flag
+          then ForceP
+          else Force
+  t' <-
+    if flag
+      then shape t
+      else return t
+  if flag
+    then addAnn flag mode e (force a) t' env
+    else do
+      let newMode = modalAnd mode m
+      addAnn flag newMode e (force a) t' env
 
-addAnn flag mode e a (Forall bd ty) env | isKind ty = open bd $ \ xs t ->
-       let a' = foldl AppType a (map Var xs)
-           new = map (\ x -> (x, ty)) xs
-       in addAnn flag mode e a' t (new ++ env) 
+addAnn flag mode e a (Forall bd ty) env
+  | isKind ty =
+    open bd $ \xs t ->
+      let mvars = map MetaVar xs
+          a' = foldl AppType a mvars
+          new = map (\x -> (x, ty)) xs
+          t' = apply (zip xs mvars) t
+       in addAnn flag mode e a' t' (new ++ env)
 
-addAnn flag mode e a (Forall bd ty) env | otherwise = open bd $ \ xs t ->
-       let a' = foldl AppTm a (map Var xs)
-           new = map (\ x -> (x, ty)) xs
-       in addAnn flag  mode e a' t (new ++ env)
+addAnn flag mode e a (Forall bd ty) env
+  | otherwise =
+    open bd $ \xs t ->
+      let mvars = map MetaVar xs
+          a' = foldl AppTm a mvars
+          new = map (\x -> (x, ty)) xs
+          t' = apply (zip xs mvars) t
+       in addAnn flag mode e a' t' (new ++ env)
+       
+addAnn flag mode e a (PiImp bd ty) env
+  | isKind ty =
+    open bd $ \xs t ->
+      let mvars = map MetaVar xs
+          a' = foldl AppDepTy a mvars
+          new = map (\x -> (x, ty)) xs
+          t' = apply (zip xs mvars) t
+       in addAnn flag mode e a' t' (new ++ env)
+       
+addAnn flag mode e a (PiImp bd ty) env
+  | otherwise =
+    open bd $ \xs t ->
+      let app =
+            if flag
+              then AppDepInt
+              else AppDep
+          mvars = map Var xs
+          a' = foldl app a mvars
+          new = map (\x -> (x, ty)) xs
+          t' = apply (zip xs mvars) t
+       in addAnn flag mode e a' t' (new ++ env)
 
-addAnn flag mode e a (PiImp bd ty) env | isKind ty = open bd $ \ xs t ->
-       let a' = foldl AppDepTy a (map Var xs)
-           new = map (\ x -> (x, ty)) xs
-       in addAnn flag mode e a' t (new ++ env) 
+addAnn flag mode e a (Imply bds ty) env = do
+  ts <- get
+  let i = clock ts
+      ns = zipWith (\i b -> "#goalinst" ++ (show i)) [i ..] bds
+  freshNames ns $ \ns -> do
+    let instEnv = map (\x -> (x, e)) (zip ns bds)
+        i' = i + length bds
+    put ts {clock = i'}
+    mapM_ (\((x, t), e) -> addGoalInst x t e) instEnv
+    let a' = foldl AppDict a (map MetaVar ns)
+    addAnn flag mode e a' ty env
 
-addAnn flag mode e a (PiImp bd ty) env | otherwise = open bd $ \ xs t ->
-       let app = if flag then AppDep' else AppDep
-           a' = foldl app a (map Var xs)
-           new = map (\ x -> (x, ty)) xs
-       in addAnn flag mode e a' t (new ++ env)          
+addAnn flag mode e a t env = return (a, t, env, mode)
 
-addAnn flag mode e a (Imply bds ty) env =
-  do ts <- get
-     let i = clock ts
-         ns = zipWith (\ i b -> "#goalinst"++(show i)) [i .. ] bds
-     freshNames ns $ \ ns ->
-       do let instEnv = map (\ x -> (x, e)) (zip ns bds) 
-              i' = i + length bds
-          put ts{clock = i'}
-          mapM_ (\ ((x, t), e) -> addGoalInst x t e) instEnv
-          let a' = foldl AppDict a (map GoalVar ns)
-          addAnn flag mode e a' ty env
-    
-addAnn flag mode e a t env = return (a, t, env, mode)  
+handleBangConstVar flag a (Bang ty2 m2) = do
+  (ty', _, _) <- typeInfer flag a
+  case ty' of
+    Bang ty1 m1 -> equality flag a (Bang ty2 m2)
+    _ -> handleBangValue flag a (Bang ty2 m2)
 
-handleBangConstVar flag a (Bang ty2 m2) =
-  do (ty', _, _) <- typeInfer flag a
-     case ty' of
-       Bang ty1 m1 ->
-         equality flag a (Bang ty2 m2)
-       _ -> handleBangValue flag a (Bang ty2 m2)
-
-handleBangValue flag a ty1@(Bang ty m) =
-  do r <- isValue a
-     if r then
-       do checkParamCxt a
-          (t, ann, cMode) <- typeCheck flag a ty
-          let s = modeResolution GEq cMode m
-          when (s == Nothing) $ throwError $ ModalityErr cMode m a
-          let Just s'@(s1, s2, s3) = s
-          updateModeSubst s'
-          cMode' <- updateModality cMode
-          t' <- updateWithModeSubst t
-          return (Bang t' (simplify cMode'), Lift ann, identityMod)
-       else
-       do checkParamCxt a
-          (tym, ann, cMode) <- typeInfer flag a
-          tym' <- updateWithSubst tym
-          case erasePos tym' of
-            tym1@(Bang _ _) ->
-              do (unifRes, (s, bs)) <- normalizeUnif GEq tym1 ty1
-                 case unifRes of
-                   UnifError -> throwError $ NotEq a ty1 tym1
-                   ModeError p1 p2 -> 
-                     throwError $ ModalityGEqErr a ty1 tym1 p1 p2
-                   Success ->
-                     do ss <- getSubst
-                        let sub' = s `mergeSub` ss
-                        updateSubst sub'
-                        updateModeSubst bs
-                        ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
-                        mode' <- updateModality cMode
-                        return (ty1', ann, mode')
-            _ ->
-              throwError $ BangValue a (Bang ty m)
-
--- note that ty1 is prefix free.
-inferAddAnn flag a ty =
-  do ty2 <- updateWithSubst ty
-     if not (ty2 == ty) then typeCheck flag a ty2 else do 
-       (tym, ann, mode) <- typeInfer flag a
-       tym1 <- updateWithSubst tym
-       ty1 <- updateWithSubst ty2
-       (a2, tym1', anEnv, mode') <- addAnn flag mode a ann tym1 []
-       mapM (\ (x, t) -> addVar x t) anEnv
-       (unifRes, (s, bs)) <- normalizeUnif GEq tym1' ty1
-       case unifRes of
-         UnifError -> throwError $ NotEq a ty1 tym1'
-         ModeError p1 p2 -> 
-           throwError $ ModalityGEqErr a ty1 tym1' p1 p2
-         Success ->
-           do ss <- getSubst
+handleBangValue flag a ty1@(Bang ty m) = do
+  r <- isValue a
+  if r
+    then do
+      checkParamCxt a
+      (t, ann, cMode) <- typeCheck flag a ty
+      let s = modeResolution GEq cMode m
+      when (s == Nothing) $ throwError $ ModalityErr cMode m a
+      let Just s'@(s1, s2, s3) = s
+      updateModeSubst s'
+      cMode' <- updateModality cMode
+      t' <- updateWithModeSubst t
+      return (Bang t' (simplify cMode'), Lift ann, identityMod)
+    else do
+      checkParamCxt a
+      (tym, ann, cMode) <- typeInfer flag a
+      tym' <- updateWithSubst tym
+      case erasePos tym' of
+        tym1@(Bang _ _) -> do
+          (unifRes, (s, bs)) <- normalizeUnif GEq tym1 ty1
+          case unifRes of
+            UnifError -> throwError $ NotEq a ty1 tym1
+            ModeError p1 p2 -> throwError $ ModalityGEqErr a ty1 tym1 p1 p2
+            Success -> do
+              ss <- getSubst
               let sub' = s `mergeSub` ss
               updateSubst sub'
               updateModeSubst bs
-              st <- get
-              let msub = modeSubstitution st
-              ty1' <- updateWithModeSubst ty1 >>= updateWithSubst 
-              mode'' <- updateModality mode'
-              return (ty1', a2, mode'')
+              ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
+              mode' <- updateModality cMode
+              return (ty1', ann, mode')
+        _ -> throwError $ BangValue a (Bang ty m)
+
+-- note that ty1 is prefix free.
+inferAddAnn flag a ty = do
+  ty2 <- updateWithSubst ty
+  if not (ty2 == ty)
+    then typeCheck flag a ty2
+    else do
+      (tym, ann, mode) <- typeInfer flag a
+      tym1 <- updateWithSubst tym
+      ty1 <- updateWithSubst ty2
+      (a2, tym1', anEnv, mode') <- addAnn flag mode a ann tym1 []
+      mapM (\(x, t) -> addVar x t) anEnv
+      (unifRes, (s, bs)) <- normalizeUnif GEq tym1' ty1
+      case unifRes of
+        UnifError -> throwError $ NotEq a ty1 tym1'
+        ModeError p1 p2 -> throwError $ ModalityGEqErr a ty1 tym1' p1 p2
+        Success -> do
+          ss <- getSubst
+          let sub' = s `mergeSub` ss
+          updateSubst sub'
+          updateModeSubst bs
+          st <- get
+          let msub = modeSubstitution st
+          ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
+          mode'' <- updateModality mode'
+          return (ty1', a2, mode'')

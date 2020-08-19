@@ -151,10 +151,13 @@ tgate_inv : ! (Qubit -> Qubit)
 tgate_inv = unbox $ reverse (box Qubit TGate)
 -- iterN 7 TGate x
 
+sgate : ! (Qubit -> Qubit)
 sgate = SGate 
 
+tgate : ! (Qubit -> Qubit)
 tgate = TGate 
 
+meas : ! (Qubit -> Bit)
 meas = Meas
 
 toffoli : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
@@ -176,9 +179,13 @@ toffoli c b a = Toffoli c b a
   --     (b, a) = CNot b a
   -- in (c, b, a)
 
-boxToffoli = box (Qubit * Qubit * Qubit) $ \ x -> uncurry (uncurry toffoli) x
+boxToffoli : Circ(Qubit * Qubit * Qubit, Qubit * Qubit * Qubit)
+boxToffoli =
+  box (Qubit * Qubit * Qubit) $ \ x -> uncurry (uncurry toffoli) x
 
-toffoliGate (a b : Bool) (x y z : Qubit) =
+
+toffoliGate : ! (Bool -> Bool -> Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
+toffoliGate a b x y z =
   if a then if b then toffoli x y z
             else let (x, y, z) = toffoli x y (QNot z)
                  in (x, y, QNot z)

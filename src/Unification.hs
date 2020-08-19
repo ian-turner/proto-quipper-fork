@@ -32,9 +32,6 @@ data UnifResult = Success
                 deriving (Eq, Show)
 
 -- | Unify two expressions. 
--- There are eigenvariables for type checking, we only allow
--- the unification of a eigenvariable [x] with itself and its variable counterpart x.
--- (the unification of x and [x] can happen due to dependent pattern matching).
 unify :: InEquality -> Exp -> Exp -> State (Subst, BSubst) UnifResult
 
 -- unify _ a b | trace (show $ dispRaw a <+> text ":" <+> dispRaw b) $ False = undefined
@@ -44,12 +41,16 @@ unify b (Base x) (Base y) | x == y = return Success
                           | otherwise = return UnifError
 unify b (LBase x) (LBase y) | x == y = return Success
                             | otherwise = return UnifError
+
 unify b (Const x) (Const y) | x == y = return Success
                             | otherwise = return UnifError
 
+unify b (Var x) (Var y) | x == y = return Success
+                        | otherwise = return UnifError
+
  
-unify b (Var x) t
-  | Var x == t = return Success
+unify b (MetaVar x) t
+  | MetaVar x == t = return Success
   | x `S.member` getVars All t = return UnifError
   | otherwise = 
     do (sub, bsub) <- get
@@ -58,8 +59,8 @@ unify b (Var x) t
        put (subst', bsub)
        return Success
 
-unify b t (Var x)
-  | Var x == t = return Success
+unify b t (MetaVar x)
+  | MetaVar x == t = return Success
   | x `S.member` getVars All t = return UnifError
   | otherwise =
     do (sub, bsub) <- get

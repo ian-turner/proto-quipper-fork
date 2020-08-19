@@ -21,13 +21,20 @@ class Monad (m : Type -> Type) where
 
 infixl 20 >>=
 
-(>>=) = bind
+(>>=) : ! forall (m : Type -> Type) ->
+          (Monad m) => forall a b -> m a -> (a -> m b) -> m b
+(>>=) f g = bind f g
+
+
+bind' : ! forall (m : Type -> Type) ->
+          (Monad m) => forall h l -> m h -> (h -> m l) -> m l
+bind' f g = bind f g
 
 infixl 20 >>
 
--- pure : ! forall (m : Type -> Type) ->
---            (Monad m) => forall a -> a -> m a
-pure = return
+pure : ! forall (m : Type -> Type) ->
+           (Monad m) => forall a -> a -> m a
+pure x = return x
 
 seq : ! forall (m : Type -> Type) ->
             (Monad m) =>
@@ -35,21 +42,22 @@ seq : ! forall (m : Type -> Type) ->
                  m Unit -> m b -> m b
 seq x f = x >>= \ u -> f 
 
--- (>>) : ! forall (m : Type -> Type) ->
---             (Monad m) =>
---               forall b ->
---                  m Unit -> m b -> m b
-(>>) = seq
+(>>) : ! forall (m : Type -> Type) ->
+            (Monad m) =>
+              forall b ->
+                 m Unit -> m b -> m b
+(>>) x y = seq x y
 
 join : ! forall a (m : Type -> Type) -> (Monad m) => m (m a) -> m a
 join mma =
   mma >>= \ ma -> ma
 
-ap : ! forall a b (m : Type -> Type) -> (Monad m) =>  m (a -> b) -> m a -> m b
-ap f x =
-  f >>= \ g ->
-  x >>= \ y ->
-  return (g y)
+-- ap : ! forall c d (m : Type -> Type) -> (Monad m) =>
+--              m (c -> d) -> m c -> m d
+-- ap f x =
+--   bind f (\ g -> 
+--        bind' )
+     
 
 infixl 16 <*>
 
@@ -57,14 +65,14 @@ infixl 16 <$>
 
 
 -- (<*>) : ! forall a b (m : Type -> Type) -> (Monad m) =>  m (a -> b) -> m a -> m b
-(<*>) = ap 
+-- (<*>) f a = ap f a
 
 fmap : ! forall a b (m : Type -> Type) -> (Monad m) => (a -> b) -> m a -> m b
 fmap f x =
   x >>= \ x' -> return (f x')
 
--- (<$>) : ! forall a b (m : Type -> Type) -> (Monad m) => (a -> b) -> m a -> m b
-(<$>) = fmap
+(<$>) : ! forall a b (m : Type -> Type) -> (Monad m) => (a -> b) -> m a -> m b
+(<$>) f a = fmap f a
   
 class MonadTrans (t : (Type -> Type) -> Type -> Type) where
   lift : forall (m : Type -> Type) a -> (Monad m) => m a -> t m a

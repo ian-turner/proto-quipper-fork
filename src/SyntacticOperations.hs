@@ -125,7 +125,14 @@ data VarSwitch =
 -- | Get a set of variables from an expression according to the flag.
 getVars :: VarSwitch -> Exp -> MultiSet Variable
 getVars All a@(Var x) = S.insert x S.empty
+getVars All a@(MetaVar x) = S.insert x S.empty
+
 getVars NoImply a@(Var x) = S.insert x S.empty
+getVars NoImply a@(MetaVar x) = S.insert x S.empty
+
+getVars ModVars (Var x) = S.empty
+getVars ModVars (MetaVar x) = S.empty
+
 getVars b (Base _) = S.empty
 getVars b (LBase _) = S.empty
 getVars b (Const _) = S.empty
@@ -275,7 +282,7 @@ getVars b (Case t (B brs)) =
               fbv = getVars b x
           in (bv, S.union fbv fv)
 getVars b (Pos p e) = getVars b e
-getVars b a = error $ "from getVars  " ++ show (disp a)
+getVars b a = error $ "from getVars  " ++ show a
 
 -- | Get the modality variables.
 
