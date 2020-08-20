@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 -- | This module defines the error data type and its 'Disp' instance for type checking.
 
 module TypeError where
@@ -13,6 +14,9 @@ import Nominal
 import Prelude hiding ((<>))
 import Text.PrettyPrint
 import Control.Monad.Except
+
+import qualified Data.Map as Map
+import Data.Map (Map)
 
 -- | A data type for typing error.
 data TypeError = Unhandle Exp
@@ -70,6 +74,7 @@ data TypeError = Unhandle Exp
                | ModalityErr Modality Modality Exp
                | ModalityGEqErr Exp Exp Exp (Modality, Exp) (Modality, Exp)
                | CircuitErr Exp
+               | AppendEnv [(Variable, Exp)] TypeError
                deriving Show
 
 -- | A data type for evaluation errors.
@@ -442,3 +447,14 @@ instance Disp TypeError where
     text "this is a bug, please send bug report. Thanks!"
 
 
+  display flag (AppendEnv env e) =
+    display flag e $$
+    text "current environment:" $$
+    display flag env
+
+
+
+instance Disp [(Variable, Exp)] where
+  display b vs = vcat $ map helper vs
+    where
+      helper (x, t) = display b x <+> text ":" <+> display b t

@@ -643,7 +643,8 @@ instance Disp Value where
 instance Disp (Map Variable Value) where
   display flag l =
     vcat $
-    map (\(x, y) -> dispRaw x <+> text ":=" <+> display flag y) (Map.toList l)
+    map (\(x, y) -> dispRaw x <+> text ":=" <+> display flag y)
+      (Map.toList l)
 
 instance Disp (Map Variable (Value, Int, Int)) where
   display flag l =

@@ -8,7 +8,7 @@ data (Parameter a) => Eq a (x : a) (y : a) =
 
 -- data List a = Nil | Cons a (List a)
 
--- data Bool = F | T
+data Bool = F | T
 -- f : ! forall a -> (Parameter a) => List a -> Bool
 -- f l = case l of
 --          Cons x xs -> xs
@@ -21,8 +21,11 @@ refl = E (\ p l -> l)
 sym : ! forall a -> (Parameter a) =>
               forall (y : a) -> (x : a) -> Eq a x y -> Eq a y x
 sym x q = 
-  let E q1 = q in
-    E ( \ f l -> q1 (\ z -> f z -> f x) )
+  let E q1 = q in 
+    E ( \ f l -> q1 (\ z -> f z -> f x) (\ x -> x) )
+
+-- q1 :   (p : a -> Type) -> p x -> p y
+-- E : (! (p : a -> Type) -> p x -> p y) -> 
 {-
 trans : ! forall a -> (Parameter a) =>
               forall (x y z : a) -> Eq a x y -> Eq a y z -> Eq a x z

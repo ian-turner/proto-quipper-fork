@@ -376,7 +376,8 @@ updateCount x = do
         TypeVar b _ -> return ()
         TermVar c d -> do
           let lty' =
-                Map.insert x (lpkg {varIdentification = TermVar (incr c) d}) lty
+                Map.insert x
+                  (lpkg {varIdentification = TermVar (incr c) d}) lty
               gamma' = gamma {localCxt = lty'}
           put ts {lcontext = gamma'}
 
@@ -535,6 +536,7 @@ updateWithSubst e = do
 
 -- | Add a variable into the typing context.
 addVar :: Variable -> Exp -> TCMonad ()
+-- addVar x t | trace ("adding:"++ show (disp x) ++ ":" ++ show (disp t) ) $ False = undefined
 addVar x t = do
   ts <- get
   let b = isKind t

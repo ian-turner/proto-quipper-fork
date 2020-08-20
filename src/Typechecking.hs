@@ -508,20 +508,20 @@ typeCheck False c@(Lam bind) t = do
       open bind $ \xs m ->
         open bd $ \ys b ->
           if length xs <= length ys
-                        -- sub1 = zip ys (map EigenVar xs)
-               -- b' = apply sub1 b
             then do
-              let (vs, rs) = splitAt (length xs) ys
-               -- sub2 = zip xs (map EigenVar xs)
-               -- m' = apply sub2 m
+              let sub1 = zip ys (map Var xs)
+                  b' = apply sub1 b
+                  (vs, rs) = splitAt (length xs) ys
+                  -- sub2 = zip xs (map Var xs)
+                  -- m' = apply sub2 m
               mapM_ (\x -> addVar x ty) xs
               (t, ann, mode) <-
                 typeCheck
                   False
                   m
                   (if null rs
-                     then b
-                     else Pi (abst rs b) ty)
+                     then b'
+                     else Pi (abst rs b') ty)
               mapM (\x -> checkUsage x m) xs
               mapM_ removeVar xs
            -- Since xs may appear in the type annotation in ann,
@@ -544,11 +544,11 @@ typeCheck False c@(Lam bind) t = do
                     if isKind ty
                       then LamDepTy
                       else LamDep
-               -- sub1 = zip ys (map EigenVar xs)
-               -- b' = apply sub1 b
+                  sub1 = zip ys (map Var xs)
+                  b' = apply sub1 b
                   (vs, rs) = splitAt (length ys) xs
-               -- sub2 = zip xs $ take (length ys) (map EigenVar xs)
-               -- m' = apply sub2 m
+                  -- sub2 = zip xs $ take (length ys) (map Var xs)
+                  -- m' = apply sub2 m
               mapM_ (\x -> addVar x ty) vs
               (t, ann, mode) <-
                 typeCheck
@@ -556,7 +556,7 @@ typeCheck False c@(Lam bind) t = do
                   (if null rs
                      then m
                      else Lam (abst rs m))
-                  b
+                  b'
               mapM (\x -> checkUsage x m) vs
               mapM_ removeVar vs
               ann1 <- updateWithSubst ann
@@ -1268,7 +1268,13 @@ inferAddAnn flag a ty = do
       mapM (\(x, t) -> addVar x t) anEnv
       (unifRes, (s, bs)) <- normalizeUnif GEq tym1' ty1
       case unifRes of
-        UnifError -> throwError $ NotEq a ty1 tym1'
+        UnifError -> do
+         ts <- get
+         ss <- getSubst
+         let lg =  Map.toList $ localCxt $ lcontext ts 
+             lg' = map
+                    (\ (x , varinfo) -> (x, substitute ss $ varClassifier varinfo)) lg 
+         throwError $ AppendEnv lg' $ NotEq a ty1 tym1'
         ModeError p1 p2 -> throwError $ ModalityGEqErr a ty1 tym1' p1 p2
         Success -> do
           ss <- getSubst
