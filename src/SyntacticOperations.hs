@@ -677,7 +677,8 @@ isExplicit s (Case tm (B br)) =
           ps
 
 isExplicit s (Pos p e) = isExplicit s e
-isExplicit s (Var x) = s == x 
+isExplicit s (Var x) = s == x
+isExplicit s (MetaVar x) = s == x 
 isExplicit s Star = False
 isExplicit s Box = False
 isExplicit s UnBox = False

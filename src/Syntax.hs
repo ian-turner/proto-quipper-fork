@@ -167,7 +167,7 @@ identityMod = M (BConst True) (BConst True) (BConst True)
 instance Disp Pattern where
   display flag (PApp id vs) = display flag id <+> hsep (map helper vs)
     where
-      helper (Left (NoBind x)) = braces $ display flag x
+      helper (Left (NoBind x)) = display flag x
       helper (Right x) = display flag x
 
 -- | A helper function for display various of applications.

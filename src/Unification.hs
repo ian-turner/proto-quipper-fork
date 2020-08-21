@@ -244,12 +244,19 @@ dUnify (LBase x) (LBase y) | x == y = return Success
 dUnify (Const x) (Const y) | x == y = return Success
                            | otherwise = return DUnifError
 
-dUnify (MetaVar x) (MetaVar y) | x == y = return Success
-                               | otherwise = return DUnifError
+-- dUnify (MetaVar x) (MetaVar y) | x == y = return Success
+--                                | otherwise = return DUnifError
 
  
 dUnify (Var x) t
   | Var x == t = return Success
+  | MetaVar y <- t, x == y =
+    do sub <- get
+       let subst' =
+             mergeSub (Map.fromList [(y, Var x)]) sub
+       put subst'
+       return Success
+       
   | x `S.member` getVars All t = return DUnifError
   | otherwise = 
     do sub <- get
@@ -260,6 +267,34 @@ dUnify (Var x) t
 
 dUnify t (Var x)
   | Var x == t = return Success
+  | MetaVar y <- t, x == y =
+    do sub <- get
+       let subst' =
+             mergeSub (Map.fromList [(y, Var x)]) sub
+       put subst'
+       return Success
+  
+  | x `S.member` getVars All t = return DUnifError
+  | otherwise =
+    do sub <- get
+       let subst' =
+             mergeSub (Map.fromList [(x, t)]) sub
+       put subst'
+       return Success
+
+
+dUnify (MetaVar x) t
+  | MetaVar x == t = return Success
+  | x `S.member` getVars All t = return DUnifError
+  | otherwise = 
+    do sub <- get
+       let subst' =
+             mergeSub (Map.fromList [(x, t)]) sub
+       put subst'
+       return Success
+
+dUnify t (MetaVar x)
+  | MetaVar x == t = return Success
   | x `S.member` getVars All t = return DUnifError
   | otherwise =
     do sub <- get

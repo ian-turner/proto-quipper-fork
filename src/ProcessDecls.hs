@@ -25,6 +25,7 @@ import Typechecking
 import Utils
 
 import Erasure
+
 -- import Proofchecking
 import Evaluation hiding (genNames)
 import Nominal hiding ((.))
@@ -112,6 +113,7 @@ process (Instance pos f ty mths) = do
         ErrPos pos $
         ErrDoc $ text "Parameter class instance is not user-definable."
     Just (Right d', args) -> elaborateInstance pos f ty mths
+
 process (Def pos f' ty' def' isClifford) = do
   tcTop $ checkVacuous pos ty'
   (_, ty) <- tcTop $ typeChecking True ty' Set
@@ -274,6 +276,7 @@ process (Data pos d kd cons) = do
             foldr (\(x, t) y -> Forall (abst [x] y) t) (Imply bodies head) env
        in elaborateInstance pos instId ty1 []
     generateParamInstance _ _ d kd' = return ()
+
 process (Object pos id) = do
   let tp =
         Info
@@ -286,6 +289,7 @@ process (Object pos id) = do
       instId = Id $ "instAt" ++ hashPos pos ++ "Simple"
       instPS = Id $ "instAt" ++ hashPos pos ++ "SimpParam"
   elaborateInstance pos instId (App s (LBase id)) []
+
 process (GateDecl pos id params t m@(M _ (BConst flag) _) inv) = do
   tcTop $ mapM_ checkParam params
   let (bds, h) = flattenArrows t
@@ -486,7 +490,8 @@ elaborateInstance pos f' ty mths = do
              mapM_ (\(x, t) -> insertLocalInst x t) instEnv
              updateParamInfo (map snd instEnv)
              (t', a) <-
-               typeChecking'' (map fst env') False (Pos p m) (erasePos t)
+               typeChecking'' (map fst env') False (Pos p m)
+                   (erasePos t)
              mapM_ (\(x, t) -> removeVar x) env'
              mapM_ (\(x, t) -> removeLocalInst x) instEnv
              return a
@@ -662,12 +667,7 @@ typeChecking b exp ty = do
      -- let ty''' = unEigen ty''
   ty2 <- updateWithModeSubst ty''
   return (abstractMode $ booleanVarElim ty2, r)
-
-
 -- | Check an annotated expression against a type. It is a wrapper on 'proofCheck' function.
-
 -- proofChecking :: Bool -> Exp -> Exp -> TCMonad ()
 -- proofChecking b exp ty =
 --   proofCheck b exp ty `catchError` \ e -> throwError  $ PfErrWrapper exp e ty
-
-

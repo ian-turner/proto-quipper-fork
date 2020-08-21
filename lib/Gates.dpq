@@ -131,11 +131,10 @@ not_g q s = controlled (box Qubit QNot) q s
 h_g : ! forall s -> (Simple s) => Qubit -> s -> Qubit * s
 h_g q s = controlled (box Qubit H) q s
 
-cnot : ! forall u -> (Simple u) => Qubit -> Qubit -> u -> (Qubit * Qubit) * u
+cnot : ! forall u -> (Simple u) => Qubit -> Qubit -> u ->
+           (Qubit * Qubit) * u
 cnot a b s =
-   let (a, bs) = not_g
-                  a
-		  (b, s)
+   let (a, bs) = not_g a (b, s)
        (b, s) = bs
    in ((a, b), s)
 

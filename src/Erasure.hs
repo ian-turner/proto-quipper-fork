@@ -33,6 +33,7 @@ erasure (Pos p a) = erasure a `catchError` \e -> throwError $ collapsePos p e
 erasure Star = return EStar
 erasure Unit = return EUnit
 erasure a@(Var x) = return (EVar x)
+erasure a@(MetaVar x) = return (EVar x)
 erasure a@(Const t) = return (EConst t)
 erasure a@(Base t) = return (EBase t)
 erasure a@(LBase t) = return (ELBase t)

@@ -653,8 +653,8 @@ typeCheck flag a@(Pair t1 t2) d =
                    let sub' = s `mergeSub` ss
                    updateSubst sub'
                    updateModeSubst bs
-                   let x1' = substitute sub' (Var x1)
-                       x2' = substitute sub' (Var x2)
+                   let x1' = substitute sub' (MetaVar x1)
+                       x2' = substitute sub' (MetaVar x2)
                    (x1'', t1', mode1) <- typeCheck flag t1 x1'
                    (x2'', t2', mode2) <- typeCheck flag t2 x2'
                    let res = Pair t1' t2'
@@ -928,11 +928,12 @@ patternUnif (isDpm, index) m head t =
                       Success ->
                         do let a1' = substitute subst1 a1
                                a2' = substitute subst1 a2
-                               head' = foldl AppP (Base h1) (bs1++a1':as1)
+                               head' = foldl AppP (Base h1)
+                                         (bs1++a1':as1)
                                t' = foldl AppP (Base h2) (bs2++a2':as2)
-                               
-                           (res, (sub, bs)) <- normalizeUnif GEq head' t'                  
+                           (res, (sub, bs)) <- normalizeUnif GEq head' t'
                            return (res, (sub `mergeSub` subst1, bs))
+                      _ -> throwError $ withPosition m (UnifErr head t)
             _ -> throwError $ withPosition m (UnifErr head t)
   else normalizeUnif GEq head t
   -- where -- change relavent variables back into eigenvariables after dependent pattern-matching. 

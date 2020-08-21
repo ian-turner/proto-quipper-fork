@@ -376,8 +376,7 @@ updateCount x = do
         TypeVar b _ -> return ()
         TermVar c d -> do
           let lty' =
-                Map.insert x
-                  (lpkg {varIdentification = TermVar (incr c) d}) lty
+                Map.insert x (lpkg {varIdentification = TermVar (incr c) d}) lty
               gamma' = gamma {localCxt = lty'}
           put ts {lcontext = gamma'}
 
@@ -393,6 +392,19 @@ shape Star = return Star
 shape a@(Base _) = return a
 shape a@(Const _) = return a
 shape a@(Var x) = do
+  ts <- get
+  let gamma = lcontext ts
+      lty = localCxt gamma
+  case Map.lookup x lty of
+    Nothing -> return a
+    Just lpkg ->
+      case varIdentification lpkg of
+        TermVar _ _ -> return a
+        TypeVar _ s
+          | s -> return Unit
+          | otherwise -> return a
+
+shape a@(MetaVar x) = do
   ts <- get
   let gamma = lcontext ts
       lty = localCxt gamma
