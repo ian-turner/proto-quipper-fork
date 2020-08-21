@@ -504,6 +504,7 @@ typeCheck False c@(Lam bind) t = do
             checkUsage y m
             let res = Lam (abst [y] ann)
             return (Arrow t1 t2', res, mode)
+
     handleFunctions (Pi bd ty) (Lam bind) t =
       open bind $ \xs m ->
         open bd $ \ys b ->
@@ -564,14 +565,16 @@ typeCheck False c@(Lam bind) t = do
               ann' <- resolveGoals ann1
               let res = lamDep (abst vs ann')
               return (Pi (abst vs t') ty, res, mode)
+
     handleFunctions (PiImp bd ty) (Lam bind) t =
       open bind $ \xs m ->
         open bd $ \ys b ->
           if length xs <= length ys
-                        -- sub1 = zip ys (map EigenVar xs)
-               -- b' = apply sub1 b
+               
             then do
-              let (vs, rs) = splitAt (length xs) ys
+              let sub1 = zip ys (map Var xs)
+                  b' = apply sub1 b
+                  (vs, rs) = splitAt (length xs) ys
                -- sub2 = zip xs (map EigenVar xs)
                -- m' = apply sub2 m
               mapM_ (\x -> addVar x ty) xs
@@ -580,8 +583,8 @@ typeCheck False c@(Lam bind) t = do
                   False
                   m
                   (if null rs
-                     then b
-                     else PiImp (abst rs b) ty)
+                     then b'
+                     else PiImp (abst rs b') ty)
               mapM_ removeVar xs
            -- Since xs may appear in the type annotation in ann,
            -- we have to update ann with current substitution.
@@ -599,7 +602,9 @@ typeCheck False c@(Lam bind) t = do
                   t'' = PiImp (abst xs t') ty
               return (t'', res, mode)
             else do
-              let (vs, rs) = splitAt (length ys) xs
+              let sub1 = zip ys (map Var xs)
+                  b' = apply sub1 b
+                  (vs, rs) = splitAt (length ys) xs
                -- sub2 = zip xs $ take (length ys) (map EigenVar xs)
                -- m' = apply sub2 m
               mapM_ (\x -> addVar x ty) vs
@@ -609,7 +614,7 @@ typeCheck False c@(Lam bind) t = do
                   (if null rs
                      then m
                      else Lam (abst rs m))
-                  b
+                  b'
               mapM_ removeVar vs
               ann1 <- updateWithSubst ann
               t' <- updateWithSubst t
