@@ -27,7 +27,7 @@ main = do
         return ()
     [filename, option]
       | option == "-v" -> do
-        runTop p $ catchTop error_handler_verbose (printMain filename)
+        runTop p $ catchTop error_handler_verbose  (load filename)
         return ()
         
     [filename, option]

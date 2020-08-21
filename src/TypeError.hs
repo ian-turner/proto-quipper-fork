@@ -75,6 +75,8 @@ data TypeError = Unhandle Exp
                | ModalityGEqErr Exp Exp Exp (Modality, Exp) (Modality, Exp)
                | CircuitErr Exp
                | AppendEnv [(Variable, Exp)] TypeError
+               | AppendSub (Map Variable Exp) TypeError
+
                deriving Show
 
 -- | A data type for evaluation errors.
@@ -450,6 +452,11 @@ instance Disp TypeError where
   display flag (AppendEnv env e) =
     display flag e $$
     text "current environment:" $$
+    display flag env
+
+  display flag (AppendSub env e) =
+    display flag e $$
+    text "current substitution:" $$
     display flag env
 
 

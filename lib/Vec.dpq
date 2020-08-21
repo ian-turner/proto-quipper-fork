@@ -64,7 +64,7 @@ append' n l1 l2 =
         case n of
           Z -> let VNil = l1 in l2
           S n' -> 
-           let VCons x xs = l1 in xs -- VCons x (append' n' xs l2)
+           let VCons x xs = l1 in VCons x (append' n' xs l2)
 
 
 -- append'' : ! forall a (m : Nat) -> (n : Nat) -> Vec a n -> Vec a m -> Vec a (add n m)
@@ -80,17 +80,20 @@ infixl 11 ++
 -- (++) : ! forall a (n m : Nat) -> Vec a n  -> Vec a m -> Vec a (add n m)
 (++) = append 
 
-{-
-reverse_aux : ! {a : Type} -> {n m : Nat} -> Vec a n -> Vec a m -> Vec a (add n m)
+
+reverse_aux : ! {a : Type} -> {n m : Nat} -> Vec a n -> Vec a m ->
+                Vec a (add n m)
 reverse_aux a n m l1 l2 =
   case n of
     Z -> case l1 of
            VNil -> l2
-    S n' -> case l1 of
-             VCons q qs -> 
-    	       subst (\ x -> Vec a x) (addS n' m) $ reverse_aux qs (VCons q l2)
+    S n' ->
+      case l1 of
+        VCons q qs -> 
+          subst (\ x -> Vec a x) (addS n' m) $
+              reverse_aux qs (VCons q l2)
 
-
+{-
 -- a n' (S m)
   -- case n of
   --   Z -> case l1 of

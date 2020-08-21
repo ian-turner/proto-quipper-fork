@@ -1197,7 +1197,7 @@ addAnn flag mode e a (PiImp bd ty) env
             if flag
               then AppDepInt
               else AppDep
-          mvars = map Var xs
+          mvars = map MetaVar xs
           a' = foldl app a mvars
           new = map (\x -> (x, ty)) xs
           t' = apply (zip xs mvars) t
@@ -1275,7 +1275,7 @@ inferAddAnn flag a ty = do
          let lg =  Map.toList $ localCxt $ lcontext ts 
              lg' = map
                     (\ (x , varinfo) -> (x, substitute ss $ varClassifier varinfo)) lg 
-         throwError $ AppendEnv lg' $ NotEq a ty1 tym1'
+         throwError $  AppendEnv lg' $ NotEq a ty1 tym1'
         ModeError p1 p2 -> throwError $ ModalityGEqErr a ty1 tym1' p1 p2
         Success -> do
           ss <- getSubst

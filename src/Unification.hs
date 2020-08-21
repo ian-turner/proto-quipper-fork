@@ -233,7 +233,7 @@ unify b t t' = return UnifError
 -- | Unify two expressions in dependent pattern matching. 
 dUnify :: Exp -> Exp -> State Subst UnifResult
 
--- dUnify _ a b | trace (show $ dispRaw a <+> text ":" <+> dispRaw b) $ False = undefined
+-- dUnify a b | trace (show a ++  ":" ++ show b) $ False = undefined
 dUnify Unit Unit = return Success
 dUnify Set Set = return Success
 dUnify (Base x) (Base y) | x == y = return Success
@@ -250,13 +250,12 @@ dUnify (Const x) (Const y) | x == y = return Success
  
 dUnify (Var x) t
   | Var x == t = return Success
-  | MetaVar y <- t, x == y =
+  | MetaVar y <- t = 
     do sub <- get
        let subst' =
              mergeSub (Map.fromList [(y, Var x)]) sub
        put subst'
        return Success
-       
   | x `S.member` getVars All t = return DUnifError
   | otherwise = 
     do sub <- get
@@ -267,13 +266,12 @@ dUnify (Var x) t
 
 dUnify t (Var x)
   | Var x == t = return Success
-  | MetaVar y <- t, x == y =
+  | MetaVar y <- t = 
     do sub <- get
        let subst' =
              mergeSub (Map.fromList [(y, Var x)]) sub
        put subst'
        return Success
-  
   | x `S.member` getVars All t = return DUnifError
   | otherwise =
     do sub <- get
