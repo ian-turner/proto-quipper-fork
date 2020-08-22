@@ -49,7 +49,7 @@ boxUpdate_t1 : (n : Nat) *
                         Vec Qubit n * Vec  Qubit (S (add 9 9)))
 boxUpdate_t1 = boxUpdate 9 9 True
 
-
+{-
 testpos : ! (pos m xy_max : Nat) ->
                         Vec Qubit (S (add pos m)) ->
                         Vec Qubit (S (add pos m)) ->
@@ -87,3 +87,4 @@ box_testpos_t1 : (n : Nat) *
                        Vec Qubit n * Vec Qubit (S ((add 9 8))))
 box_testpos_t1 = box_testpos 9 8 10
   
+-}

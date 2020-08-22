@@ -58,6 +58,7 @@ addGates gs = lift $ mapM_ gateRW gs
 -- a value in the value domain. The eval function also takes an environment
 -- as argument and form a closure when evaluating a lambda abstraction or a lifted term.
 eval :: LEnv -> EExp -> Eval Value
+-- eval !lenv t | trace ("eval:" ++ show (dispRaw t)) $ False  = undefined
 eval !lenv (EVar x) = return $ lookupLEnv x lenv
 eval !lenv EStar = return VStar
 eval !lenv EUnit = return VUnit
@@ -151,7 +152,7 @@ eval !lenv (ELetPat m bd) = do
 eval !lenv b@(ECase m (EB bd)) = do
   m' <- eval lenv m
   case vflatten m' of
-    Nothing -> error ("from eval (Case):" ++ (show $ disp m'))
+    Nothing -> error ("from eval (Case):" ++ (show $ dispRaw m'))
     Just (Left id, args) -> reduce id args bd
   where
     reduce id args (bd:bds) =

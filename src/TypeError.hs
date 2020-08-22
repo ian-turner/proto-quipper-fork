@@ -76,7 +76,7 @@ data TypeError = Unhandle Exp
                | CircuitErr Exp
                | AppendEnv [(Variable, Exp)] TypeError
                | AppendSub (Map Variable Exp) TypeError
-
+               | DpmInferErr Exp
                deriving Show
 
 -- | A data type for evaluation errors.
@@ -126,6 +126,11 @@ instance Disp TypeError where
   display flag (ErrPos p e) =
     display flag p $$   
     display flag e
+
+  display flag (DpmInferErr e) =
+    text "Can't perform dependent pattern matching when in infer mode." $$
+    text "when pattern matching:" $$
+    nest 2 (display flag e)
 
   display flag (Unhandle t) =
     text "there is no type inference rule to infer a type for the expression:" $$

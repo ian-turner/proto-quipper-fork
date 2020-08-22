@@ -26,7 +26,9 @@ test_focus (n m : Nat) . (maskmap bitmap newmap : VecZipper Qubit n m) =
          bitmap' = VZ bitl b2 bitr
          maskmap' = VZ maskl ma2 maskr
      return (maskmap', bitmap', newmap')
-  
+
+
+
 -- box_test_focus (n m : Nat) = 
 --  boxGarbage -- ((Vec Qubit n * Qubit * Vec Qubit m) *
 --             --    (Vec Qubit n * Qubit * Vec Qubit m) *
@@ -187,18 +189,20 @@ box_while_for (n m x_max : Nat) (pf : Eq Bool (x_max > Z) True) =
 		   
 
 
--- while : ! (n : Nat) -> Nat -> (x_max : Nat) -> Eq Bool (x_max > Z) True
---               -> Vec Qubit (S n) -> Vec Qubit (S n) -> Vec Qubit (S n)
---                -> WithGarbage ((Vec Qubit (S n)) * (Vec Qubit (S n)) * (Vec Qubit (S n)))
-while (n c x_max : Nat) (pf : Eq Bool (x_max > Z) True)
-  (bitmap newmap maskmap : Vec Qubit (S n)) =                 
+while : ! (n : Nat) -> Nat -> (x_max : Nat) -> Eq Bool (x_max > Z) True
+              -> Vec Qubit (S n) -> Vec Qubit (S n) -> Vec Qubit (S n)
+               -> WithGarbage ((Vec Qubit (S n)) * (Vec Qubit (S n)) * (Vec Qubit (S n)))
+-- while (n c x_max : Nat) (pf : Eq Bool (x_max > Z) True)
+--   (bitmap newmap maskmap : Vec Qubit (S n)) =
+while n c x_max pf bitmap newmap maskmap = 
   case c of
     S c' -> let VCons h1 t1  = maskmap
                 VCons b bs = bitmap
                 VCons new news = newmap
             in
-            do (bit, new, mask) <- while_for n Z x_max pf (VZ bs b VNil) (VZ news new VNil)
-                                       (VZ t1 h1 VNil)
+            do (bit, new, mask) <-
+                  while_for n Z x_max pf (VZ bs b VNil)
+                      (VZ news new VNil) (VZ t1 h1 VNil)
                let VZ bits bit vn = bit
                    VZ news' new' vn' = new
                    VZ masks' mask' vn'' = mask
@@ -207,6 +211,7 @@ while (n c x_max : Nat) (pf : Eq Bool (x_max > Z) True)
                    VNil = vn''
                in while n c' x_max pf (VCons bit bits) (VCons new' news') (VCons mask' masks')
     Z -> return (bitmap, newmap, maskmap)           
+
 
 flood_fill (n : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True)
   (bitmap maskmap : Vec Qubit (S n)) = do
@@ -261,8 +266,12 @@ checkwin_red' n v =
       r <- foldM (\ x -> bor x) x xs
       bnot r
 
-checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
-  (pf2 : Eq Bool (x_max <= m) True) (redboard : Vec Qubit (S m)) = do
+
+-- checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
+--   (pf2 : Eq Bool (x_max <= m) True) (redboard : Vec Qubit (S m)) = do
+checkwin_red : ! (m x_max : Nat) -> Eq Bool (x_max > Z) True -> Eq Bool (x_max <= m) True
+                  -> Vec Qubit (S m) -> WithGarbage Qubit
+checkwin_red m x_max pf1 pf2 redboard = do
   let VCons x xs = redboard
       VZ begin q res = moveBackward Qubit Z m x_max pf2 (VZ VNil x xs)
       (begin1, begin2) = copy begin

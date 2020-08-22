@@ -132,11 +132,10 @@ box_while_for (n m x_max : Nat) (pf : Eq Bool (x_max > Z) True) =
 simple TripleVec a : (n : Nat) -> Type where
   TripleVec a n = TV (Vec Qubit n) (Vec Qubit n) (Vec Qubit n)
 
--- while : ! (m : Nat) -> Nat -> (x_max : Nat) -> Eq Bool (x_max > Z) True
---               -> Vec Qubit (S m) -> Vec Qubit (S m) -> Vec Qubit (S m)
---                -> WithGarbage (TripleVec (S m))
-while (m c x_max : Nat) (pf : Eq Bool (x_max > Z) True)
-  (bitmap newmap maskmap : Vec Qubit (S m)) =                 
+while : ! (m : Nat) -> Nat -> (x_max : Nat) -> Eq Bool (x_max > Z) True
+              -> Vec Qubit (S m) -> Vec Qubit (S m) -> Vec Qubit (S m)
+               -> WithGarbage (Vec Qubit (S m) * Vec Qubit (S m) * Vec Qubit (S m))
+while m c x_max pf bitmap newmap maskmap =                 
   case c of
     Z -> return (bitmap, newmap, maskmap)               
     S c' -> do
@@ -184,8 +183,10 @@ checkwin_red' n v =
       r <- foldM (\ x -> bor x) x xs
       bnot r
 
-checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
-  (pf2 : Eq Bool (x_max <= m) True) (redboard : Vec Qubit (S m)) = do
+checkwin_red : ! (m x_max : Nat) -> Eq Bool (x_max > Z) True ->
+                     Eq Bool (x_max <= m) True -> Vec Qubit (S m) ->
+                      WithGarbage Qubit
+checkwin_red m x_max pf1 pf2 redboard = do
   let VCons x xs = redboard
       VZ begin q res = moveBackward Qubit Z m x_max pf2 (VZ VNil x xs)
       (begin1, begin2) = copy begin

@@ -595,7 +595,7 @@ instance Disp Value where
   display flag (Wired (Abst _ m)) = display flag m
   display flag (VLam (Abst _ bd)) = open bd $ \vs b ->
     fsep
-        [ text "\\v"
+        [ text "\\"
         , (hsep $ map (display flag) vs)
         , text "->"
         , nest 2 $ display flag b
@@ -780,7 +780,7 @@ instance Disp EExp where
   display flag (EDynlift) = text "dynlift"
   display flag (ELam (Abst vs e)) =
     sep
-      [ text "\\e"
+      [ text "\\"
       , hsep (map (\x -> dispRaw x) vs)
       , text "->"
       , nest 2 (display flag e)

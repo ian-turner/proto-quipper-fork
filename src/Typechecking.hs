@@ -625,7 +625,9 @@ typeCheck False c@(Lam bind) t = do
                       else LamDep
                   res = LamDep (abst vs ann')
               return (PiImp (abst vs t') ty, res, mode)
-
+    handleFunctions ty l t =
+      throwError $ withPosition l $ LamErr l ty
+      
 typeCheck flag a@(Pair t1 t2) (Exists p ty) =
   do (ty', ann1, mode1) <- typeCheck flag t1 ty
      open p $ \ x t ->
@@ -791,7 +793,7 @@ typeCheck flag (LetPat m bd) goal =
                  -- when isDpm $ updateSubst ss
                  -- when (not isDpm) $ updateSubst subb'
                  infer <- getInfer
-                 when (isDpm && infer) $ error "infer and dpm"
+                 when (isDpm && infer) $ throwError $ withPosition m $ DpmInferErr m
                  when infer $ updateSubst subb'
                  when isDpm $  updateSubst ss
                  when (not infer && not isDpm) $ updateSubst subb'
@@ -899,7 +901,7 @@ typeCheck flag a@(Case tm (B brs)) goal =
 
                       b <- varDep (erasePos tm) goal
                       let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
-                      when (isDpm && infer) $ error "infer and dpm"
+                      when (isDpm && infer) $ throwError $ withPosition tm $ DpmInferErr tm
                       -- when isDpm $ updateSubst ss
                       -- when (not isDpm) $ updateSubst subb'
                       when infer $ updateSubst subb'
@@ -1347,7 +1349,8 @@ inferAddAnn flag a ty = do
          let lg =  Map.toList $ localCxt $ lcontext ts 
              lg' = map
                     (\ (x , varinfo) -> (x, substitute ss $ varClassifier varinfo)) lg 
-         throwError $  AppendSub ss $ AppendEnv lg' $ NotEq a ty1 tym1'
+         -- throwError $  AppendSub ss $ AppendEnv lg' $ NotEq a ty1 tym1'
+         throwError $ NotEq a ty1 tym1'
         ModeError p1 p2 -> throwError $ ModalityGEqErr a ty1 tym1' p1 p2
         Success -> do
           ss <- getSubst
