@@ -46,19 +46,19 @@ secondLayer n v =
 -- The following program should not pass the type checker
 -- Implicit arguments
 -- in case pattern is used explicitly-> 
--- rounding : !  (n : Nat) -> Nat -> Vec Qubit n -> Vec Qubit n
--- rounding n p v =
---   case n of
---     Z -> v
---     S n' -> 
---      let VCons x xs = v in 
---       case reverse_vec Qubit n' xs of
---         VNil -> VCons x VNil
--- 	VCons h hs ->
---           let (h, x) = R p h x
---               z = (reverse_vec Qubit n' (VCons h hs))
---           in
---            VCons x z
+rounding : !  (n : Nat) -> Nat -> Vec Qubit n -> Vec Qubit n
+rounding n p v =
+  case n of
+    Z -> v
+    S n' -> 
+     let VCons x xs = v in 
+       case reverse_vec xs of
+        VNil -> VCons x VNil
+	VCons h hs ->
+          let (h, x) = R p h x
+              z = reverse_vec (VCons h hs)
+          in
+           VCons x z
 -- boxSecond : ! (y : Nat) -> Nat -> Circ(Vec Qubit y, Vec Qubit y)
 -- boxSecond y m = box (Vec Qubit y) $ \ x -> rounding y m $ secondLayer m x
 

@@ -217,7 +217,8 @@ runGarbage comp = let WG x a = comp in let (n, v) = x in (n, (v, a))
 box_garbage : ! (a b : Type) -> (Simple a , Simple b) =>
                !(a -> WithGarbage b) ->  (n : Nat) * Circ(a, Vec Qubit n * b)
 box_garbage a b f =
-  let (n, circ) = existsBox a (\n -> Vec Qubit n * b) (\x -> runGarbage (f x))
+  let (n, circ) =
+         existsBox a (\n -> Vec Qubit n * b) (\x -> runGarbage (f x))
   in (n, circ)
 
 boxGarbage : ! {a b : Type} -> (Simple a , Simple b) =>

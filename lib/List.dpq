@@ -5,10 +5,16 @@ import "lib/Vec.dpq"
 data List a = Nil | Cons a (List a)
 
 -- appendL : ! forall a  -> List a  -> List a -> List a
+-- appendL l1 l2 =
+--               case l1 of
+--                   Nil -> l2
+--     	          Cons x xs -> Cons x (appendL xs l2)
+
 appendL a . (l1 l2 : List a) =
               case l1 of
                   Nil -> l2
     	          Cons x xs -> Cons x (appendL xs l2)
+
 
 -- mapL : ! forall a b -> !(a -> b) -> List a -> List b
 mapL a b . (f : !(a -> b)) (l : List a) =
@@ -56,6 +62,21 @@ lengthL l = case l of
 		(Cons x xs', S n)
 
 
+-- lengthL' c . (l : List c) =
+--        case l of
+--                 Nil -> (Nil, Z) 
+-- 	        Cons x xs -> 
+-- 	          let (xs', n) = lengthL' xs in (Cons x xs', S n)
+
+
+lengthL'' : ! forall c -> List c -> List c * Nat
+lengthL'' l =
+       let r = case l of
+                Nil -> (Nil, Z) 
+	        Cons x xs -> 
+	          let (xs', n) = lengthL'' xs in (Cons x xs', S n)
+       in r
+
 lengthL' c . (l : List c) =
        let r = case l of
                 Nil -> (Nil, Z) 
@@ -63,3 +84,4 @@ lengthL' c . (l : List c) =
 	          let (xs', n) = lengthL' xs in (Cons x xs', S n)
        in r
 -- main =  x
+

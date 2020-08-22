@@ -82,15 +82,16 @@ unify b t (MetaVar x)
 
 
 -- We allow unifying two first-order existential types.  
--- unify b (Exists (Abst x m) ty1) (Exists (Abst y n) ty2) =
---   do r <- unify b ty1 ty2
---      if r == Success then freshNames ["#existUnif"] $ \ (e:[]) ->
---        do let m' = apply [(x, EigenVar e)] m
---               n' = apply [(x, EigenVar e)] n
---           (sub, bsub) <- get
---           unify b (substitute sub $ bSubstitute bsub m')
---             (substitute sub $ bSubstitute bsub n')
---        else return r
+
+unify b (Exists (Abst x m) ty1) (Exists (Abst y n) ty2) =
+  do r <- unify b ty1 ty2
+     if r == Success then freshNames ["#existUnif"] $ \ (e:[]) ->
+       do let m' = apply [(x, Var e)] m
+              n' = apply [(y, Var e)] n
+          (sub, bsub) <- get
+          unify b (substitute sub $ bSubstitute bsub m')
+            (substitute sub $ bSubstitute bsub n')
+       else return r
 
 -- We also allow unifying two case expression,
 -- but only a very simple kind of unification

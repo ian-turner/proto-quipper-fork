@@ -592,8 +592,18 @@ instance Disp Value where
   display flag (VWithComputed) = text "withComputed"
   display flag (VDynlift) = text "dynlift"
   display flag (Wired (Abst _ m)) = display flag m
-  display flag (VLam _) = text "<fun-value>"
-  display flag (VLift _) = text "<lift-value>"
+  display flag (VLam (Abst _ bd)) = open bd $ \vs b ->
+    fsep
+        [ text "\\v"
+        , (hsep $ map (display flag) vs)
+        , text "->"
+        , nest 2 $ display flag b
+        ]
+
+  -- text "<fun-value>"
+  display flag (VLift (Abst _ m)) =
+    text "vlift" <+> display flag m
+  -- text "<lift-value>"
   display flag (VLiftCirc (Abst vs (Abst env e))) = text "<fun-value>"
   display flag a@(VApp t t') =
     case toNat a of

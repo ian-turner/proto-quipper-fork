@@ -52,11 +52,11 @@ join : ! forall a (m : Type -> Type) -> (Monad m) => m (m a) -> m a
 join mma =
   mma >>= \ ma -> ma
 
--- ap : ! forall c d (m : Type -> Type) -> (Monad m) =>
---              m (c -> d) -> m c -> m d
--- ap f x =
---   bind f (\ g -> 
---        bind' )
+ap : ! forall c d (m : Type -> Type) -> (Monad m) =>
+             m (c -> d) -> m c -> m d
+ap f x =
+  bind f (\ g -> 
+       bind x (\ r -> return (g r)))
      
 
 infixl 16 <*>
@@ -64,8 +64,8 @@ infixl 16 <*>
 infixl 16 <$>
 
 
--- (<*>) : ! forall a b (m : Type -> Type) -> (Monad m) =>  m (a -> b) -> m a -> m b
--- (<*>) f a = ap f a
+(<*>) : ! forall a b (m : Type -> Type) -> (Monad m) =>  m (a -> b) -> m a -> m b
+(<*>) f a = ap f a
 
 fmap : ! forall a b (m : Type -> Type) -> (Monad m) => (a -> b) -> m a -> m b
 fmap f x =

@@ -143,6 +143,7 @@ process (Def pos f' ty' def' isClifford) = do
           }
   tcTop $ addNewId f' info2
 --     tcTop $ proofChecking False ann ty1'
+
 -- This definition without arguments can not be recursive.
 process (Defn pos f Nothing def isClifford) = do
   (ty, a) <- tcTop $ typeInfering False (Pos pos def)
@@ -182,15 +183,16 @@ process (Defn pos f (Just tt) def isClifford) = do
     tcTop $
     typeChecking True tt Set `catchError` \e -> throwError $ ErrPos pos e
   let (Forall (Abst [r] ty') Set) = tt'
-      ty'' = erasePos ty'
+      ty'' = erasePos $ apply [(r, MetaVar r)] ty'
   let info1 = Info {classifier = ty'', identification = DefinedFunction Nothing}
   tcTop $ addNewId f info1
      -- the first check obtain the type information
-  (tk', def0) <- tcTop $ typeChecking''' False (Pos pos def) ty''
+  (tk', def0, s) <- tcTop $ typeChecking''' False (Pos pos def) ty''
+  
   let tk1 = erasePos $ removeVacuousPi tk'
   let fvs = getVars All tk1
   when (not $ S.null fvs) $
-    throwError $ CompileErr $ ErrPos pos $ TyAmbiguous (Just f) tk1
+    throwError $ CompileErr $ ErrPos pos $ AppendSub s $ TyAmbiguous (Just f) tk1
   tcTop $ checkVacuous pos tk1
   p <- tcTop $ isParam tk1
   when (not p && not (isConst def)) $
@@ -221,7 +223,8 @@ process (Defn pos f (Just tt) def isClifford) = do
       exp'' <- updateWithSubst exp'
       r <- resolveGoals exp''
       ty'' <- resolveGoals ty' >>= updateWithSubst
-      return (ty'', r)
+      s <- getSubst
+      return (ty'', r, s)
 --     tcTop $ proofChecking False def' tk'
 process (Data pos d kd cons) = do
   let constructors = map (\(_, id, _) -> id) cons

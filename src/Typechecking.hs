@@ -714,7 +714,41 @@ typeCheck flag (LetPair m (Abst xs n)) goal =
               ann2' <- updateWithSubst ann2
               let res = LetPair ann (abst xs ann2') 
               return (goal', res, modalAnd mode1 mode2)
-         Nothing -> error "unTensor from LetPair"
+         Nothing -> do
+           nss <- newNames $ map (\ x -> "#unif") xs
+           freshNames nss $ \ (h:ns) ->
+             do let newTensor = foldl Tensor (MetaVar h) (map MetaVar ns)
+                    vars = map MetaVar (h:ns)
+                    (res, (s, bs)) = runUnify GEq at newTensor
+                case res of
+                       UnifError ->
+                         throwError $ TensorErr (length xs) m at
+                       ModeError p1 p2 ->
+                         throwError $ ModalityGEqErr m at newTensor p1 p2
+                       Success ->
+                         do ss <- getSubst
+                            let sub' = s `mergeSub` ss
+                            updateSubst sub'
+                            updateModeSubst bs
+                            let ts' = map (substitute sub') vars
+                                env' = zip xs ts'
+                            mapM (\ (x, t) -> addVar x t) env'
+                            (goal', ann2, mode2) <-
+                              typeCheck flag n (bSubstitute bs $
+                                                  substitute sub' goal)
+                            mapM (\ x -> checkUsage x n) xs
+                            mapM removeVar xs
+                            ann2' <- updateWithSubst ann2
+                            mode1' <- updateModality mode1
+                            let res = LetPair ann (abst xs ann2') 
+                            return (goal', res, modalAnd mode1' mode2)
+
+                
+                
+                
+           -- s <- getSubst
+           -- error $ "unTensor from LetPair:" ++ show (disp at) ++ "subst:"
+           --         ++ (show $ disp s)
 
 typeCheck flag (LetPat m bd) goal =
   do (tt, ann, mode1) <- typeInfer flag m
@@ -750,7 +784,10 @@ typeCheck flag (LetPat m bd) goal =
                  ann2' <- resolveGoals (substitute subb ann2)
                  -- !?Note that let pat is ok to leak local substitution,
                  -- as the branch is really global!.
-                 updateSubst ss
+                 infer <- getInfer
+                 when (not infer) $ updateSubst ss
+                 when infer $ updateSubst subb
+
                  mapM removeLocalInst ins
                  let axs' = map (substVar subb) axs
                      goal''' = substitute subb goal''
@@ -840,7 +877,11 @@ typeCheck flag a@(Case tm (B brs)) goal =
                       let goal''' = substitute subb goal''
                       ann2' <- resolveGoals (substitute subb ann2)
                                `catchError` \ e -> return ann2
-                      updateSubst ss
+                      infer <- getInfer
+                      when (not infer) $ updateSubst ss
+                      when infer $ updateSubst subb
+                               
+
                       -- because the variable axs may be in the domain
                       -- of the substitution, hence it is necessary
                       -- to update  axs as well before binding.
