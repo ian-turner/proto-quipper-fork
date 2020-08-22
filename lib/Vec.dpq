@@ -127,6 +127,7 @@ zipWith f l1 l2 =
 	  let VCons q2 qs2 = l2 in
 	   VCons (f q1 q2) (zipWith f qs1 qs2)
 
+
 zip : ! forall a b (n : Nat) ->  Vec a n -> Vec b n -> Vec (a * b) n
 zip l1 l2 =
   case l1 of
@@ -144,6 +145,7 @@ unzip l = case l of
 	                let (x , y) = p 
 		            (l1, l2) = unzip qs in
 		         (VCons x l1, VCons y l2)
+
 
 map : ! forall a b (n : Nat) -> !(a -> b) -> Vec a n -> Vec b n
 map f l =
@@ -172,10 +174,13 @@ sf_vec_index a n m as =
   case as of
     VCons h t -> 
       case n of
-        Z -> (VNil, h, t)
+        Z -> (VNil, h, t)          
         S n' ->
-         let (before, x, after) = sf_vec_index a n' m (subst (Vec a) (addS1 n' m) t) in
-          (VCons h before, x, after)
+         let (before, x, after) =
+                sf_vec_index a n' m (subst (Vec a) (addS1 n' m) t)
+         in (VCons h before, x, after)
+        
+
 
 sf_vec_unindex : ! (a : Type) -> (n m : Nat) ->
                   Vec a n -> a -> Vec a m -> Vec a (S (add n m)) 
@@ -218,7 +223,8 @@ instance forall a (n m : Nat) -> (QuantumOp a, Simple a) => QuantumOp (VecZipper
         (a2', b2') = cnots a2 b2
         (a3', b3') = cnots a3 b3
      in (VZ a1' a2' a3', VZ b1' b2' b3')
-        
+
+
 forward : !forall a (n m : Nat) -> VecZipper a (S n) m -> VecZipper a n (S m)
 forward v =
   let VZ l q r = v

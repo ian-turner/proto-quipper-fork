@@ -8,7 +8,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DeriveAnyClass #-}
-
+ 
 {-|
 This module describes the abstract syntax of Proto-Quipper-D. 
 We use Peter Selinger's nominal library to handle variable bindings 
@@ -153,6 +153,7 @@ data Pattern =
 data BExp
   = BConst Bool
   | BVar Variable
+  
   | BAnd BExp BExp
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal, Eq)
 
@@ -487,7 +488,7 @@ instance NominalShow (NoBind Exp) where
   showsPrecSup sup d (NoBind x) = showsPrecSup sup d x
 
 instance Disp (Either (NoBind Exp) Variable) where
-  display flag (Left (NoBind e)) = braces $ display flag e
+  display flag (Left (NoBind e)) = parens $ display flag e
   display flag (Right x) = display flag x
 
 -- | The value domain, for evaluation purpose.
@@ -779,7 +780,7 @@ instance Disp EExp where
   display flag (EDynlift) = text "dynlift"
   display flag (ELam (Abst vs e)) =
     sep
-      [ text "\\elam"
+      [ text "\\e"
       , hsep (map (\x -> dispRaw x) vs)
       , text "->"
       , nest 2 (display flag e)

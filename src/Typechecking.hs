@@ -6,7 +6,7 @@
 -- if the elaboration is successful, then it shoud past the proof-checker. Otherwise it
 -- means there is a bug in the elaboration. 
 
-
+ 
 module Typechecking (typeCheck, typeInfer) where
 
 import Syntax
@@ -750,6 +750,7 @@ typeCheck flag (LetPair m (Abst xs n)) goal =
            -- error $ "unTensor from LetPair:" ++ show (disp at) ++ "subst:"
            --         ++ (show $ disp s)
 
+
 typeCheck flag (LetPat m bd) goal =
   do (tt, ann, mode1) <- typeInfer flag m
      ss <- getSubst
@@ -780,20 +781,29 @@ typeCheck flag (LetPat m bd) goal =
                  mapM_ (\ (Right v) -> removeVar v) vs
                  -- It is important to update the environment before
                  -- going out of a dependent pattern matching
-                 updateLocalInst subb
-                 ann2' <- resolveGoals (substitute subb ann2)
-                 -- !?Note that let pat is ok to leak local substitution,
-                 -- as the branch is really global!.
+                 let subb' = case erasePos m of
+                               Var y -> Map.delete y subb  
+                               _ -> subb
+                 updateLocalInst subb'
+                 ann2' <- resolveGoals (substitute subb' ann2)
+                 b <- varDep (erasePos m) goal
+                 let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
+                 -- when isDpm $ updateSubst ss
+                 -- when (not isDpm) $ updateSubst subb'
                  infer <- getInfer
-                 when (not infer) $ updateSubst ss
-                 when infer $ updateSubst subb
-
+                 when (isDpm && infer) $ error "infer and dpm"
+                 when infer $ updateSubst subb'
+                 when isDpm $  updateSubst ss
+                 when (not infer && not isDpm) $ updateSubst subb'
                  mapM removeLocalInst ins
-                 let axs' = map (substVar subb) axs
-                     goal''' = substitute subb goal''
+                 subbb <- getSubst
+                 let axs' = map (substVar subbb) axs
+                     goal''' = substitute subbb goal
                      res = LetPat ann (abst (PApp kid axs') ann2')
                  return (goal''', res, modalAnd mode1 mode2)
      where
+           varDep (Var x) goal = isDpmVar x goal
+           varDep _ _ = return False
            makeSub (Var x) s u =
              do  u' <- shape $ substitute s u
                  return $ Map.union s (Map.fromList [(x, u')])
@@ -830,6 +840,9 @@ typeCheck flag a@(Case tm (B brs)) goal =
              return $ s `Map.union` Map.fromList [(x, u')]
         makeSub (Pos p x) s u = makeSub x s u
         makeSub a s u = return s
+        varDep (Var x) goal = isDpmVar x goal
+        varDep _ _ = return False
+        
         substVar ss (Right x) =
              let r = substitute ss (Var x)
              in case r of
@@ -871,24 +884,35 @@ typeCheck flag a@(Case tm (B brs)) goal =
                       subb <- getSubst 
                       mapM (\ (Right v) -> checkUsage v m >>=
                                            \ r -> return (v, r)) vs
-
-                      updateLocalInst subb
-                         
+                      let subb' = case erasePos tm of
+                                   Var y -> Map.delete y subb  
+                                   _ -> subb
+                      updateLocalInst subb'
                          -- we need to restore the substitution to ss
                          -- because subb' may be influenced by dependent pattern matching.
-                      let goal''' = substitute subb goal''
-                      ann2' <- resolveGoals (substitute subb ann2)
+                      
+                      ann2' <- resolveGoals (substitute subb' ann2)
                                `catchError` \ e -> return ann2
                       infer <- getInfer
-                      when (not infer) $ updateSubst ss
-                      when infer $ updateSubst subb
-                               
+                      -- when (not infer) $ updateSubst ss
+                      -- when infer $ updateSubst subb
 
+                      b <- varDep (erasePos tm) goal
+                      let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
+                      when (isDpm && infer) $ error "infer and dpm"
+                      -- when isDpm $ updateSubst ss
+                      -- when (not isDpm) $ updateSubst subb'
+                      when infer $ updateSubst subb'
+                      when isDpm $ updateSubst ss
+                      when (not infer && not isDpm) $ updateSubst subb'
+                      subbb <- getSubst
+                      let goal''' = substitute subbb goal
+                      
                       -- because the variable axs may be in the domain
                       -- of the substitution, hence it is necessary
                       -- to update  axs as well before binding.
                          
-                      let axs' = map (substVar subb) axs
+                      let axs' = map (substVar subbb) axs
                       mapM_ (\ (Right v) -> removeVar v) vs
                       mapM removeLocalInst ins
                       return (goal''', abst (PApp kid axs') ann2', mode')
@@ -1323,7 +1347,7 @@ inferAddAnn flag a ty = do
          let lg =  Map.toList $ localCxt $ lcontext ts 
              lg' = map
                     (\ (x , varinfo) -> (x, substitute ss $ varClassifier varinfo)) lg 
-         throwError $  AppendEnv lg' $ NotEq a ty1 tym1'
+         throwError $  AppendSub ss $ AppendEnv lg' $ NotEq a ty1 tym1'
         ModeError p1 p2 -> throwError $ ModalityGEqErr a ty1 tym1' p1 p2
         Success -> do
           ss <- getSubst
@@ -1335,3 +1359,6 @@ inferAddAnn flag a ty = do
           ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
           mode'' <- updateModality mode'
           return (ty1', a2, mode'')
+
+
+  

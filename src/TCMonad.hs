@@ -19,6 +19,9 @@ import Control.Monad.Identity
 import Control.Monad.State
 
 import Data.List
+import qualified Data.MultiSet as S
+import Data.MultiSet (MultiSet)
+
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Debug.Trace
@@ -545,6 +548,17 @@ updateWithSubst :: Exp -> TCMonad Exp
 updateWithSubst e = do
   ts <- get
   return $ substitute (subst ts) e
+
+-- | Determine if a matching on a variable is dependent pattern matching.
+isDpmVar :: Variable -> Exp -> TCMonad Bool
+isDpmVar x e = do
+  let fvs = getVars All e
+      b = x `S.member` fvs
+  s <- get
+  ss <- getSubst
+  let lenv = Map.toList $ localCxt $ lcontext s
+      bs = or $ map (\ (y, varinfo) -> x `S.member` (getVars All $ substitute ss $ varClassifier varinfo)) lenv
+  return (b || bs)
 
 -- | Add a variable into the typing context.
 addVar :: Variable -> Exp -> TCMonad ()

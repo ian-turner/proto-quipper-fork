@@ -154,8 +154,12 @@ erasure (LetPat m bd) =
                helper m res b b'
     helper (Arrow t1 t2) (x:xs) b b' = do
       vs' <- helper t2 xs b b'
-      let (Right x') = x
-      return $ x' : vs'
+      -- let Right x' = x
+      -- return $ x' : vs'
+      case x of
+        Right x' ->
+           return $ x' : vs'
+        Left (NoBind a) -> error $ "helperArrowErasure" ++ show (disp a)
     helper (Imply [t1] t2) (x:xs) b b' = do
       vs' <- helper t2 xs b b'
       let (Right x') = x
