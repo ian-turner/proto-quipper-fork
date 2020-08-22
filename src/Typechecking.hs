@@ -802,9 +802,10 @@ typeCheck flag (LetPat m bd) goal =
            
            substVar ss (Right x) =
              let r = substitute ss (Var x)
-             in if r /= (Var x) then
-                  Left (NoBind r)
-                else Right x
+             in case r of
+                 Var y | x == y -> Right y
+                 MetaVar y -> Right y
+                 _ -> Left (NoBind r)
 
 
 typeCheck flag a@(Case tm (B brs)) goal =
@@ -831,9 +832,10 @@ typeCheck flag a@(Case tm (B brs)) goal =
         makeSub a s u = return s
         substVar ss (Right x) =
              let r = substitute ss (Var x)
-             in if r /= (Var x) then
-                  Left (NoBind r)
-                else Right x
+             in case r of
+                 Var y | x == y -> Right y
+                 MetaVar y -> Right y
+                 _ -> Left (NoBind r)
         
         checkBrs t pbs goal =
           mapM (checkBr t goal) pbs
