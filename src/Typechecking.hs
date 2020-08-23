@@ -746,13 +746,6 @@ typeCheck flag (LetPair m (Abst xs n)) goal =
                             return (goal', res, modalAnd mode1' mode2)
 
                 
-                
-                
-           -- s <- getSubst
-           -- error $ "unTensor from LetPair:" ++ show (disp at) ++ "subst:"
-           --         ++ (show $ disp s)
-
-
 typeCheck flag (LetPat m bd) goal =
   do (tt, ann, mode1) <- typeInfer flag m
      ss <- getSubst

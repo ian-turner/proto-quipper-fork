@@ -512,34 +512,32 @@ proofCheck flag (LetPair m bd) goal = open bd $ \ xs t ->
                 mapM removeVar xs
                 return res
            Nothing -> throwError $ TensorErr (length xs) m t'
-
+ 
 proofCheck flag (LetPat m bd) goal  = open bd $ \ (PApp kid args) n ->
   do tt <- proofInfer flag m
      funPac <- lookupId kid
      let dt = classifier funPac
-     (isSemi, index) <- isSemiSimple kid
-     (head, vs, eigen) <- inst dt args 
-     let matchEigen = isEigenVar m
-         eSub = map (\ x -> (x, EigenVar x)) eigen
-         isDpm = isSemi || matchEigen
-     (unifRes, (sub', _)) <- dependentUnif index isSemi head tt
+     semi <- isSemiSimple kid
+     (head, vs) <- inst dt args 
+--     let matchEigen = isEigenVar m
+         -- eSub = map (\ x -> (x, EigenVar x)) eigen
+  --       isDpm = isSemi || matchEigen
+     (unifRes, sub') <- dependentUnif semi head tt
      ss <- getSubst
      case unifRes of
        UnifError -> throwError $ (UnifErr head tt)
        Success -> do
-            sub1 <- if matchEigen then
-                      makeSub m sub' $ foldl (\ x y ->
+            sub1 <- makeSub m sub' $ foldl (\ x y ->
                                            case y of
-                                             Right u -> App x (EigenVar u)
+                                             Right u -> App x (Var u)
                                              Left (NoBind u) -> App x u
                                          ) (Const kid) vs
                          
-                    else return sub'
+                    
             let sub'' = sub1 `mergeSub` ss
             updateSubst sub''
             let goal' = substitute sub'' goal
-                n' = apply eSub n
-            proofCheck flag n' goal'
+            proofCheck flag n goal'
             mapM_ (\ v ->
                     case v of
                       Right x ->
@@ -580,30 +578,26 @@ proofCheck flag a@(Case tm (B brs)) goal =
           do funPac <- lookupId kid
              let dt = classifier funPac
              updateCountWith (\ x -> nextCase x kid)
-             (isSemi, index) <- isSemiSimple kid
-             (head, vs, eigen) <- inst dt args
-             let matchEigen = isEigenVar tm
-                 eSub = map (\ x -> (x, EigenVar x)) eigen
-                 isDpm = isSemi || matchEigen
+             semi <- isSemiSimple kid
+             (head, vs) <- inst dt args
+             --let matchEigen = isEigenVar tm
+                 --eSub = map (\ x -> (x, EigenVar x)) eigen
+               --  isDpm = isSemi || matchEigen
              ss <- getSubst
-             (unifRes, (sub', _)) <- dependentUnif index isSemi head t
+             (unifRes, sub') <- dependentUnif semi head t
              case unifRes of
                UnifError -> throwError $ (UnifErr head t)
                Success -> do
-                 sub1 <-
-                   if matchEigen then
-                     makeSub tm sub' $ foldl (\ x y ->
+                 sub1 <- makeSub tm sub' $ foldl (\ x y ->
                                                case y of
-                                                 Right u -> App x (EigenVar u)
+                                                 Right u -> App x (Var u)
                                                  Left (NoBind u) -> App x u
                                              ) (Const kid) vs
                      
-                   else return sub'
                  let sub'' = sub1 `mergeSub` ss
                  updateSubst sub''
                  let goal' = substitute sub'' goal
-                     m' = apply eSub m
-                 proofCheck flag m' goal'
+                 proofCheck flag m goal'
                  mapM_ (\ v ->
                          case v of
                            Right x ->
@@ -611,7 +605,7 @@ proofCheck flag a@(Case tm (B brs)) goal =
                                 removeVar x
                            _ -> return ()
                        ) vs
-                 when isDpm $ updateSubst ss
+                 -- when isDpm $ updateSubst ss
 
 proofCheck flag a goal =
   do t <- proofInfer flag a
@@ -625,32 +619,40 @@ proofCheck flag a goal =
 
 -- Technical: in the following, "return $ runUnify head t" can be replaced by
 -- "if head == t then return $ Just Map.empty else return Nothing", as
--- these two cases are not dependent pattern matching.
-dependentUnif :: Maybe Int -> Bool -> Exp -> Exp -> TCMonad (UnifResult, (Subst, BSubst))
-dependentUnif index isDpm head t =
-  if not isDpm then return $ runUnify GEq head t
+ -- these two cases are not dependent pattern matching.
+dependentUnif :: (Bool , Maybe Int) -> Exp -> Exp -> TCMonad (UnifResult,Subst)
+dependentUnif (isDpm, index) head t =
+  if not isDpm then
+    do let (res, (sub, _)) = runUnify GEq head t
+       return (res, sub)
   else case index of
-         Nothing -> return $ runUnify GEq head t
-         Just i ->
-           case flatten t of
-            Just (Right h, args) -> 
-              let (bs, a:as) = splitAt i args
-                  vars = S.toList $ getVars OnlyEigen a
-                  eSub = zip vars (map EigenVar vars)
-                  a' = unEigenBound vars a
-                  t' = foldl AppP (LBase h) (bs++(a':as))
-                  u@(res, (subst, bss)) =  runUnify GEq head t'
-              in case res of
-                   UnifError -> return u
-                   Success -> 
-                     helper subst vars eSub bss
-            _ -> throwError $ UnifErr head t
-  where -- change relavent variables back into eigenvariables after dependent pattern-matching. 
-        helper subst (v:vars) eSub bs =
-          let subst' = Map.mapWithKey (\ k val -> if k == v then toEigen val else val) subst
-              subst'' = Map.map (\ val -> apply eSub val) subst'
-          in helper subst'' vars eSub bs
-        helper subst [] eSub bs = return (Success, (subst, bs)) 
+         Nothing -> do
+           let (res, (sub, _)) = runUnify GEq head t
+           return (res, sub)
+         Just i -> return $ runDUnify head t
+            -- u@(res, subst) <- 
+            -- case res of
+            --   UnifError -> return u
+            --   Success 
+           -- case flatten t of
+           --  Just (Right h, args) -> 
+           --    let (bs, a:as) = splitAt i args
+           --        vars = S.toList $ getVars OnlyEigen a
+           --        eSub = zip vars (map EigenVar vars)
+           --        a' = unEigenBound vars a
+           --        t' = foldl AppP (LBase h) (bs++(a':as))
+           --        u@(res, (subst, bss)) =  runUnify GEq head t'
+           --    in case res of
+           --         UnifError -> return u
+           --         Success -> 
+           --           helper subst vars eSub bss
+           -- _ -> throwError $ UnifErr head t
+--  where -- change relavent variables back into eigenvariables after dependent pattern-matching. 
+        -- helper subst (v:vars) eSub bs =
+        --   let subst' = Map.mapWithKey (\ k val -> if k == v then toEigen val else val) subst
+        --       subst'' = Map.map (\ val -> apply eSub val) subst'
+        --   in helper subst'' vars eSub bs
+        -- helper subst [] eSub bs = return (Success, (subst, bs)) 
 
 -- | Check lambda abstractions against a type. The argument /fl/ is to indicate
 -- whether or not to check usage. 
@@ -685,57 +687,57 @@ handleAbs flag lam prefix bd1 bd2 ty fl =
 -- | Extend the typing environment according to the information available
 -- in the pattern expression.
 inst ::  Exp -> [Either (NoBind Exp) Variable] ->
-         TCMonad (Exp, [Either (NoBind Exp) Variable], [Variable])
+         TCMonad (Exp, [Either (NoBind Exp) Variable])
 inst (Mod (Abst _ t)) xs = inst t xs         
 inst (Arrow t1 t2) (Right x : xs) =
   do addVar x t1
-     (h, vs, eigen) <- inst t2 xs 
-     return (h, Right x : vs, eigen)
+     (h, vs) <- inst t2 xs 
+     return (h, Right x : vs)
 
 inst (Imply [t1] t2) (Right x : xs) =
   do addVar x t1
-     (h, vs, eigen) <- inst t2 xs 
-     return (h, Right x : vs, eigen)
+     (h, vs) <- inst t2 xs 
+     return (h, Right x : vs)
 
 inst (Imply (t1:ts) t2) (Right x : xs) =
   do addVar x t1
-     (h, vs, eigen) <- inst (Imply ts t2) xs 
-     return (h, Right x : vs, eigen)
+     (h, vs) <- inst (Imply ts t2) xs 
+     return (h, Right x : vs)
 
 inst (Pi bd t) (Right x:xs) | not (isKind t) = open bd $ \ ys t' ->
   do let y = head ys
-         t'' = apply [(y, EigenVar x)] t' 
+         t'' = apply [(y, Var x)] t' 
      if null (tail ys)
        then do addVar x t
-               (h, xs', eigen) <- inst t'' xs  
-               return (h, Right x:xs', x:eigen)
+               (h, xs') <- inst t'' xs  
+               return (h, Right x:xs')
        else do addVar x t
-               (h, xs', eigen) <- inst (Pi (abst (tail ys) t'') t) xs 
-               return (h, Right x:xs', x:eigen)
+               (h, xs') <- inst (Pi (abst (tail ys) t'') t) xs 
+               return (h, Right x:xs')
 
 inst (Forall bd t) (Right x:xs)  = open bd $ \ ys t' ->
   do let y = head ys
-         t'' = apply [(y, EigenVar x)] t'
+         t'' = apply [(y, Var x)] t'
      if null (tail ys)
        then do addVar x t
-               (h, xs', eigen) <- inst t'' xs 
-               return (h, Right x:xs', eigen)
+               (h, xs') <- inst t'' xs 
+               return (h, Right x:xs')
        else do addVar x t
-               (h, xs', eigen) <- inst (Forall (abst (tail ys) t'') t) xs 
-               return (h, Right x:xs', eigen)
+               (h, xs') <- inst (Forall (abst (tail ys) t'') t) xs 
+               return (h, Right x:xs')
 
 inst (Forall bd t) (Left (NoBind x):xs) = open bd $ \ ys t' ->
   do let y = head ys
-         fvs = S.toList $ getVars NoEigen x
-         fvs' = map EigenVar fvs
-         sub = zip fvs fvs'
-         x' = apply sub x
-         t'' = apply [(y, x')] t' 
+         -- fvs = S.toList $ getVars NoEigen x
+         -- fvs' = map EigenVar fvs
+         -- sub = zip fvs fvs'
+         -- x' = apply sub x
+         t'' = apply [(y, x)] t' 
      if null (tail ys)
-       then do (h, xs', eigen) <- inst t'' xs 
-               return (h, Left (NoBind x'):xs', eigen)
-       else do (h, xs', eigen) <- inst (Forall (abst (tail ys) t'') t) xs 
-               return (h, Left (NoBind x'):xs', eigen)
+       then do (h, xs') <- inst t'' xs 
+               return (h, Left (NoBind x):xs')
+       else do (h, xs') <- inst (Forall (abst (tail ys) t'') t) xs 
+               return (h, Left (NoBind x):xs')
 
-inst t [] = return (t, [], [])            
+inst t [] = return (t, [])            
 
