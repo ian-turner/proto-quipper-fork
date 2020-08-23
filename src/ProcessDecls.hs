@@ -423,8 +423,10 @@ checkOverlap h = do
   mapM_ helper gs
   where
     helper (id, exp) =
-      let (_, exp') = removePrefixes False exp
-          (_, head) = flattenArrows exp'
+      let (vs, exp') = removePrefixes False exp
+          sub = map (\ (Just x, t) -> (x, MetaVar x)) vs
+          exp'' = apply sub exp'
+          (_, head) = flattenArrows exp''
           (r, _) = runMatch head h
        in if r
             then throwError $ InstanceOverlap h id exp

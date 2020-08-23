@@ -141,7 +141,7 @@ instance Disp TypeError where
     text "no definition for the identifier:" $$ nest 2 (display flag t)
 
   display flag (UnBoundErr x) =
-    text "unbound variable:" <+> display flag x
+    text "unbound variable:" <+> display False x
 
   display flag (KAppErr ty b a) =
     text "the type:" $$
@@ -257,7 +257,6 @@ instance Disp TypeError where
     nest 2 (display flag q) $$
     text "but it has type:" $$
     nest 2 (display flag t)
-
 
   display flag (MissBrErr t a) =
     text "Normalization error:" $$ 

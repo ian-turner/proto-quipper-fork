@@ -128,6 +128,7 @@ qterm' bq =
 not_g : ! forall s -> (Simple s) => Qubit -> s -> Qubit * s
 not_g q s = controlled (box Qubit QNot) q s
 
+
 h_g : ! forall s -> (Simple s) => Qubit -> s -> Qubit * s
 h_g q s = controlled (box Qubit H) q s
 
