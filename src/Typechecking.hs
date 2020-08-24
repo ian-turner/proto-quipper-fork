@@ -810,8 +810,8 @@ typeCheck flag (LetPat m bd) goal =
            substVar ss (Right x) =
              let r = substitute ss (Var x)
              in case r of
-                 Var y | x == y -> (Right y, [])
-                 MetaVar y -> (Right y, [(y, (Var y))])
+                 Var y | x == y -> (Right y, [(y, Var y)])
+                 MetaVar y -> (Right y, [(y, Var y)])
                  _ -> (Left (NoBind r), [] )
 
 
@@ -843,8 +843,8 @@ typeCheck flag a@(Case tm (B brs)) goal =
         substVar ss (Right x) =
              let r = substitute ss (Var x)
              in case r of
-                 Var y | x == y -> (Right y, [])
-                 MetaVar y -> (Right y, [(y, Var y)])
+                 Var y | x == y -> (Right y, [(y, Var y)])
+                 MetaVar y ->  (Right y, [(y, Var y)])
                  _ -> (Left (NoBind r), [])
         
         checkBrs t pbs goal =

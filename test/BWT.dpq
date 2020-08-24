@@ -168,8 +168,8 @@ testIsParentHelper color isparent ismatch even a0 =
                                                             isparent even a0
                           in Q ismatch isparent even a0
 
-testIsParent : ! forall (n : Nat) -> Vec Qubit (S n) -> Qubit -> Qubit -> Qubit ->
-                 Bool * Bool -> Nat -> Bool ->
+testIsParent : ! forall (n : Nat) -> Vec Qubit (S n) -> Qubit ->
+                 Qubit -> Qubit -> Bool * Bool -> Nat -> Bool ->
                  Qubit ->  Five (Vec Qubit (S n)) Qubit Qubit Qubit Qubit
 testIsParent a root even isparent color n really ismatch =
   let (a0, as) = sf_head a

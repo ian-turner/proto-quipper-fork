@@ -451,7 +451,7 @@ instance Disp TypeError where
     nest 2 (display flag ty)
   display flag (PfErrWrapper a e t) =
     text "proof checking error:" $$
-    disp e $$
+    display flag e $$
     text "when checking the following annotated term:" $$
     dispRaw a $$
     text "against the type:" $$

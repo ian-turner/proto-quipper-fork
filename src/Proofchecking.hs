@@ -478,7 +478,7 @@ proofCheck flag (Lift m) (Bang t _) =
 proofCheck flag a@(Pair t1 t2) (Exists p ty)=
   do proofCheck flag t1 ty
      open p $ \ x t ->
-       do let --vars = S.toList $ getVars NoEigen t1
+       do -- let --vars = S.toList $ getVars NoEigen t1
               -- sub1 = zip vars (map EigenVar vars)
               -- t1Eigen = apply sub1 t1
           ts <- shape t1
@@ -487,7 +487,7 @@ proofCheck flag a@(Pair t1 t2) (Exists p ty)=
 
 proofCheck flag (Let m bd) goal = open bd $ \ x t ->
   do t' <- proofInfer flag m
-     let -- vs = S.toList $ getVars NoEigen m
+     -- let -- vs = S.toList $ getVars NoEigen m
          -- su = zip vs (map EigenVar vs)
      m'' <- shape m
      addVarDef x t' m''
@@ -496,20 +496,20 @@ proofCheck flag (Let m bd) goal = open bd $ \ x t ->
      removeVar x
      return r
 
-proofCheck flag (LetPair m bd) goal = open bd $ \ xs t ->
+proofCheck flag (LetPair m bd) goal = -- open bd $ \ xs t ->
   do t' <- proofInfer flag m
      case t' of
        Exists p t1 ->
          open p $ \ z t2 ->
          open bd $ \ [x, y] t ->
          do addVar x t1
-            -- let t2' = apply [(z, EigenVar x)] t2
-            addVar y t2
+            let t2' = apply [(z, Var x)] t2
+            addVar y t2'
             proofCheck flag t goal
             when (not flag) $ checkUsage x t >> checkUsage y t 
             removeVar x
             removeVar y
-       _ -> 
+       _ -> open bd $ \ xs t ->
          case unTensor (length xs) t' of
            Just ts ->
              do let env = zip xs ts
@@ -546,6 +546,7 @@ proofCheck flag (LetPat m bd) goal  = open bd $ \ (PApp kid args) n ->
             updateSubst sub''
             let goal' = substitute sub'' goal
             proofCheck flag n goal'
+            subb <- getSubst
             mapM_ (\ v ->
                     case v of
                       Right x ->
@@ -553,9 +554,12 @@ proofCheck flag (LetPat m bd) goal  = open bd $ \ (PApp kid args) n ->
                            removeVar x
                       _ -> return ()
                   ) vs
-            b <- varDep (erasePos m) goal
-            let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
-            when isDpm $ updateSubst ss
+            -- b <- varDep (erasePos m) goal
+            -- let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
+            -- when isDpm $ updateSubst ss
+            -- when (not isDpm) $ updateSubst subb'
+            updateSubst ss
+            
        where makeSub (Var x) s u =
                do u' <- shape $ substitute s u
                   return $ s `Map.union` Map.fromList [(x, u')]
@@ -613,6 +617,10 @@ proofCheck flag a@(Case tm (B brs)) goal =
                  updateSubst sub''
                  let goal' = substitute sub'' goal
                  proofCheck flag m goal'
+                 subb <- getSubst
+                 -- let subb' = case erasePos m of
+                 --               Var y -> Map.delete y subb  
+                 --               _ -> subb                 
                  mapM_ (\ v ->
                          case v of
                            Right x ->
@@ -620,9 +628,11 @@ proofCheck flag a@(Case tm (B brs)) goal =
                                 removeVar x
                            _ -> return ()
                        ) vs
-                 b <- varDep (erasePos tm) goal
-                 let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
-                 when isDpm $ updateSubst ss
+                 -- b <- varDep (erasePos tm) goal
+                 -- let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
+                 -- when isDpm $ trace ("dpm:"++ show (dispRaw ss)) $ updateSubst ss
+                 -- when (not isDpm) $ trace ("not dpm:"++ show (dispRaw subb')) $ updateSubst subb'
+                 updateSubst ss
                a -> error $ show a
                  -- when isDpm $ updateSubst ss
 

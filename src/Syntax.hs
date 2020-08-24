@@ -56,7 +56,8 @@ import Debug.Trace
 -- The core syntax contains many
 -- forms of annotations for proof checking.
 data Exp
-  = Var Variable -- ^ Bound variables. 
+  = Var Variable 
+  -- ^ Bound variables. 
   | MetaVar Variable -- ^ Meta variables. 
   | Const Id -- ^ Data constructors or functions.
   | LBase Id -- ^ Simple data type type-constructors.

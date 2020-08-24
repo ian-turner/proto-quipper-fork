@@ -10,10 +10,10 @@ data WithGarbage a = WG (( n : Nat) * Vec Qubit n) a
 instance Monad WithGarbage where
   return x = WG (Z, VNil) x
   bind wg f = let WG ng r = wg
-                  (n, g) = ng
+                  (a, g) = ng
                   WG mg' r' = f r
                   (m, g') = mg'
-               in WG (add n m, append g g') r'
+               in WG (add a m, append g g') r'
 
 dispose_qubit : !(Qubit -> WithGarbage Unit)
 dispose_qubit q = WG (S Z, VCons q VNil) ()
