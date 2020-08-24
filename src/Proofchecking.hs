@@ -147,6 +147,13 @@ proofInfer flag a@(Var x) =
        do updateCount x
           return t
 
+-- proofInfer flag a@(MetaVar x) =
+--   do (t, _) <- lookupVar x
+--      if flag then shape t 
+--        else
+--        do updateCount x
+--           return t
+
 
 proofInfer flag a@(Const kid) =
   do funPac <- lookupId kid
@@ -525,7 +532,8 @@ proofCheck flag (LetPat m bd) goal  = open bd $ \ (PApp kid args) n ->
      (unifRes, sub') <- dependentUnif semi head tt
      ss <- getSubst
      case unifRes of
-       UnifError -> throwError $ (UnifErr head tt)
+       UnifError -> throwError $ (PUnifErr head tt)
+       DUnifError -> throwError $ (PUnifErr head tt)
        Success -> do
             sub1 <- makeSub m sub' $ foldl (\ x y ->
                                            case y of
@@ -545,12 +553,16 @@ proofCheck flag (LetPat m bd) goal  = open bd $ \ (PApp kid args) n ->
                            removeVar x
                       _ -> return ()
                   ) vs
+            b <- varDep (erasePos m) goal
+            let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
+            when isDpm $ updateSubst ss
        where makeSub (Var x) s u =
                do u' <- shape $ substitute s u
                   return $ s `Map.union` Map.fromList [(x, u')]
              makeSub (Pos p x) s u = makeSub x s u
              makeSub a s u = return s
-
+             varDep (Var x) goal = isDpmVar x goal
+             varDep _ _ = return False
 
 proofCheck flag a@(Case tm (B brs)) goal =
   do t <- proofInfer flag tm
@@ -570,6 +582,8 @@ proofCheck flag a@(Case tm (B brs)) goal =
              return $ s `Map.union` Map.fromList [(x, u')]
         makeSub (Pos p x) s u = makeSub x s u
         makeSub a s u = return s
+        varDep (Var x) goal = isDpmVar x goal
+        varDep _ _ = return False
 
         checkBrs t pbs goal = 
           mapM (checkBr t goal) pbs
@@ -586,7 +600,8 @@ proofCheck flag a@(Case tm (B brs)) goal =
              ss <- getSubst
              (unifRes, sub') <- dependentUnif semi head t
              case unifRes of
-               UnifError -> throwError $ (UnifErr head t)
+               DUnifError -> throwError $ (PUnifErr head t)
+               UnifError -> throwError $ (PUnifErr head t)
                Success -> do
                  sub1 <- makeSub tm sub' $ foldl (\ x y ->
                                                case y of
@@ -605,6 +620,10 @@ proofCheck flag a@(Case tm (B brs)) goal =
                                 removeVar x
                            _ -> return ()
                        ) vs
+                 b <- varDep (erasePos tm) goal
+                 let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
+                 when isDpm $ updateSubst ss
+               a -> error $ show a
                  -- when isDpm $ updateSubst ss
 
 proofCheck flag a goal =
@@ -613,7 +632,9 @@ proofCheck flag a goal =
      goal1 <- updateWithSubst goal
      goal' <- normalize goal1
      t' <- normalize t1
-     when (not (noModEq (erasePos goal') (erasePos t'))) $ throwError (NotEq a goal' t')
+     ss <- getSubst
+     when (not (noModEq (erasePos goal') (erasePos t'))) $
+       throwError (AppendSub ss $ NotEq a goal' t')
 
 -- | Unification for dependent pattern pattern matching.
 
@@ -623,12 +644,16 @@ proofCheck flag a goal =
 dependentUnif :: (Bool , Maybe Int) -> Exp -> Exp -> TCMonad (UnifResult,Subst)
 dependentUnif (isDpm, index) head t =
   if not isDpm then
-    do let (res, (sub, _)) = runUnify GEq head t
-       return (res, sub)
+    if head == t then return (Success, Map.empty)
+    else return (UnifError, Map.empty)
+    -- do let (res, (sub, _)) = runUnify GEq head t
+    --    return (res, sub)
   else case index of
-         Nothing -> do
-           let (res, (sub, _)) = runUnify GEq head t
-           return (res, sub)
+         Nothing ->
+            if head == t then return (Success, Map.empty)
+            else return (UnifError, Map.empty)
+           -- let (res, (sub, _)) = runUnify GEq head t
+           -- return (res, sub)
          Just i -> return $ runDUnify head t
             -- u@(res, subst) <- 
             -- case res of

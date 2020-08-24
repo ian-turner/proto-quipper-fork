@@ -791,10 +791,12 @@ typeCheck flag (LetPat m bd) goal =
                  when isDpm $  updateSubst ss
                  when (not infer && not isDpm) $ updateSubst subb'
                  mapM removeLocalInst ins
-                 subbb <- getSubst
-                 let axs' = map (substVar subbb) axs
-                     goal''' = substitute subbb goal
-                     res = LetPat ann (abst (PApp kid axs') ann2')
+                 -- subbb <- getSubst
+                 let (axs', ms) = unzip $ map (substVar subb') axs
+                     msub = concat ms
+                     ann2'' = apply msub ann2'
+                     goal''' = substitute subb' goal
+                     res = LetPat ann (abst (PApp kid axs') ann2'')
                  return (goal''', res, modalAnd mode1 mode2)
      where
            varDep (Var x) goal = isDpmVar x goal
@@ -808,9 +810,9 @@ typeCheck flag (LetPat m bd) goal =
            substVar ss (Right x) =
              let r = substitute ss (Var x)
              in case r of
-                 Var y | x == y -> Right y
-                 MetaVar y -> Right y
-                 _ -> Left (NoBind r)
+                 Var y | x == y -> (Right y, [])
+                 MetaVar y -> (Right y, [(y, (Var y))])
+                 _ -> (Left (NoBind r), [] )
 
 
 typeCheck flag a@(Case tm (B brs)) goal =
@@ -841,9 +843,9 @@ typeCheck flag a@(Case tm (B brs)) goal =
         substVar ss (Right x) =
              let r = substitute ss (Var x)
              in case r of
-                 Var y | x == y -> Right y
-                 MetaVar y -> Right y
-                 _ -> Left (NoBind r)
+                 Var y | x == y -> (Right y, [])
+                 MetaVar y -> (Right y, [(y, Var y)])
+                 _ -> (Left (NoBind r), [])
         
         checkBrs t pbs goal =
           mapM (checkBr t goal) pbs
@@ -893,24 +895,29 @@ typeCheck flag a@(Case tm (B brs)) goal =
                       -- when infer $ updateSubst subb
 
                       b <- varDep (erasePos tm) goal
-                      let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
-                      when (isDpm && infer) $ throwError $ withPosition tm $ DpmInferErr tm
+                      let isDpm = ((fst semi) && (snd semi /= Nothing))
+                                    || b
+                      when (isDpm && infer) $ throwError $
+                         withPosition tm $ DpmInferErr tm
                       -- when isDpm $ updateSubst ss
                       -- when (not isDpm) $ updateSubst subb'
                       when infer $ updateSubst subb'
                       when isDpm $ updateSubst ss
                       when (not infer && not isDpm) $ updateSubst subb'
-                      subbb <- getSubst
-                      let goal''' = substitute subbb goal
+                      -- subbb <- getSubst
+                      let goal''' = substitute subb' goal
                       
                       -- because the variable axs may be in the domain
                       -- of the substitution, hence it is necessary
                       -- to update  axs as well before binding.
                          
-                      let axs' = map (substVar subbb) axs
+                      let (axs', ms) = unzip $ map (substVar subb') axs
+                          msub = concat ms
+                          ann2'' = apply msub ann2'
                       mapM_ (\ (Right v) -> removeVar v) vs
                       mapM removeLocalInst ins
-                      return (goal''', abst (PApp kid axs') ann2', mode')
+                      return (goal''', abst (PApp kid axs') ann2'', mode')
+                      -- trace ("axs:"++show (dispRaw (PApp kid axs')) ++ ":" ++ show (dispRaw (PApp kid axs)) ++ ":"++ show (dispRaw ann2') ) $ return (goal''', abst (PApp kid axs') ann2', mode')
 
 typeCheck flag a@(Const x) ty = inferAddAnn flag a ty
 typeCheck flag a@(Var x) ty = inferAddAnn flag a ty
@@ -1342,8 +1349,8 @@ inferAddAnn flag a ty = do
          let lg =  Map.toList $ localCxt $ lcontext ts 
              lg' = map
                     (\ (x , varinfo) -> (x, substitute ss $ varClassifier varinfo)) lg 
-         -- throwError $  AppendSub ss $ AppendEnv lg' $ NotEq a ty1 tym1'
-         throwError $ NotEq a ty1 tym1'
+         throwError $  AppendSub ss $ AppendEnv lg' $ NotEq a ty1 tym1'
+         -- throwError $ NotEq a ty1 tym1'
         ModeError p1 p2 -> throwError $ ModalityGEqErr a ty1 tym1' p1 p2
         Success -> do
           ss <- getSubst

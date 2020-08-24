@@ -50,7 +50,10 @@ instance forall a (n : Nat) -> (Equal a, Parameter a) => Equal (Vec a n) where
 append : ! forall a (n m : Nat) -> Vec a n -> Vec a m -> Vec a (add n m)
 append l1 l2 = case l1 of
                   VNil -> l2
-    	          VCons x xs -> VCons x (append xs l2)
+    	          VCons x xs -> 
+                      (VCons x (append xs l2))
+
+
 
 -- append' : ! forall a (m : Nat) -> (n : Nat) -> Vec a n -> Vec a m -> Vec a (add n m)
 -- append' n l1 l2 = case l1 of
@@ -238,7 +241,7 @@ go a n m k v =
   case k of
     Z -> v
     S k' -> subst (\ h -> VecZipper a n h) (addS k' m) $
-      go a n (S m) k' $ forward v
+                 go a n (S m) k' $ forward v
 
 -- Move focus from left to right k step
 goForward : ! (a : Type) -> (n m k : Nat) -> (Eq Bool (k <= n) True) ->

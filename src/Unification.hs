@@ -159,6 +159,7 @@ unify b (Force t) (Force t') = unify b t t'
 unify b (ForceP t) (ForceP t') = unify b t t'
 unify b (Lift t) (Lift t') = unify b t t'
 
+
 unify b (App t1 t2) (App t3 t4) =
   do a <- unify b t1 t3
      if a == Success
@@ -307,6 +308,15 @@ dUnify t (MetaVar x)
 dUnify (Force t) (Force t') = dUnify t t'
 dUnify (ForceP t) (ForceP t') = dUnify t t'
 dUnify (Lift t) (Lift t') = dUnify t t'
+
+dUnify (Tensor t1 t2) (Tensor t3 t4) =
+  do a <- dUnify t1 t3
+     if a == Success
+       then
+       do sub <- get
+          dUnify (substitute sub t2)
+            (substitute sub t4)
+       else return a
 
 dUnify (App t1 t2) (App t3 t4) =
   do a <- dUnify t1 t3

@@ -36,6 +36,7 @@ data TypeError = Unhandle Exp
                | TensorErr Int Exp Exp
                | RetroErr Variable Exp
                | UnifErr Exp Exp
+               | PUnifErr Exp Exp
                | ExtendEnvErr [Either (NoBind Exp) Variable] Exp
                | DataErr Exp Exp
                | NotEq Exp Exp Exp
@@ -230,6 +231,12 @@ instance Disp TypeError where
     nest 2 (display flag t1) $$
     text "with the type:" $$
     nest 2 (display flag t2)
+
+  display flag (PUnifErr t1 t2) =
+    text "cannot unify the type:" $$
+    nest 2 (display False t1) $$
+    text "with the type:" $$
+    nest 2 (display False t2)
 
   display flag (ExtendEnvErr vs b) =
     text "error when extending variables:" <+> hsep (map (display flag) vs) $$
