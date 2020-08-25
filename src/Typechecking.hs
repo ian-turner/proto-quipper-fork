@@ -2,8 +2,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 -- | This module implements a bi-directional algorithm for elaborating
 -- the surface language into the core language. The elaborated programs
--- will be checked by the "Proofchecking" module. The elaboration aims for soundness, i.e.,
--- if the elaboration is successful, then it shoud past the proof-checker. Otherwise it
+-- will be checked by the "Proofchecking" module.
+-- The elaboration aims for soundness, i.e.,
+-- if the elaboration is successful, then it shoud past
+-- the proof-checker. Otherwise it
 -- means there is a bug in the elaboration. 
 
  
@@ -343,8 +345,6 @@ typeCheck True (Forall (Abst xs m) ty) a@(Set)
   | isKind ty = do
     (_, tyAnn, _) <- typeCheck True ty Sort
     mapM_ (\x -> addVar x (erasePos tyAnn)) xs
-     -- let sub = zip xs (map EigenVar xs)
-     --     m' = apply sub m
     (_, ann, mode) <- typeCheck True m a
     ann' <- updateWithSubst ann
     ann'' <- resolveGoals ann'
@@ -372,8 +372,6 @@ typeCheck True (Exists (Abst xs m) ty) a@(Set)
   | not (isKind ty) = do
     (_, ann1, _) <- typeCheck True ty a
     addVar xs (erasePos ann1)
-       -- let sub = [(xs, EigenVar xs)]
-       --     m' = apply sub m
     (_, ann2, _) <- typeCheck True m a
     ann2' <- updateWithSubst ann2
     ann2'' <- resolveGoals ann2'
@@ -456,7 +454,7 @@ typeCheck False (LamDict (Abst xs e)) (Imply bds ty) =
 typeCheck flag a (Imply bds ty) = do
   let ns1 = take (length bds) (repeat "#inst")
   ns <- newNames ns1
-     -- We update the parameter and simple variable information here.
+  -- We update the parameter and simple variable information here.
   updateParamInfo bds
   updateSimpleInfo bds
   freshNames ns $ \ns -> do
@@ -464,8 +462,8 @@ typeCheck flag a (Imply bds ty) = do
     let instEnv = zip ns bds'
     mapM_ (\(x, t) -> insertLocalInst x t) instEnv
     (t, ann, mode) <- typeCheck flag a ty
-          -- Make sure we use the hypothesis before
-          -- going out of the scope of Imply.
+    -- Make sure we use the hypothesis before
+    -- going out of the scope of Imply.
     ann' <- resolveGoals ann
     mapM_ (\(x, t) -> removeLocalInst x) instEnv
     let res = LamDict (abst ns ann')
@@ -480,9 +478,7 @@ typeCheck flag a (Bang ty m) = handleBangValue flag a (Bang ty m)
 
 typeCheck False c@(Lam bind) t = do
   at <- updateWithSubst t
-  -- when (not (at == t)) $ typeCheck False c at
   handleFunctions at c t
---   | at <- updateWithSubst t, not (at == t) = typeCheck False c at
   where
     handleFunctions at _ t
       | not (at == t) = typeCheck False c at
@@ -513,8 +509,6 @@ typeCheck False c@(Lam bind) t = do
               let sub1 = zip ys (map Var xs)
                   b' = apply sub1 b
                   (vs, rs) = splitAt (length xs) ys
-                  -- sub2 = zip xs (map Var xs)
-                  -- m' = apply sub2 m
               mapM_ (\x -> addVar x ty) xs
               (t, ann, mode) <-
                 typeCheck
@@ -548,8 +542,6 @@ typeCheck False c@(Lam bind) t = do
                   sub1 = zip ys (map Var xs)
                   b' = apply sub1 b
                   (vs, rs) = splitAt (length ys) xs
-                  -- sub2 = zip xs $ take (length ys) (map Var xs)
-                  -- m' = apply sub2 m
               mapM_ (\x -> addVar x ty) vs
               (t, ann, mode) <-
                 typeCheck
@@ -570,13 +562,10 @@ typeCheck False c@(Lam bind) t = do
       open bind $ \xs m ->
         open bd $ \ys b ->
           if length xs <= length ys
-               
             then do
               let sub1 = zip ys (map Var xs)
                   b' = apply sub1 b
                   (vs, rs) = splitAt (length xs) ys
-               -- sub2 = zip xs (map EigenVar xs)
-               -- m' = apply sub2 m
               mapM_ (\x -> addVar x ty) xs
               (t, ann, mode) <-
                 typeCheck
@@ -605,8 +594,6 @@ typeCheck False c@(Lam bind) t = do
               let sub1 = zip ys (map Var xs)
                   b' = apply sub1 b
                   (vs, rs) = splitAt (length ys) xs
-               -- sub2 = zip xs $ take (length ys) (map EigenVar xs)
-               -- m' = apply sub2 m
               mapM_ (\x -> addVar x ty) vs
               (t, ann, mode) <-
                 typeCheck
@@ -631,9 +618,7 @@ typeCheck False c@(Lam bind) t = do
 typeCheck flag a@(Pair t1 t2) (Exists p ty) =
   do (ty', ann1, mode1) <- typeCheck flag t1 ty
      open p $ \ x t ->
-       do let -- vars = S.distinctElems $ getVars NoEigen t1
-              -- sub1 = zip vars (map EigenVar vars)
-          t1 <- shape ann1
+       do t1 <- shape ann1
           let t' = apply [(x, t1)] t
           (p', ann2, mode2) <- typeCheck flag t2 t'
           -- t' is an instance of t, it does not contain x anymore,
@@ -677,8 +662,8 @@ typeCheck flag (Let m bd) goal =
           addVarDef x t' m'' 
           (goal', ann2, mode') <- typeCheck flag t goal
           checkUsage x t
-              -- If the goal resolution fails,
-              -- delay it for upper level to resolve 
+          -- If the goal resolution fails,
+          -- delay it for upper level to resolve 
           ann2' <- (resolveGoals ann2 >>= updateWithSubst)
                        `catchError` \ e -> return ann2
           removeVar x
@@ -705,7 +690,6 @@ typeCheck flag (LetPair m (Abst xs n)) goal =
             removeVar y
             let res = LetPair ann (abst [x, y] ann3)
             return (goal', res, modalAnd mode1 mode2)
-
        _ -> case unTensor (length xs) at of
          Just ts ->
            do let env = zip xs ts
@@ -761,20 +745,15 @@ typeCheck flag a@(LetPat m bd) goal =
               throwError $ withPosition m (UnifErr head t') 
             Success -> do
                  b <- varDep (erasePos m) goal
-                 -- let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
-
                  sub1 <-  if b then
                             makeSub m sub' $
                               foldl (\ x (Right y) -> App x (Var y))
                               kid' vs
                            else return sub'
-                              -- trace ("sub':" ++ show (disp sub') ++ ":"++ show (disp m) ++ ":"++ show (disp a) ++ ":" ++ show (disp ss)) $ return sub'
-                         
                  let sub'' = sub1 `mergeSub` ss
                  updateSubst sub''
                  updateModeSubst bs
                  let goal' = bSubstitute bs (substitute sub'' goal)
-                     -- n' = apply eSub n
                  (goal'', ann2, mode2) <- typeCheck flag n goal'
                  subb <- getSubst
                  mapM (\ (Right v) ->
@@ -782,23 +761,10 @@ typeCheck flag a@(LetPat m bd) goal =
                  mapM_ (\ (Right v) -> removeVar v) vs
                  -- It is important to update the environment before
                  -- going out of a dependent pattern matching
-                 -- let subb' = case erasePos m of
-                 --               Var y -> Map.delete y subb  
-                 --               _ -> subb
                  updateLocalInst subb
                  ann2' <- resolveGoals (substitute subb ann2)
-                 -- when isDpm $ updateSubst ss
-                 -- when (not isDpm) $ updateSubst subb'
-                 -- infer <- getInfer
-                 -- when (isDpm && infer) $ throwError $ withPosition m $ DpmInferErr m
-                 -- when infer $ updateSubst subb'
-                 -- when isDpm $  updateSubst ss
-                 -- when (not isDpm) $ updateSubst subb'
                  mapM removeLocalInst ins
-                 -- subbb <- getSubst
                  let axs' =  map (substVar subb) axs
-                     -- msub = concat ms
-                     -- ann2'' = apply msub ann2'
                      goal''' = substitute subb goal''
                      res = LetPat ann (abst (PApp kid axs') ann2')
                  return (goal''', res, modalAnd mode1 mode2)
@@ -815,7 +781,6 @@ typeCheck flag a@(LetPat m bd) goal =
              let r = substitute ss (Var x)
              in case erasePos r of
                  Var y | x == y -> Right y
---                 MetaVar y -> (Right y, [(y, Var y)])
                  _ -> Left (NoBind r)
 
 
@@ -850,10 +815,6 @@ typeCheck flag a@(Case tm (B brs)) goal =
                  Var y | x == y -> Right y
                  _ -> Left (NoBind r)
 
-                 -- Var y | x == y -> (Right y, [(y, Var y)])
-                 -- MetaVar y ->  (Right y, [(y, Var y)])
-                 -- _ -> (Left (NoBind r), [])
-
         checkBrs t pbs goal =
           mapM (checkBr t goal) pbs
           
@@ -884,50 +845,33 @@ typeCheck flag a@(Case tm (B brs)) goal =
                       let sub'' = sub1 `mergeSub` ss
                       updateSubst sub''
                       updateModeSubst bs
-                         -- We use special substitution for goal
                       let goal' = bSubstitute bs (substitute sub'' goal)
-                          -- m' = apply eSub m
                       (goal'', ann2, mode') <- typeCheck flag m goal'
                       subb <- getSubst 
                       mapM (\ (Right v) -> checkUsage v m >>=
                                            \ r -> return (v, r)) vs
-                      -- let subb' = case erasePos tm of
-                      --              Var y -> Map.delete y subb  
-                      --              _ -> subb
                       updateLocalInst subb
-                         -- we need to restore the substitution to ss
-                         -- because subb' may be influenced by dependent pattern matching.
-                      
+                      -- we need to restore the substitution to ss
+                      -- because subb' may be influenced
+                      -- by dependent pattern matching.
                       ann2' <- resolveGoals (substitute subb ann2)
                                `catchError` \ e -> return ann2
                       infer <- getInfer
-                      -- when (not infer) $ updateSubst ss
-                      -- when infer $ updateSubst subb
-
-                      
                       let isDpm = ((fst semi) && (snd semi /= Nothing))
                                     || b
                       when (isDpm && infer) $ throwError $
                          withPosition tm $ DpmInferErr tm
-                      -- when isDpm $ updateSubst ss
-                      -- when (not isDpm) $ updateSubst subb'
-                      -- when infer $ updateSubst subb'
                       when isDpm $ updateSubst ss
                       when (not isDpm) $ updateSubst subb
-                      -- subbb <- getSubst
                       let goal''' = substitute subb goal''
-                      
                       -- because the variable axs may be in the domain
                       -- of the substitution, hence it is necessary
-                      -- to update  axs as well before binding.
+                      -- to update axs as well before binding.
                          
                       let axs' = map (substVar subb) axs
-                         --  msub = concat ms
-                          -- ann2'' = apply msub ann2'
                       mapM_ (\ (Right v) -> removeVar v) vs
                       mapM removeLocalInst ins
                       return (goal''', abst (PApp kid axs') ann2', mode')
-                      -- trace ("axs:"++show (dispRaw (PApp kid axs')) ++ ":" ++ show (dispRaw (PApp kid axs)) ++ ":"++ show (dispRaw ann2') ) $ return (goal''', abst (PApp kid axs') ann2', mode')
 
 typeCheck flag a@(Const x) ty = inferAddAnn flag a ty
 typeCheck flag a@(Var x) ty = inferAddAnn flag a ty
@@ -956,47 +900,12 @@ equality flag tm ty =
                return (ty', ann, mode)
           
           
--- if tym1 == ty' then
-          --   return (ty', ann, mode)
-          --   else throwError $ NotEq tm ty' tym1
-
--- | Infer a type for /tm/, and check if it is unifiable with /ty/.
-
--- equality :: Bool -> Exp -> Exp -> TCMonad (Exp, Exp, Modality)
--- equality flag tm ty =
---   do ty' <- updateWithSubst ty
---      if not (ty == ty') then typeCheck flag tm ty'
---        else
---        do (tym, ann, mode) <- typeInfer flag tm
---           tym1 <- updateWithSubst tym
---           ty1 <- updateWithSubst ty'
---           -- Here we are assuming there is no types like !!A
---           case (erasePos tym1, erasePos ty1) of
---             (tym1, ty1) ->
---               do (unifRes, (s, bs)) <- normalizeUnif GEq tym1 ty1
---                  case unifRes of
---                    UnifError -> throwError $ NotEq tm ty1 tym1
---                    ModeError p1 p2 -> 
---                      throwError $ ModalityGEqErr tm ty1 tym1 p1 p2
---                    Success ->
---                      do ss <- getSubst
---                         let sub' = s `mergeSub` ss
---                         updateSubst sub'
---                         updateModeSubst bs
---                         st <- get
---                         let msub = modeSubstitution st
---                         ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
---                         mode' <- updateModality mode
---                         return (ty1', ann, mode')
-
-
 -- | Normalize and unify two expressions (/head/ and /t/),
 -- used by dependent pattern matching.
 
 patternUnif :: (Bool, Maybe Int) ->
                  Exp -> Exp -> Exp ->
                   TCMonad (UnifResult, (Subst, BSubst))
--- patternUnif (isDpm, index) m head t | trace ("pm:"++ show (disp head)++ ":"++ show (disp t)) $ False = undefined                  
 patternUnif (isDpm, index) m head t =
   if isDpm then
     case index of
@@ -1005,7 +914,6 @@ patternUnif (isDpm, index) m head t =
           case (flatten head, flatten t) of
             (Just (Right h1, args1), Just (Right h2, args2))
               | h1 == h2 && length args1 == length args2 ->
-              
               let (bs1, a1:as1) = splitAt i args1
                   (bs2, a2:as2) = splitAt i args2
               in do (r1, subst1) <- normalizeDUnif a1 a2
@@ -1021,17 +929,11 @@ patternUnif (isDpm, index) m head t =
                       _ -> throwError $ withPosition m (UnifErr head t)
             _ -> throwError $ withPosition m (UnifErr head t)
   else normalizeUnif GEq head t
-  -- where -- change relavent variables back into eigenvariables after dependent pattern-matching. 
-  --       helper subst (v:vars) eSub =
-  --         let subst' = Map.mapWithKey (\ k val -> if k == v then toEigen val else val) subst
-  --             subst'' = Map.map (\ val -> apply eSub val) subst'
-  --         in helper subst'' vars eSub
-  --       helper subst [] eSub = subst
           
       
 -- | Normalize two expressions and then unify them.  
--- There is a degree of freedom in implementing normalizeUnif function. It could be
--- further improved.
+-- There is a degree of freedom in implementing normalizeUnif function.
+-- It could be further improved.
 normalizeUnif :: InEquality -> Exp -> Exp ->
                  TCMonad (UnifResult, (Subst, BSubst))
 normalizeUnif b t1 t2 = do
@@ -1179,8 +1081,6 @@ handleTermApp flag ann pos t' t1 t2 mode1 = do
             if flag
               then AppP a1' ann2
               else App a1' ann2
-      -- ty2' <- updateWithModeSubst ty2
-      -- mode1'' <- updateModality mode1'
       let newMode = modalAnd mode1' mode2
       return (ty2, res, newMode)
     ArrowP ty1 ty2 -> do
@@ -1207,16 +1107,9 @@ handleTermApp flag ann pos t' t1 t2 mode1 = do
                 (True, False) -> AppDepInt a1' kann
                 (True, True) -> AppDepTy a1' kann
         if null (tail xs)
-          then -- do
-            -- m'' <- updateWithSubst m' >>= updateWithModeSubst
-            -- res' <- updateWithSubst res
-            -- mode1'' <- updateModality mode1'
+          then
             return (m', res, modalAnd mode2 mode1')
-          else -- do
-            -- m'' <- updateWithSubst m' >>= updateWithModeSubst
-            -- ty' <- updateWithSubst ty >>= updateWithModeSubst
-            -- res' <- updateWithSubst res
-            -- mode1'' <- updateModality mode1'
+          else
             return (Pi (abst (tail xs) m') ty, res,
                      modalAnd mode2 mode1')
     b -> throwError $ ArrowErr t1 b
@@ -1354,14 +1247,8 @@ inferAddAnn flag a ty = do
       mapM (\(x, t) -> addVar x t) anEnv
       (unifRes, (s, bs)) <- normalizeUnif GEq tym1' ty1
       case unifRes of
-        UnifError -> do
-         ts <- get
-         ss <- getSubst
-         let lg =  Map.toList $ localCxt $ lcontext ts 
-             lg' = map
-                    (\ (x , varinfo) -> (x, substitute ss $ varClassifier varinfo)) lg 
-         throwError $  AppendSub ss $ AppendEnv lg' $ NotEq a ty1 tym1'
-         -- throwError $ NotEq a ty1 tym1'
+        UnifError ->
+          throwError $ NotEq a ty1 tym1'
         ModeError p1 p2 -> throwError $ ModalityGEqErr a ty1 tym1' p1 p2
         Success -> do
           ss <- getSubst
