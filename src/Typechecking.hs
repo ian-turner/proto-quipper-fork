@@ -746,7 +746,7 @@ typeCheck flag (LetPair m (Abst xs n)) goal =
                             return (goal', res, modalAnd mode1' mode2)
 
                 
-typeCheck flag (LetPat m bd) goal =
+typeCheck flag a@(LetPat m bd) goal =
   do (tt, ann, mode1) <- typeInfer flag m
      ss <- getSubst
      let t' = substitute ss tt
@@ -768,6 +768,7 @@ typeCheck flag (LetPat m bd) goal =
                               foldl (\ x (Right y) -> App x (Var y))
                               kid' vs
                            else return sub'
+                              -- trace ("sub':" ++ show (disp sub') ++ ":"++ show (disp m) ++ ":"++ show (disp a) ++ ":" ++ show (disp ss)) $ return sub'
                          
                  let sub'' = sub1 `mergeSub` ss
                  updateSubst sub''
@@ -795,11 +796,11 @@ typeCheck flag (LetPat m bd) goal =
                  -- when (not isDpm) $ updateSubst subb'
                  mapM removeLocalInst ins
                  -- subbb <- getSubst
-                 let (axs', ms) = unzip $ map (substVar subb) axs
-                     msub = concat ms
-                     ann2'' = apply msub ann2'
+                 let axs' =  map (substVar subb) axs
+                     -- msub = concat ms
+                     -- ann2'' = apply msub ann2'
                      goal''' = substitute subb goal''
-                     res = LetPat ann (abst (PApp kid axs') ann2'')
+                     res = LetPat ann (abst (PApp kid axs') ann2')
                  return (goal''', res, modalAnd mode1 mode2)
      where
            varDep (Var x) goal = isDpmVar x goal
@@ -812,10 +813,10 @@ typeCheck flag (LetPat m bd) goal =
            
            substVar ss (Right x) =
              let r = substitute ss (Var x)
-             in case r of
-                 Var y | x == y -> (Right y, [(y, Var y)])
-                 MetaVar y -> (Right y, [(y, Var y)])
-                 _ -> (Left (NoBind r), [] )
+             in case erasePos r of
+                 Var y | x == y -> Right y
+--                 MetaVar y -> (Right y, [(y, Var y)])
+                 _ -> Left (NoBind r)
 
 
 typeCheck flag a@(Case tm (B brs)) goal =
@@ -845,11 +846,14 @@ typeCheck flag a@(Case tm (B brs)) goal =
         
         substVar ss (Right x) =
              let r = substitute ss (Var x)
-             in case r of
-                 Var y | x == y -> (Right y, [(y, Var y)])
-                 MetaVar y ->  (Right y, [(y, Var y)])
-                 _ -> (Left (NoBind r), [])
-        
+             in case erasePos r of
+                 Var y | x == y -> Right y
+                 _ -> Left (NoBind r)
+
+                 -- Var y | x == y -> (Right y, [(y, Var y)])
+                 -- MetaVar y ->  (Right y, [(y, Var y)])
+                 -- _ -> (Left (NoBind r), [])
+
         checkBrs t pbs goal =
           mapM (checkBr t goal) pbs
           
@@ -917,12 +921,12 @@ typeCheck flag a@(Case tm (B brs)) goal =
                       -- of the substitution, hence it is necessary
                       -- to update  axs as well before binding.
                          
-                      let (axs', ms) = unzip $ map (substVar subb) axs
-                          msub = concat ms
-                          ann2'' = apply msub ann2'
+                      let axs' = map (substVar subb) axs
+                         --  msub = concat ms
+                          -- ann2'' = apply msub ann2'
                       mapM_ (\ (Right v) -> removeVar v) vs
                       mapM removeLocalInst ins
-                      return (goal''', abst (PApp kid axs') ann2'', mode')
+                      return (goal''', abst (PApp kid axs') ann2', mode')
                       -- trace ("axs:"++show (dispRaw (PApp kid axs')) ++ ":" ++ show (dispRaw (PApp kid axs)) ++ ":"++ show (dispRaw ann2') ) $ return (goal''', abst (PApp kid axs') ann2', mode')
 
 typeCheck flag a@(Const x) ty = inferAddAnn flag a ty
@@ -992,6 +996,7 @@ equality flag tm ty =
 patternUnif :: (Bool, Maybe Int) ->
                  Exp -> Exp -> Exp ->
                   TCMonad (UnifResult, (Subst, BSubst))
+-- patternUnif (isDpm, index) m head t | trace ("pm:"++ show (disp head)++ ":"++ show (disp t)) $ False = undefined                  
 patternUnif (isDpm, index) m head t =
   if isDpm then
     case index of
