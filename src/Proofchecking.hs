@@ -520,7 +520,7 @@ proofCheck flag (LetPair m bd) goal = -- open bd $ \ xs t ->
                 return res
            Nothing -> throwError $ TensorErr (length xs) m t'
  
-proofCheck flag (LetPat m bd) goal  = open bd $ \ (PApp kid args) n ->
+proofCheck flag a@(LetPat m bd) goal  = open bd $ \ (PApp kid args) n ->
   do tt <- proofInfer flag m
      funPac <- lookupId kid
      let dt = classifier funPac
@@ -532,8 +532,8 @@ proofCheck flag (LetPat m bd) goal  = open bd $ \ (PApp kid args) n ->
      (unifRes, sub') <- dependentUnif semi head tt
      ss <- getSubst
      case unifRes of
-       UnifError -> throwError $ (PUnifErr head tt)
-       DUnifError -> throwError $ (PUnifErr head tt)
+       UnifError -> throwError $ (PUnifErr head tt m a)
+       DUnifError -> throwError $ (PUnifErr head tt m a)
        Success -> do
             sub1 <- makeSub m sub' $ foldl (\ x y ->
                                            case y of
@@ -604,8 +604,8 @@ proofCheck flag a@(Case tm (B brs)) goal =
              ss <- getSubst
              (unifRes, sub') <- dependentUnif semi head t
              case unifRes of
-               DUnifError -> throwError $ (PUnifErr head t)
-               UnifError -> throwError $ (PUnifErr head t)
+               DUnifError -> throwError $ (PUnifErr head t tm a)
+               UnifError -> throwError $ (PUnifErr head t tm a)
                Success -> do
                  sub1 <- makeSub tm sub' $ foldl (\ x y ->
                                                case y of

@@ -760,9 +760,14 @@ typeCheck flag (LetPat m bd) goal =
             UnifError ->
               throwError $ withPosition m (UnifErr head t') 
             Success -> do
-                 sub1 <-  makeSub m sub' $
-                          foldl (\ x (Right y) -> App x (Var y))
-                          kid' vs
+                 b <- varDep (erasePos m) goal
+                 -- let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
+
+                 sub1 <-  if b then
+                            makeSub m sub' $
+                              foldl (\ x (Right y) -> App x (Var y))
+                              kid' vs
+                           else return sub'
                          
                  let sub'' = sub1 `mergeSub` ss
                  updateSubst sub''
@@ -776,26 +781,24 @@ typeCheck flag (LetPat m bd) goal =
                  mapM_ (\ (Right v) -> removeVar v) vs
                  -- It is important to update the environment before
                  -- going out of a dependent pattern matching
-                 let subb' = case erasePos m of
-                               Var y -> Map.delete y subb  
-                               _ -> subb
-                 updateLocalInst subb'
-                 ann2' <- resolveGoals (substitute subb' ann2)
-                 b <- varDep (erasePos m) goal
-                 let isDpm = ((fst semi) && (snd semi /= Nothing)) || b
+                 -- let subb' = case erasePos m of
+                 --               Var y -> Map.delete y subb  
+                 --               _ -> subb
+                 updateLocalInst subb
+                 ann2' <- resolveGoals (substitute subb ann2)
                  -- when isDpm $ updateSubst ss
                  -- when (not isDpm) $ updateSubst subb'
-                 infer <- getInfer
-                 when (isDpm && infer) $ throwError $ withPosition m $ DpmInferErr m
-                 when infer $ updateSubst subb'
-                 when isDpm $  updateSubst ss
-                 when (not infer && not isDpm) $ updateSubst subb'
+                 -- infer <- getInfer
+                 -- when (isDpm && infer) $ throwError $ withPosition m $ DpmInferErr m
+                 -- when infer $ updateSubst subb'
+                 -- when isDpm $  updateSubst ss
+                 -- when (not isDpm) $ updateSubst subb'
                  mapM removeLocalInst ins
                  -- subbb <- getSubst
-                 let (axs', ms) = unzip $ map (substVar subb') axs
+                 let (axs', ms) = unzip $ map (substVar subb) axs
                      msub = concat ms
                      ann2'' = apply msub ann2'
-                     goal''' = substitute subb' goal
+                     goal''' = substitute subb goal''
                      res = LetPat ann (abst (PApp kid axs') ann2'')
                  return (goal''', res, modalAnd mode1 mode2)
      where
@@ -868,9 +871,12 @@ typeCheck flag a@(Case tm (B brs)) goal =
                     ModeError p1 p2 ->
                       throwError $ ModalityGEqErr tm head t p1 p2
                     Success -> do
-                      sub1 <- makeSub tm sub' $
-                               foldl (\ x (Right y) ->
-                                        App x (Var y)) kid' vs
+                      b <- varDep (erasePos tm) goal
+                      sub1 <- if b then
+                               makeSub tm sub' $
+                                 foldl (\ x (Right y) ->
+                                          App x (Var y)) kid' vs
+                               else return sub'           
                       let sub'' = sub1 `mergeSub` ss
                       updateSubst sub''
                       updateModeSubst bs
@@ -881,37 +887,37 @@ typeCheck flag a@(Case tm (B brs)) goal =
                       subb <- getSubst 
                       mapM (\ (Right v) -> checkUsage v m >>=
                                            \ r -> return (v, r)) vs
-                      let subb' = case erasePos tm of
-                                   Var y -> Map.delete y subb  
-                                   _ -> subb
-                      updateLocalInst subb'
+                      -- let subb' = case erasePos tm of
+                      --              Var y -> Map.delete y subb  
+                      --              _ -> subb
+                      updateLocalInst subb
                          -- we need to restore the substitution to ss
                          -- because subb' may be influenced by dependent pattern matching.
                       
-                      ann2' <- resolveGoals (substitute subb' ann2)
+                      ann2' <- resolveGoals (substitute subb ann2)
                                `catchError` \ e -> return ann2
                       infer <- getInfer
                       -- when (not infer) $ updateSubst ss
                       -- when infer $ updateSubst subb
 
-                      b <- varDep (erasePos tm) goal
+                      
                       let isDpm = ((fst semi) && (snd semi /= Nothing))
                                     || b
                       when (isDpm && infer) $ throwError $
                          withPosition tm $ DpmInferErr tm
                       -- when isDpm $ updateSubst ss
                       -- when (not isDpm) $ updateSubst subb'
-                      when infer $ updateSubst subb'
+                      -- when infer $ updateSubst subb'
                       when isDpm $ updateSubst ss
-                      when (not infer && not isDpm) $ updateSubst subb'
+                      when (not isDpm) $ updateSubst subb
                       -- subbb <- getSubst
-                      let goal''' = substitute subb' goal
+                      let goal''' = substitute subb goal''
                       
                       -- because the variable axs may be in the domain
                       -- of the substitution, hence it is necessary
                       -- to update  axs as well before binding.
                          
-                      let (axs', ms) = unzip $ map (substVar subb') axs
+                      let (axs', ms) = unzip $ map (substVar subb) axs
                           msub = concat ms
                           ann2'' = apply msub ann2'
                       mapM_ (\ (Right v) -> removeVar v) vs
