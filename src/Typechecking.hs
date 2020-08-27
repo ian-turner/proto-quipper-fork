@@ -880,24 +880,31 @@ typeCheck flag a ty
   | isBuildIn a = inferAddAnn flag a ty
 typeCheck flag tm ty = equality flag tm ty
 
+-- equality flag tm ty | trace ("eq:" ++ (show $ disp tm)) $ False = undefined
 equality flag tm ty =
   do ty' <- updateWithSubst ty
      if not (ty == ty') then typeCheck flag tm ty'
        else 
        do (tym, ann, mode) <- typeInfer flag tm
           tym1 <- updateWithSubst tym
-          (unifRes, (sub, bs)) <- normalizeUnif GEq tym1 ty'
+          ty1 <- updateWithSubst ty'
+          (unifRes, (sub, bs)) <- normalizeUnif GEq tym1 ty1
           case unifRes of
              UnifError ->
-               throwError $ withPosition tm (UnifErr tym1 ty')
+               throwError $ withPosition tm (UnifErr tym1 ty1)
              ModeError p1 p2 ->
-               throwError $ ModalityGEqErr tm tym1 ty' p1 p2
+               throwError $ ModalityGEqErr tm ty1 tym1 p1 p2
              Success -> do
                ss <- getSubst
                let ss' = sub `mergeSub` ss 
                updateSubst ss'
                updateModeSubst bs
-               return (ty', ann, mode)
+               st <- get
+               let msub = modeSubstitution st
+               ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
+               mode' <- updateModality mode
+               return (ty1', ann, mode')
+
           
           
 -- | Normalize and unify two expressions (/head/ and /t/),
@@ -1235,13 +1242,14 @@ handleBangValue flag a ty1@(Bang ty m) = do
         _ -> throwError $ BangValue a (Bang ty m)
 
 -- note that ty1 is prefix free.
+-- inferAddAnn flag a ty | trace ("ann:"++ (show $ disp a) ++ ":" ++ (show $ disp ty)) $ False = undefined 
 inferAddAnn flag a ty = do
   ty2 <- updateWithSubst ty
   if not (ty2 == ty)
     then typeCheck flag a ty2
     else do
       (tym, ann, mode) <- typeInfer flag a
-      tym1 <- updateWithSubst tym
+      tym1 <- updateWithSubst tym >>= updateWithModeSubst
       ty1 <- updateWithSubst ty2
       (a2, tym1', anEnv, mode') <- addAnn flag mode a ann tym1 []
       mapM (\(x, t) -> addVar x t) anEnv
@@ -1249,7 +1257,8 @@ inferAddAnn flag a ty = do
       case unifRes of
         UnifError ->
           throwError $ NotEq a ty1 tym1'
-        ModeError p1 p2 -> throwError $ ModalityGEqErr a ty1 tym1' p1 p2
+        ModeError p1 p2 ->
+          throwError $ ModalityGEqErr a ty1 tym1' p1 p2
         Success -> do
           ss <- getSubst
           let sub' = s `mergeSub` ss

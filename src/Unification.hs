@@ -44,8 +44,6 @@ data UnifResult = Success
 
 -- | Unify two expressions. 
 unify :: InEquality -> Exp -> Exp -> State (Subst, BSubst) UnifResult
-
--- unify _ a b | trace (show $ dispRaw a <+> text ":" <+> dispRaw b) $ False = undefined
 unify b Unit Unit = return Success
 unify b Set Set = return Success
 unify b (Base x) (Base y) | x == y = return Success
@@ -234,8 +232,6 @@ unify b t t' = return UnifError
 
 -- | Unify two expressions in dependent pattern matching. 
 dUnify :: Exp -> Exp -> State Subst UnifResult
-
--- dUnify a b | trace (show a ++  ":" ++ show b) $ False = undefined
 dUnify Unit Unit = return Success
 dUnify Set Set = return Success
 dUnify (Base x) (Base y) | x == y = return Success
@@ -246,10 +242,6 @@ dUnify (LBase x) (LBase y) | x == y = return Success
 dUnify (Const x) (Const y) | x == y = return Success
                            | otherwise = return DUnifError
 
--- dUnify (MetaVar x) (MetaVar y) | x == y = return Success
---                                | otherwise = return DUnifError
-
- 
 dUnify (Var x) t
   | Var x == t = return Success
   | MetaVar y <- t = 

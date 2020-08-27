@@ -287,8 +287,8 @@ adderRev : Circ(Qubit * Qubit *
                 Qubit * Qubit *
                  (Qubit * Qubit * Qubit))
 adderRev =
-  box (Qubit * Qubit * (Qubit * Qubit * Qubit))
-     (\ x -> with_computed adder copy x)
+   box (Qubit * Qubit * (Qubit * Qubit * Qubit))
+      (\ x -> with_computed adder copy x)
 
 
 

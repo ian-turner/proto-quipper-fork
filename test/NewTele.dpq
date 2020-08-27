@@ -29,17 +29,23 @@ bell n =
         (a, b) = share n a
     in (a, b)
 
-alice : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n -> Vec Bool n * Vec Bool n
+alice : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n ->
+           Vec Bool n * Vec Bool n
 alice n q a =
   let (a', q') = unzip $ zipWith CNot a q
       q'' = map H q'
   in (measure q'', measure a')
 
-bob : ! forall (n : Nat) -> Vec Qubit n -> (Vec Bool n * Vec Bool n) -> Vec Qubit n
+bob : ! forall (n : Nat) -> Vec Qubit n ->
+                (Vec Bool n * Vec Bool n) -> Vec Qubit n
 bob b u =
   let (x, y) = u
-      (b, y) = unzip $ zipWith (\ q c  -> if c then (QNot q, c) else (q, c)) b y
-      (b, x) = unzip $ zipWith (\ q c -> if c then (ZGate q, c) else (q, c)) b x
+      (b, y) = unzip $
+                zipWith
+                  (\ q c  -> if c then (QNot q, c) else (q, c)) b y
+      (b, x) = unzip $
+                zipWith
+                  (\ q c -> if c then (ZGate q, c) else (q, c)) b x
   in b
 
 -- The following teleportation function is not boxable! 
