@@ -62,16 +62,16 @@ data Exp
   | Const Id -- ^ Data constructors or functions.
   | LBase Id -- ^ Simple data type type-constructors.
   | Base Id -- ^ (Non-simple) Data type type-constructors.
-  | Lam (Bind [Variable] Exp)
+  | Lam (Bind [Variable] Exp) BExp
   -- ^ Lambda abstraction for linear arrow type.
-  | LamTop (Bind [Variable] Exp)
+  -- | LamTop (Bind [Variable] Exp)
   -- ^ Top level Lambda abstraction.
   | LamP (Bind [Variable] Exp)
   -- ^ Parameter lambda abstraction for parameter arrow type.
-  | Arrow Exp Exp -- ^ Linear arrow type.
+  | Arrow Exp Exp BExp -- ^ Linear arrow type.
   | ArrowP Exp Exp -- ^ Parameter arrow type.
-  | App Exp Exp -- ^ Function application.
-  | AppTop Exp Exp -- ^ Top level function Application.
+  | App Exp Exp BExp -- ^ Function application.
+  -- | AppTop Exp Exp -- ^ Top level function Application.
   | AppP Exp Exp -- ^ Parameter application.
   | AppDict Exp Exp -- ^ Dictionary application.
   | Imply [Exp] Exp -- ^ Constraint types.
@@ -86,12 +86,12 @@ data Exp
   | Exists (Bind Variable Exp) Exp -- ^ Existential pair type.
   | Case Exp Branches -- ^ Case expression.
     -- Lift and force
-  | Bang Exp Modality -- ^ Linear exponential type.
-  | Force Exp -- ^ Force.
-  | ForceTop Exp -- ^ Top level force.
+  | Bang Exp Modality BExp -- ^ Linear exponential type.
+  | Force Exp BExp -- ^ Force.
+  --  | ForceTop Exp -- ^ Top level force.
   | ForceP Exp -- ^ The parameter version of Force.
-  | Lift Exp -- ^ Lift.
-  | LiftTop Exp -- ^ Top level lift.
+  | Lift Exp BExp -- ^ Lift.
+  -- | LiftTop Exp -- ^ Top level lift.
     -- Circuit operations
   | Box -- ^ Circuit boxing.
   | ExBox -- ^ Existential circuit boxing.
@@ -106,23 +106,24 @@ data Exp
   | Set -- ^ The kind for all types.
   | Sort -- ^ The sort for all kinds.
     -- Dependent types
-  | Pi (Bind [Variable] Exp) Exp -- ^ Linear dependent types.
+  | Pi (Bind [Variable] Exp) Exp BExp -- ^ Linear dependent types.
   | PiInt (Bind [Variable] Exp) Exp -- ^ Intuitionistic dependent types.
   | PiImp (Bind [Variable] Exp) Exp -- ^ Implicit dependent types.
-  | LamDep (Bind [Variable] Exp)
+  | LamDep (Bind [Variable] Exp) BExp
   -- ^ Linear dependent lambda abstraction (abstracting term).
-  | LamDepTop (Bind [Variable] Exp)
+  -- | LamDepTop (Bind [Variable] Exp)
   -- ^ Top level linear dependent lambda abstraction (abstracting term).
-  | LamDepInt (Bind [Variable] Exp)
+  | LamDepInt (Bind [Variable] Exp) 
   -- ^ Intuitionistic dependent lambda abstraction (abstracting term).
-  | AppDep Exp Exp -- ^ Linear dependent application (term application).
-  | AppDepTop Exp Exp -- ^ Top level dependent application.
+  | AppDep Exp Exp BExp
+  -- ^ Linear dependent application (term application).
+  -- | AppDepTop Exp Exp -- ^ Top level dependent application.
   | AppDepInt Exp Exp
   -- ^ Intuitionistic dependent application (term application).
   | LamDepTy (Bind [Variable] Exp)
   -- ^ Dependent lambda abstraction (abstracting type).
   | AppDepTy Exp Exp -- ^ Dependent application (type application).
-  | LamAnn Exp (Bind [Variable] Exp)
+  | LamAnn Exp (Bind [Variable] Exp) BExp
     -- ^ Annotated lambda abstraction.
   | LamAnnP Exp (Bind [Variable] Exp) -- ^ Shape of 'LamAnn'.
   | WithType Exp Exp -- ^ Annotated term.
@@ -154,17 +155,16 @@ data Pattern =
 data BExp
   = BConst Bool
   | BVar Variable
-  
   | BAnd BExp BExp
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal, Eq)
 
 -- | A data type for boxing modality
 data Modality =
-  M BExp BExp BExp
+  M BExp BExp
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal, Eq)
 
 identityMod :: Modality
-identityMod = M (BConst True) (BConst True) (BConst True)
+identityMod = M (BConst True) (BConst True)
 
 instance Disp Pattern where
   display flag (PApp id vs) = display flag id <+> hsep (map helper vs)
@@ -187,7 +187,7 @@ instance Disp Exp where
   display flag (Base id) = display flag id
   display flag (Pos _ e) = display flag e
   display flag (Mod (Abst vs e)) = display flag e
-  display flag (Lam bds) =
+  display flag (Lam bds _) =
     open bds $ \vs b ->
       fsep
         [ text "\\"
@@ -195,7 +195,7 @@ instance Disp Exp where
         , text "->"
         , nest 2 $ display flag b
         ]
-  display flag (LamAnn ty bds) =
+  display flag (LamAnn ty bds _) =
     open bds $ \vs b ->
       fsep
         [ text "\\("
@@ -238,7 +238,7 @@ instance Disp Exp where
         , (hsep $ map (display flag) vs) <+> text "->"
         , nest 2 $ display flag b
         ]
-  display flag (LamDep bds) =
+  display flag (LamDep bds _) =
     open bds $ \vs b ->
       fsep
         [ text "\\dep"
@@ -275,14 +275,14 @@ instance Disp Exp where
                       display flag t) <+> text "->"
         , nest 5 $ display flag b
         ]
-  display flag a@(App t t') =
+  display flag a@(App t t' _) =
     case toNat a of
       Nothing ->
         fsep [dParen flag (precedence a - 1) t,
               dParen flag (precedence a) t']
       Just i -> int i
     where
-      toNat (App (Const id) t') =
+      toNat (App (Const id) t' _) =
         if getName id == "S"
           then do
             n <- toNat t'
@@ -318,7 +318,8 @@ instance Disp Exp where
           else Nothing
       toNat (Pos _ e) = toNat e
       toNat _ = Nothing
-  display flag a@(AppDep t t') =
+
+  display flag a@(AppDep t t' _) =
     fsep
       [ dParen flag (precedence a - 1) t <> dispAt flag "AppDep"
       , dParen flag (precedence a) t'
@@ -343,9 +344,9 @@ instance Disp Exp where
       [ dParen flag (precedence a - 1) t <> dispAt flag "AppTm"
       , dParen flag (precedence a) t'
       ]
-  display flag a@(Bang t m) =
+  display flag a@(Bang t m _) =
     text "!" <> display flag m <> dParen flag (precedence a - 1) t
-  display flag a@(Arrow t1 t2) =
+  display flag a@(Arrow t1 t2 _) =
     fsep
       [ dParen flag (precedence a) t1
       , text "->"
@@ -376,14 +377,14 @@ instance Disp Exp where
       ]
   display flag (Pair a b) =
     parens $ fsep [display flag a, text ",", display flag b]
-  display flag (Force m) = text "&" <> display flag m
+  display flag (Force m _) = text "&" <> display flag m
   display flag (ForceP m) = text "&'" <> display flag m
-  display flag (Lift m) = text "lift" <+> display flag m
+  display flag (Lift m _) = text "lift" <+> display flag m
   display flag (Circ u t m) =
     text "Circ" <>
     display flag m <> (parens $ fsep [display flag u <> comma,
                                       display flag t])
-  display flag (Pi bd t) =
+  display flag (Pi bd t _) =
     open bd $ \vs b ->
       fsep
         [ parens
@@ -470,18 +471,18 @@ instance Disp Exp where
   precedence (Reverse) = 12
   precedence (ExBox) = 12
   precedence (Set) = 12
-  precedence (App _ _) = 10
+  precedence (App _ _ _) = 10
   precedence (AppP _ _) = 10
   precedence (AppType _ _) = 10
-  precedence (AppDep _ _) = 10
+  precedence (AppDep _ _ _) = 10
   precedence (AppDepInt _ _) = 10
   precedence (AppDict _ _) = 10
   precedence (AppTm _ _) = 10
   precedence (Pair _ _) = 11
-  precedence (Arrow _ _) = 7
+  precedence (Arrow _ _ _) = 7
   precedence (ArrowP _ _) = 7
   precedence (Tensor _ _) = 8
-  precedence (Bang _ _) = 9
+  precedence (Bang _ _ _) = 9
   precedence (Pos p e) = precedence e
   precedence _ = 0
 
@@ -683,7 +684,7 @@ instance Disp Gate where
 toExp :: Value -> Exp
 toExp (VConst id) = Const id
 toExp VStar = Star
-toExp (VApp a b) = App (toExp a) (toExp b)
+toExp (VApp a b) = App (toExp a) (toExp b) (BConst True)
 toExp (VPair a b) = Pair (toExp a) (toExp b)
 
 -- | Declarations in abstract syntax, resolved from the declarations
@@ -838,9 +839,10 @@ instance Disp BExp where
   display flag (BAnd e1 e2) = display flag e1 <> text "&" <> display flag e2
 
 instance Disp Modality where
-  display flag (M x y z) =
+  display flag (M x y) =
     braces $
-    display flag x <> comma <+> display flag y <> comma <+> display flag z
+    display flag x <> comma <+> display flag y
+    -- <> comma <+> display flag z
     -- <+> dispControllable y <> comma <+> dispReversible z
 
 dispBoxable (BConst True) = text "Boxable"
