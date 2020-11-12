@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c90360bc64202a6100eda136813d892f99162da45aaedf2c2e2b8240f482825e
+-- hash: d4f0eb841e9e90632221362b63e241641e8f14891fc6eb9147cbf0a7543f0671
 
 name:           dpq
 version:        0.0.1.0
@@ -12,7 +12,6 @@ synopsis:       Dependently typed Proto-Quipper (Proto-Quipper-D)
 description:    A linear dependent typed language for quantum circuit programming. Please see the README at <https://gitlab.com/frank-peng-fu/dpq-remake#readme> for more information.
 category:       Programming language
 homepage:       https://gitlab.com/frank-peng-fu/dpq-remake
-bug-reports:    https://github.com/https://gitlab.com/frank-peng-fu/dpq-remake.git/issues
 author:         Frank (Peng) Fu, Kohei Kishida, Neil J. Ross, Peter Selinger
 maintainer:     peng.frank.fu@gmail.com, selinger@mathstat.dal.ca
 copyright:      2019
@@ -22,10 +21,6 @@ build-type:     Simple
 extra-source-files:
     README.md
     ChangeLog.md
-
-source-repository head
-  type: git
-  location: https://github.com/https://gitlab.com/frank-peng-fu/dpq-remake.git
 
 library
   exposed-modules:

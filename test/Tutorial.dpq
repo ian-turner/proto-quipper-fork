@@ -137,8 +137,8 @@ simple DVec a : Nat -> Type where
 --        ColorVec a (S n) = VConsRed a (ColorVec a n)
 
 -- simple InfVec a : Nat -> Type where
---        InfVec a Z = InfNil
---        InfVec a (S n) = VConsInf a (InfVec a (S n))
+--        InfVec a Z = INil
+--        InfVec a (S n) = IVCons a (InfVec a (S n))
 
 
 -- ----------------------------------------------------------------------
@@ -273,24 +273,22 @@ instance Disposable Qubit where
 -- ----------------------------------------------------------------------
 -- * Obtain reversible circuits from WithGarbage
 
-with_computed : ! forall d ->  (a b c : Type) ->
-                    (Simple a, Simple b) =>
-                    !(a -> WithGarbage b) ->
-                    !(c * b -> d * b) -> (c * a -> d * a)
+with_computed : ! forall d -> {a b c : Type} ->
+                  (Simple a, Simple b) =>
+                   !(a -> WithGarbage b) ->
+                   !(c * b -> d * b) ->
+                    (c * a -> d * a)
 with_computed a b c f g input =
   let (y, x) = input
-      (_, circ) = existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
+      (_, circ) =
+         existsBox a (\x -> Vec Qubit x * b)
+           (\z -> unGarbage (f z))
       h' = unbox circ
       (v, r) = h' x
       circ_rev = unbox (reverse circ)
       (d, r') = g (y, r)
       res = circ_rev (v, r')
   in (d, res)
-
-boxGarbage : ! forall c -> (a b d : Type) -> (Simple a , Simple b, Simple c, Simple d) =>
-                     !(a -> WithGarbage b) -> !(d * b -> c * b) -> Circ(d * a, c * a)
-boxGarbage a b d f g =
-   box (d * a) (λ x -> with_computed a b d f g x)
 
 -- ----------------------------------------------------------------------
 -- * Reversible adder oracle
@@ -329,18 +327,15 @@ copy3 q =
        (q1, q3) = CNot (Init0 ()) q1
    in (q1, q2, q3)
 
-adder : !(Qubit -> Qubit -> Qubit -> WithGarbage (Qubit * Qubit))
-adder a b carryIn = do
-  let (a1, a2, a3) = copy3 a
+adder : !(Qubit * Qubit * Qubit -> WithGarbage (Qubit * Qubit))
+adder input = do
+  let (a, b, carryIn) = input
+      (a1, a2, a3) = copy3 a
       (b1, b2, b3) = copy3 b
       (carryIn1, carryIn2, carryIn3) = copy3 carryIn 
   s <- [| xor (xor a1 b1) (pure carryIn1)|]
   carryOut <- [| [| (a2 && b2) || (a3 && carryIn2) |] || (b3 && carryIn3) |]
   return (s, carryOut)
-
--- Uncurry adder function.
-adder' : ! (Qubit * Qubit * Qubit -> WithGarbage (Qubit * Qubit))
-adder' = λ x -> let (a, b, c) = x in adder a b c 
 
 -- Copy the result from the adder'.  
 copy : !(Qubit * Qubit * (Qubit * Qubit) -> Qubit * Qubit * (Qubit * Qubit))
@@ -352,8 +347,11 @@ copy p =
       (q5, q6) = CNot in2 q2
   in ((q3, q5), (q4, q6))
 
--- Box adder' into a reversible circuit.
-adderRev : Circ(Qubit * Qubit * (Qubit * Qubit * Qubit),
-                  Qubit * Qubit * (Qubit * Qubit * Qubit))
-adderRev = 
-   boxGarbage (Qubit * Qubit * Qubit) (Qubit * Qubit) (Qubit * Qubit) adder' copy
+adderRev : Circ(Qubit * Qubit *
+                  (Qubit * Qubit * Qubit),
+                Qubit * Qubit *
+                 (Qubit * Qubit * Qubit))
+adderRev =
+   box (Qubit * Qubit * (Qubit * Qubit * Qubit))
+      (\ x -> with_computed adder copy x)
+      
