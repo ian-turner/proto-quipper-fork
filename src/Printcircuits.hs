@@ -422,7 +422,7 @@ render_gate fs (Gate name [] (VPair (VLabel w) (VLabel c)) output VStar) x ys ma
   let
       c' = positive c
       s2 = render_controlwire x ys ([w]++[c]) [c']
-      t2 = render_multi_gate fs x ys (getName name) [w]
+      t2 = render_multi_gate fs x ys (drop 2 $ getName name) [w]
       t3 = render_controldots fs x ys [c']
   in (s2, t2 >> t3)
 
