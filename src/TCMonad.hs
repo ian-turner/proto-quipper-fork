@@ -56,7 +56,7 @@ data Identification
   -- constructors. If it is simple type, then its runtime
   -- template function.
   | DictionaryType Id [Id]
-                    -- ^ Dictionary constructor and its methods id.
+  -- ^ Dictionary constructor and its methods id.
   deriving (Show)
 
 -- | Data type classifier.
@@ -471,7 +471,7 @@ shape (AppTm t1 t2) = do
   return $ AppTm t1' t2
 shape (Tensor t1 t2) = Tensor <$> shape t1 <*> shape t2
 shape (Pair t1 t2) = Pair <$> shape t1 <*> shape t2
-shape (Arrow t1 t2) = ArrowP <$> shape t1 <*> shape t2
+shape (Arrow t1 t2 _) = ArrowP <$> shape t1 <*> shape t2
 shape (Imply bds h) = Imply <$> return bds <*> shape h
 shape (Exists (Abst x t) t2) = do
   t' <- shape t
@@ -481,7 +481,7 @@ shape (Forall (Abst x t) t2) = do
   t' <- shape t
   return $ Forall (abst x t') t2
 shape a@(ArrowP a1 a2) = ArrowP <$> shape a1 <*> shape a2
-shape (Pi (Abst x t) t2) = do
+shape (Pi (Abst x t) t2 _) = do
   t' <- shape t
   t2' <- shape t2
   return $ PiInt (abst x t') t2'
@@ -513,7 +513,7 @@ shape UnBox = return UnBox
 shape Reverse = return Reverse
 shape Controlled = return Controlled
 shape WithComputed = return WithComputed
-shape Dynlift = return Dynlift
+shape Dynlift = throwError ShapeErr
 shape (Case tm (B br)) = do
   tm' <- shape tm
   br' <- helper' br

@@ -78,6 +78,7 @@ data TypeError
   | AppendEnv [(Variable, Exp)] TypeError
   | AppendSub (Map Variable Exp) TypeError
   | DpmInferErr Exp
+  | ShapeErr
   deriving (Show)
 
 -- | A data type for evaluation errors.

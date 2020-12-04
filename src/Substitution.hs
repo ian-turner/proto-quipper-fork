@@ -46,10 +46,10 @@ substitute s a@(Set) = a
 substitute s a@(Sort) = a
 substitute s a@(Star) = a
 substitute s a@(Const _) = a
-substitute s (Arrow t t') =
+substitute s (Arrow t t' m) =
   let t1' = substitute s t
       t2' = substitute s t'
-  in Arrow t1' t2'
+  in Arrow t1' t2' m
 substitute s (WithType t t') =
   let t1' = substitute s t
       t2' = substitute s t'
@@ -71,8 +71,8 @@ substitute s (Circ t t' m) =
       t2' = substitute s t'
    in Circ t1' t2' m
 substitute s (Bang t m) = Bang (substitute s t) m
-substitute s (Pi bind t) =
-  open bind $ \ys m -> Pi (abst ys (substitute s m)) (substitute s t)
+substitute s (Pi bind t mod) =
+  open bind $ \ys m -> Pi (abst ys (substitute s m)) (substitute s t) mod
 substitute s (PiImp bind t) =
   open bind $ \ys m -> PiImp (abst ys (substitute s m)) (substitute s t)
 substitute s (PiInt bind t) =

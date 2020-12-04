@@ -127,10 +127,10 @@ bSubstitute s a@(Set) = a
 bSubstitute s a@(Sort) = a
 bSubstitute s a@(Star) = a
 bSubstitute s a@(Const _) = a
-bSubstitute s (Arrow t t') =
+bSubstitute s (Arrow t t' m) =
   let t1' = bSubstitute s t
       t2' = bSubstitute s t'
-  in Arrow t1' t2'
+  in Arrow t1' t2' (modeSubst s m)
 bSubstitute s (WithType t t') =
   let t1' = bSubstitute s t
       t2' = bSubstitute s t'
@@ -156,10 +156,10 @@ bSubstitute s (Circ t t' m) =
 bSubstitute s (Bang t m) =
   Bang (bSubstitute s t) (modeSubst s m)
 
-bSubstitute s (Pi bind t) =
+bSubstitute s (Pi bind t mod) =
   open bind $
   \ ys m -> Pi (abst ys (bSubstitute s m))
-           (bSubstitute s t) 
+           (bSubstitute s t) (modeSubst s mod)
 
 bSubstitute s (PiImp bind t) =
   open bind $
@@ -268,10 +268,13 @@ booleanVarElim e =
               e2' = elim b s1 e2
               e3' = elim b s1 e3
           in Circ s u (M e1' e2' e3')
-        helper b s1 (Arrow t1 t2) =
+        helper b s1 (Arrow t1 t2 (M e1 e2 e3)) =
           let t1' = helper (not b) s1 t1
               t2' = helper b s1 t2
-          in Arrow t1' t2'
+              e1' = elim b s1 e1
+              e2' = elim b s1 e2
+              e3' = elim b s1 e3
+          in Arrow t1' t2' (M e1' e2' e3')
         helper b s1 (Pos e t) =
           let t' = helper b s1 t
           in Pos e t'
@@ -283,12 +286,15 @@ booleanVarElim e =
           let t1' = helper b s1 t1
               t2' = helper b s1 t2
           in Exists (abst xs t1') t2'
-        helper b s1 (Pi (Abst xs t1) t2) =
+        helper b s1 (Pi (Abst xs t1) t2 (M e1 e2 e3)) =
           let t1' = helper b s1 t1
               t2' = helper (not b) s1 t2
-          in Pi (abst xs t1') t2'
+              e1' = elim b s1 e1
+              e2' = elim b s1 e2
+              e3' = elim b s1 e3
+          in Pi (abst xs t1') t2' (M e1' e2' e3')
         helper b s1 (PiImp (Abst xs t1) t2) =
-          let t1' = helper b s1 t1
+          let t1' = helper b s1 t1 
               t2' = helper (not b) s1 t2
           in PiImp (abst xs t1') t2'
         helper b s1 (Forall (Abst xs t1) t2) =

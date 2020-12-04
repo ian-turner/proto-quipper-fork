@@ -64,14 +64,11 @@ data Exp
   | Base Id -- ^ (Non-simple) Data type type-constructors.
   | Lam (Bind [Variable] Exp)
   -- ^ Lambda abstraction for linear arrow type.
-  | LamTop (Bind [Variable] Exp)
-  -- ^ Top level Lambda abstraction.
   | LamP (Bind [Variable] Exp)
   -- ^ Parameter lambda abstraction for parameter arrow type.
-  | Arrow Exp Exp -- ^ Linear arrow type.
+  | Arrow Exp Exp Modality -- ^ Linear arrow type.
   | ArrowP Exp Exp -- ^ Parameter arrow type.
   | App Exp Exp -- ^ Function application.
-  | AppTop Exp Exp -- ^ Top level function Application.
   | AppP Exp Exp -- ^ Parameter application.
   | AppDict Exp Exp -- ^ Dictionary application.
   | Imply [Exp] Exp -- ^ Constraint types.
@@ -88,10 +85,8 @@ data Exp
     -- Lift and force
   | Bang Exp Modality -- ^ Linear exponential type.
   | Force Exp -- ^ Force.
-  | ForceTop Exp -- ^ Top level force.
   | ForceP Exp -- ^ The parameter version of Force.
   | Lift Exp -- ^ Lift.
-  | LiftTop Exp -- ^ Top level lift.
     -- Circuit operations
   | Box -- ^ Circuit boxing.
   | ExBox -- ^ Existential circuit boxing.
@@ -106,17 +101,14 @@ data Exp
   | Set -- ^ The kind for all types.
   | Sort -- ^ The sort for all kinds.
     -- Dependent types
-  | Pi (Bind [Variable] Exp) Exp -- ^ Linear dependent types.
+  | Pi (Bind [Variable] Exp) Exp Modality -- ^ Linear dependent types.
   | PiInt (Bind [Variable] Exp) Exp -- ^ Intuitionistic dependent types.
   | PiImp (Bind [Variable] Exp) Exp -- ^ Implicit dependent types.
   | LamDep (Bind [Variable] Exp)
   -- ^ Linear dependent lambda abstraction (abstracting term).
-  | LamDepTop (Bind [Variable] Exp)
-  -- ^ Top level linear dependent lambda abstraction (abstracting term).
   | LamDepInt (Bind [Variable] Exp)
   -- ^ Intuitionistic dependent lambda abstraction (abstracting term).
   | AppDep Exp Exp -- ^ Linear dependent application (term application).
-  | AppDepTop Exp Exp -- ^ Top level dependent application.
   | AppDepInt Exp Exp
   -- ^ Intuitionistic dependent application (term application).
   | LamDepTy (Bind [Variable] Exp)
@@ -154,11 +146,10 @@ data Pattern =
 data BExp
   = BConst Bool
   | BVar Variable
-  
   | BAnd BExp BExp
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal, Eq)
 
--- | A data type for boxing modality
+-- | A data type for boxing modality, controllability, reversibility
 data Modality =
   M BExp BExp BExp
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal, Eq)
@@ -345,10 +336,11 @@ instance Disp Exp where
       ]
   display flag a@(Bang t m) =
     text "!" <> display flag m <> dParen flag (precedence a - 1) t
-  display flag a@(Arrow t1 t2) =
+
+  display flag a@(Arrow t1 t2 m) =
     fsep
       [ dParen flag (precedence a) t1
-      , text "->"
+      , text "->", display flag m
       , dParen flag (precedence a - 1) t2
       ]
   display flag a@(ArrowP t1 t2) =
@@ -383,13 +375,13 @@ instance Disp Exp where
     text "Circ" <>
     display flag m <> (parens $ fsep [display flag u <> comma,
                                       display flag t])
-  display flag (Pi bd t) =
+  display flag (Pi bd t m) =
     open bd $ \vs b ->
       fsep
         [ parens
             ((hsep $ map (display flag) vs) <+> text ":"
                      <+> display flag t) <+> text "->"
-        , nest 2 $ display flag b
+        , display flag m, nest 2 $ display flag b
         ]
   display flag (PiImp bd t) =
     open bd $ \vs b ->
@@ -456,9 +448,9 @@ instance Disp Exp where
   display flag (WithType e ty) =
      display flag e <+> text ":" <+> display flag ty
   display flag e = error $ "from display: " ++ show e
+
   precedence (Var _) = 12
   precedence (MetaVar _) = 12
-  
   precedence (Base _) = 12
   precedence (LBase _) = 12
   precedence (Const _) = 12
@@ -478,7 +470,7 @@ instance Disp Exp where
   precedence (AppDict _ _) = 10
   precedence (AppTm _ _) = 10
   precedence (Pair _ _) = 11
-  precedence (Arrow _ _) = 7
+  precedence (Arrow _ _ _) = 7
   precedence (ArrowP _ _) = 7
   precedence (Tensor _ _) = 8
   precedence (Bang _ _) = 9

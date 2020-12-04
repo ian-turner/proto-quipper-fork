@@ -68,10 +68,10 @@ betaNormalize a@(Bang t m) =
   do t' <- betaNormalize t
      return $ Bang t' m
 
-betaNormalize a@(Arrow t1 t2) =
+betaNormalize a@(Arrow t1 t2 m) =
   do t1' <- betaNormalize t1
      t2' <- betaNormalize t2
-     return $ Arrow t1' t2'
+     return $ Arrow t1' t2' m
 
 betaNormalize a@(ArrowP t1 t2) =
   do t1' <- betaNormalize t1
@@ -89,11 +89,11 @@ betaNormalize a@(Circ t1 t2 m) =
      t2' <- betaNormalize t2
      return $ Circ t1' t2' m
 
-betaNormalize a@(Pi bd t) =
+betaNormalize a@(Pi bd t m) =
   open bd $ \ xs t' ->
     do t1 <- betaNormalize t
        t2 <- betaNormalize t'
-       return $ Pi (abst xs t2) t1 
+       return $ Pi (abst xs t2) t1 m
 
 betaNormalize a@(PiImp bd t) =
   open bd $ \ xs t' ->
@@ -394,13 +394,13 @@ normalize (ArrowP m n) =
      w <- normalize n 
      return (ArrowP v w)
 
-normalize (Arrow m n) = 
+normalize (Arrow m n mod) = 
   do v <- normalize m 
      w <- normalize n 
-     return (Arrow v w)
+     return (Arrow v w mod)
 
 normalize a@(Forall _ _) = return a
-normalize a@(Pi _ _) = return a
+normalize a@(Pi _ _ _) = return a
 normalize a@(PiImp _ _) = return a
 normalize a@(PiInt _ _) = return a
 

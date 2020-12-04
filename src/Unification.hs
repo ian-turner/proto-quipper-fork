@@ -96,14 +96,23 @@ unify b (Exists (Abst x m) ty1) (Exists (Abst y n) ty2) =
 unify b (Case e1 (B br1)) (Case e2 (B br2)) | br1 == br2 =
   unify b e1 e2
 
-     
-unify b (Arrow t1 t2) (Arrow t3 t4) =
-  do a <- unify (flipSide b) t1 t3
-     if a == Success
-       then do (sub, bsub) <- get
-               unify b (substitute sub $ bSubstitute bsub t2)
-                 (substitute sub $ bSubstitute bsub t4)
-       else return a
+      
+unify b (Arrow t1 t2 mod1) (Arrow t3 t4 mod2) =
+  case modeResolution b mod1 mod2 of 
+    Just bsub'@(bsub1', bsub2', bsub3') -> 
+      do (sub, (bsub1, bsub2, bsub3)) <- get
+         let new = (mergeModeSubst bsub1' bsub1,
+                    mergeModeSubst bsub2' bsub2,
+                    mergeModeSubst bsub3' bsub3)
+             sub' = Map.map (\ x -> bSubstitute new x) sub
+         put (sub', new)
+         a <- unify (flipSide b) (bSubstitute new t1)
+                (bSubstitute new t3)
+         if a == Success
+         then do (sub, bsub) <- get
+                 unify b (substitute sub $ bSubstitute bsub t2)
+                  (substitute sub $ bSubstitute bsub t4)
+         else return a
 
 unify b (ArrowP t1 t2) (ArrowP t3 t4) =
   do a <- unify (flipSide b) t1 t3
