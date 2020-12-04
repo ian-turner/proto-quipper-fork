@@ -139,14 +139,17 @@ bSubstitute s (ArrowP t t') =
   let t1' = bSubstitute s t
       t2' = bSubstitute s t'
   in ArrowP t1' t2'  
-bSubstitute s (Imply t t') =
+
+bSubstitute s (Imply t t' m) =
   let t1' = map (bSubstitute s) t
       t2' = bSubstitute s t'
-  in Imply t1' t2'  
+  in Imply t1' t2' (modeSubst s m)
+  
 bSubstitute s (Tensor t t') =
   let t1' = bSubstitute s t
       t2' = bSubstitute s t'
   in Tensor t1' t2'
+
 bSubstitute s (Circ t t' m) =
   let t1' = bSubstitute s t
       t2' = bSubstitute s t'
@@ -161,10 +164,10 @@ bSubstitute s (Pi bind t mod) =
   \ ys m -> Pi (abst ys (bSubstitute s m))
            (bSubstitute s t) (modeSubst s mod)
 
-bSubstitute s (PiImp bind t) =
+bSubstitute s (PiImp bind t mod) =
   open bind $
   \ ys m -> PiImp (abst ys (bSubstitute s m))
-           (bSubstitute s t) 
+           (bSubstitute s t) (modeSubst s mod)
 
 bSubstitute s (PiInt bind t) =
   open bind $
@@ -293,17 +296,25 @@ booleanVarElim e =
               e2' = elim b s1 e2
               e3' = elim b s1 e3
           in Pi (abst xs t1') t2' (M e1' e2' e3')
-        helper b s1 (PiImp (Abst xs t1) t2) =
+
+        helper b s1 (PiImp (Abst xs t1) t2 (M e1 e2 e3)) =
           let t1' = helper b s1 t1 
               t2' = helper (not b) s1 t2
-          in PiImp (abst xs t1') t2'
+              e1' = elim b s1 e1
+              e2' = elim b s1 e2
+              e3' = elim b s1 e3
+          in PiImp (abst xs t1') t2' (M e1' e2' e3')
         helper b s1 (Forall (Abst xs t1) t2) =
           let t1' = helper b s1 t1
               t2' = helper (not b) s1 t2
           in Forall (abst xs t1') t2'
-        helper b s1 (Imply t1 t2) =
+
+        helper b s1 (Imply t1 t2 (M e1 e2 e3)) =
           let t2' = helper b s1 t2
-          in Imply t1 t2'
+              e1' = elim b s1 e1
+              e2' = elim b s1 e2
+              e3' = elim b s1 e3
+          in Imply t1 t2' (M e1' e2' e3')
         helper b s1 t = t
         
             

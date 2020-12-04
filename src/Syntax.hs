@@ -71,7 +71,7 @@ data Exp
   | App Exp Exp -- ^ Function application.
   | AppP Exp Exp -- ^ Parameter application.
   | AppDict Exp Exp -- ^ Dictionary application.
-  | Imply [Exp] Exp -- ^ Constraint types.
+  | Imply [Exp] Exp Modality -- ^ Constraint types.
   | LamDict (Bind [Variable] Exp) -- ^ Dictionary abstraction.
   | Tensor Exp Exp -- ^ Tensor product.
   | Pair Exp Exp
@@ -103,7 +103,7 @@ data Exp
     -- Dependent types
   | Pi (Bind [Variable] Exp) Exp Modality -- ^ Linear dependent types.
   | PiInt (Bind [Variable] Exp) Exp -- ^ Intuitionistic dependent types.
-  | PiImp (Bind [Variable] Exp) Exp -- ^ Implicit dependent types.
+  | PiImp (Bind [Variable] Exp) Exp Modality -- ^ Implicit dependent types.
   | LamDep (Bind [Variable] Exp)
   -- ^ Linear dependent lambda abstraction (abstracting term).
   | LamDepInt (Bind [Variable] Exp)
@@ -349,12 +349,12 @@ instance Disp Exp where
       , text "->'"
       , dParen flag (precedence a - 1) t2
       ]
-  display flag (Imply [] t2) = display flag t2
-  display flag a@(Imply t1 t2) =
+  -- display flag (Imply [] t2) = display flag t2
+  display flag a@(Imply t1 t2 mod) =
     fsep
       [ parens (fsep $ punctuate comma $ map (display flag) t1)
       , text "=>"
-      , nest 2 $ display flag t2
+      , display flag mod, nest 2 $ display flag t2
       ]
   display flag Set = text "Type"
   display flag Sort = text "Sort"
@@ -383,14 +383,14 @@ instance Disp Exp where
                      <+> display flag t) <+> text "->"
         , display flag m, nest 2 $ display flag b
         ]
-  display flag (PiImp bd t) =
+  display flag (PiImp bd t m) =
     open bd $ \vs b ->
       fsep
         [ braces
             ((hsep $ map (display flag) vs) <+> text ":" <+>
                      display flag t) <+>
           text "->"
-        , nest 2 $ display flag b
+        , display flag m, nest 2 $ display flag b
         ]
   display flag (PiInt bd t) =
     open bd $ \vs b ->

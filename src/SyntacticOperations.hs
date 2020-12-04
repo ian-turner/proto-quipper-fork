@@ -37,8 +37,8 @@ removeVacuousPi (Forall (Abst xs m) ty) =
 
 -- Currently there should be no way to construct a vacuous
 -- implicit Pi. 
-removeVacuousPi (PiImp (Abst xs m) ty) =
- PiImp (abst xs $ removeVacuousPi m) (removeVacuousPi ty)
+removeVacuousPi (PiImp (Abst xs m) ty mod) =
+ PiImp (abst xs $ removeVacuousPi m) (removeVacuousPi ty) mod
 
 removeVacuousPi (Pi (Abst xs m) ty mod) =
   let fvs = getVars All m
@@ -58,8 +58,8 @@ removeVacuousPi (Pi (Abst xs m) ty mod) =
 removeVacuousPi (Arrow ty1 ty2 mod) =
   Arrow (removeVacuousPi ty1) (removeVacuousPi ty2) mod
 
-removeVacuousPi (Imply ps ty2) =
-  Imply ps (removeVacuousPi ty2)
+removeVacuousPi (Imply ps ty2 mod) =
+  Imply ps (removeVacuousPi ty2) mod
 
 removeVacuousPi (Bang ty m) = Bang (removeVacuousPi ty) m
 removeVacuousPi a = a
@@ -79,7 +79,7 @@ vacuousForall (Pi (Abst vs m) ty mod) | otherwise =
     Nothing -> vacuousForall m
     Just p -> Just p
 
-vacuousForall (PiImp bds ty) =
+vacuousForall (PiImp bds ty mod) =
   open bds $ \ vs m ->
    let fvs = getVars NoImply m
        vs' = S.fromList vs
@@ -91,7 +91,7 @@ vacuousForall (PiImp bds ty) =
       else let diff = S.distinctElems $ difference' vs' fvs in
              Just (Nothing, diff, ty, m)
 
-vacuousForall (Imply ts t2) = vacuousForall t2
+vacuousForall (Imply ts t2 _) = vacuousForall t2
 vacuousForall (Bang t2 _) = vacuousForall t2
 vacuousForall (Forall bds ty) =
   open bds $ \ vs m ->
@@ -177,9 +177,12 @@ getVars b (Arrow ty tm mod) =
 getVars b (ArrowP ty tm) =
   getVars b ty `S.union` getVars b tm  
 
-getVars NoImply (Imply ty tm) = getVars NoImply tm
+getVars NoImply (Imply ty tm _) = getVars NoImply tm
 
-getVars b (Imply ty tm) =
+getVars ModVars (Imply ty tm mod) =
+  getBVars mod `S.union` getVars ModVars tm
+
+getVars b (Imply ty tm _) =
   (S.unions $ map (getVars b) ty) `S.union` getVars b tm
 
 getVars ModVars (Bang t m) =
@@ -195,7 +198,11 @@ getVars b (Pi bind t _) =
   getVars b t `S.union`
   (open bind $ \ xs m -> getVars b m `difference'` S.fromList xs)
 
-getVars b (PiImp bind t) =
+getVars b@ModVars (PiImp bind t mod) =
+  getBVars mod `S.union` getVars b t `S.union`
+  (open bind $ \ xs m -> getVars b m)
+
+getVars b (PiImp bind t _) =
   getVars b t `S.union`
   (open bind $ \ xs m -> getVars b m `difference'` S.fromList xs)
   
@@ -361,16 +368,16 @@ flattenArrows (ArrowP t1 t2) =
 flattenArrows (Pi (Abst vs t2) t1 _) = 
   let (res, h) = flattenArrows t2 in
   (map (\ x -> (Just x, t1)) vs ++ res, h)
-flattenArrows (PiImp (Abst vs t2) t1) = 
+flattenArrows (PiImp (Abst vs t2) t1 _) = 
   let (res, h) = flattenArrows t2 in
   (map (\ x -> (Just x, t1)) vs ++ res, h)
   
 flattenArrows (PiInt (Abst vs t2) t1) = 
   let (res, h) = flattenArrows t2 in
   (map (\ x -> (Just x, t1)) vs ++ res, h)  
-flattenArrows (Imply t1 t2) =
+flattenArrows (Imply t1 t2 _) =
   let (res, h) = flattenArrows t2 in
-  ((map (\ x -> (Nothing, x)) t1)++ res, h)  
+  ((map (\ x -> (Nothing, x)) t1) ++ res, h)  
 flattenArrows a = ([], a)  
 
 
@@ -382,7 +389,7 @@ removePrefixes flag (Forall bd ty) =
   let vs' = map (\ x -> (Just x, ty)) vs
       (xs, m') = removePrefixes flag m
   in (vs' ++ xs, m')
-removePrefixes flag (Imply bd ty) | flag =
+removePrefixes flag (Imply bd ty _) | flag =
   let vs' = map (\ x -> (Nothing, x)) bd
       (xs, m') = removePrefixes flag ty
   in (vs' ++ xs, m')
@@ -476,7 +483,7 @@ erasePos (WithType e1 e2) = WithType (erasePos e1) (erasePos e2)
 erasePos (Pair e1 e2) = Pair (erasePos e1) (erasePos e2)
 erasePos (Arrow e1 e2 m) = Arrow (erasePos e1) (erasePos e2) m
 erasePos (ArrowP e1 e2) = ArrowP (erasePos e1) (erasePos e2)
-erasePos (Imply e1 e2) = Imply (map erasePos e1) (erasePos e2)
+erasePos (Imply e1 e2 m) = Imply (map erasePos e1) (erasePos e2) m
 erasePos (Bang e m) = Bang (erasePos e) m
 erasePos (UnBox) = UnBox
 erasePos (Reverse) = Reverse
@@ -491,8 +498,8 @@ erasePos (Force e) = Force $ erasePos e
 erasePos (ForceP e) = ForceP $ erasePos e
 erasePos (Circ e1 e2 m) = Circ (erasePos e1) (erasePos e2) m
 erasePos (Pi (Abst vs b) e m) = Pi (abst vs (erasePos b)) (erasePos e) m
-erasePos (PiImp (Abst vs b) e) =
-  PiImp (abst vs (erasePos b)) (erasePos e)
+erasePos (PiImp (Abst vs b) e m) =
+  PiImp (abst vs (erasePos b)) (erasePos e) m
 
 erasePos (PiInt (Abst vs b) e) =
   PiInt (abst vs (erasePos b)) (erasePos e)
@@ -515,6 +522,7 @@ erasePos (LamDep (Abst vs b)) = LamDep (abst vs (erasePos b))
 erasePos (LamDepTy (Abst vs b)) = LamDepTy (abst vs (erasePos b)) 
 erasePos (LamType (Abst vs b)) = LamType (abst vs (erasePos b))
 erasePos (LamDict (Abst vs b)) = LamDict (abst vs (erasePos b))
+
 erasePos (Let m (Abst vs b)) = Let (erasePos m) (abst vs (erasePos b)) 
 erasePos (LetPair m (Abst xs b)) =
   LetPair (erasePos m) (abst xs (erasePos b)) 
@@ -625,6 +633,7 @@ isExplicit s (Lam bind) =
 isExplicit s (LamAnn ty bind) =
   open bind $
   \ ys m -> isExplicit s m
+
 isExplicit s (LamAnnP ty bind) =
   open bind $
   \ ys m -> isExplicit s m
@@ -874,12 +883,13 @@ noModEq (AppDepTy x1 x2) (AppDepTy y1 y2) =
   
 noModEq (Tensor x1 x2) (Tensor y1 y2) =
   (noModEq x1 y1) && (noModEq x2 y2)
+
 noModEq (Exists (Abst a x1) x2) (Exists (Abst b y1) y2) =
   (noModEq (apply [(a, Var b)] x1) y1) && (noModEq x2 y2)  
 noModEq (Pair x1 x2) (Pair y1 y2) =
   (noModEq x1 y1) && (noModEq x2 y2)
 
-noModEq (Imply x1 x2) (Imply y1 y2) =
+noModEq (Imply x1 x2 _) (Imply y1 y2 _) =
   (and $ zipWith noModEq x1 y1) && (noModEq x2 y2)
 noModEq (Bang x1 x2) (Bang y1 y2) =
   noModEq x1 y1
@@ -889,6 +899,7 @@ noModEq (ForceP x1) (ForceP y1) =
 
 noModEq (Force x1) (Force y1) =
   noModEq x1 y1
+
 noModEq (Lift x1) (Lift y1) =
   noModEq x1 y1
 
@@ -906,7 +917,7 @@ noModEq (PiInt (Abst as x1) x2) (PiInt (Abst bs y1) y2) =
   let sub = zip as (map Var bs) 
   in (noModEq (apply sub x1) y1) && (noModEq x2 y2)  
 
-noModEq (PiImp (Abst as x1) x2) (PiImp (Abst bs y1) y2) =
+noModEq (PiImp (Abst as x1) x2 _) (PiImp (Abst bs y1) y2 _) =
   let sub = zip as (map Var bs) 
   in (noModEq (apply sub x1) y1) && (noModEq x2 y2)  
 
@@ -1064,10 +1075,10 @@ deMeta vars (ArrowP e1 e2) =
       e2' = (deMeta vars e2)
   in ArrowP e1' e2'
 
-deMeta vars (Imply e1 e2) =
+deMeta vars (Imply e1 e2 mod) =
   let e1' = map (deMeta vars) e1
       e2' = deMeta vars e2
-  in Imply e1' e2'
+  in Imply e1' e2' mod
 
 deMeta vars (Bang e m) = Bang (deMeta vars e) m
 deMeta vars (UnBox) = UnBox
@@ -1182,11 +1193,11 @@ deMeta vars (Pi bd ty mod) =
        ty' = deMeta vars ty
    in Pi (abst xs m') ty' mod
 
-deMeta vars (PiImp bd ty) =
+deMeta vars (PiImp bd ty mod) =
   open bd $ \ xs m ->
    let m' = deMeta (xs ++ vars) m
        ty' = deMeta vars ty
-   in PiImp (abst xs m') ty'
+   in PiImp (abst xs m') ty' mod
 
 deMeta vars (PiInt bd ty) =
   open bd $ \ xs m ->

@@ -58,10 +58,10 @@ substitute s (ArrowP t t') =
   let t1' = substitute s t
       t2' = substitute s t'
    in ArrowP t1' t2'
-substitute s (Imply t t') =
+substitute s (Imply t t' mod) =
   let t1' = map (substitute s) t
       t2' = substitute s t'
-   in Imply t1' t2'
+   in Imply t1' t2' mod
 substitute s (Tensor t t') =
   let t1' = substitute s t
       t2' = substitute s t'
@@ -73,8 +73,8 @@ substitute s (Circ t t' m) =
 substitute s (Bang t m) = Bang (substitute s t) m
 substitute s (Pi bind t mod) =
   open bind $ \ys m -> Pi (abst ys (substitute s m)) (substitute s t) mod
-substitute s (PiImp bind t) =
-  open bind $ \ys m -> PiImp (abst ys (substitute s m)) (substitute s t)
+substitute s (PiImp bind t mod) =
+  open bind $ \ys m -> PiImp (abst ys (substitute s m)) (substitute s t) mod
 substitute s (PiInt bind t) =
   open bind $ \ys m -> PiInt (abst ys (substitute s m)) (substitute s t)
 substitute s (Exists bind t) =
