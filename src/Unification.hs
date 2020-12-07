@@ -220,21 +220,29 @@ unify b (AppTm t1 t2) (AppTm t3 t4) =
                  (substitute sub $ bSubstitute bsub t4)
        else return a
 
-unify b (Imply [] t2) (Imply [] t4) =
-  unify b t2 t2
-  
-unify b (Imply (t1:ts1) t2) (Imply (t3:ts3) t4) =
-  do r <- unify b t1 t3
-     if r == Success
-       then do (sub, bsub) <- get
-               let ts1' =
-                     map (\x -> substitute sub $ bSubstitute bsub x) ts1
-                   ts3' =
-                     map (\x -> substitute sub $ bSubstitute bsub x) ts3
-                   t2' = substitute sub $ bSubstitute bsub t2
-                   t4' = substitute sub $ bSubstitute bsub t4
-               unify b (Imply ts1' t2') (Imply ts3' t4')
-       else return UnifError
+unify b (Imply [] t2 mod1) (Imply [] t4 mod2) =
+  case modeResolution b mod1 mod2 of 
+    Just bsub'@(bsub1', bsub2', bsub3') -> 
+      do (sub, (bsub1, bsub2, bsub3)) <- get
+         let new = (mergeModeSubst bsub1' bsub1,
+                    mergeModeSubst bsub2' bsub2,
+                    mergeModeSubst bsub3' bsub3)
+             sub' = Map.map (\ x -> bSubstitute new x) sub
+         put (sub', new)
+         unify b (bSubstitute new t2) (bSubstitute new t4)
+   
+unify b (Imply (t1:ts1) t2 mod1) (Imply (t3:ts3) t4 mod2) = do
+         r <- unify b t1 t3
+         if r == Success
+         then do (sub, bsub) <- get
+                 let ts1' =
+                          map (\x -> substitute sub $ bSubstitute bsub x) ts1
+                     ts3' =
+                          map (\x -> substitute sub $ bSubstitute bsub x) ts3
+                     t2' = substitute sub $ bSubstitute bsub t2
+                     t4' = substitute sub $ bSubstitute bsub t4
+                 unify b (Imply ts1' t2' mod1) (Imply ts3' t4' mod2)
+         else return UnifError
     
 unify b t t' = return UnifError
 

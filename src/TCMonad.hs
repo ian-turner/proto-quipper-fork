@@ -305,7 +305,7 @@ isParam (Tensor t t') = do
   return $ r1 && r2
 isParam (ArrowP t t') = return True
 isParam (PiInt (Abst x t) ty) = return True
-isParam (Imply xs t) = isParam t
+isParam (Imply xs t _) = isParam t
 isParam (Bang q _) = return True
 isParam (Circ t1 t2 _) = return True
 isParam (Pos _ e) = isParam e
@@ -472,7 +472,7 @@ shape (AppTm t1 t2) = do
 shape (Tensor t1 t2) = Tensor <$> shape t1 <*> shape t2
 shape (Pair t1 t2) = Pair <$> shape t1 <*> shape t2
 shape (Arrow t1 t2 _) = ArrowP <$> shape t1 <*> shape t2
-shape (Imply bds h) = Imply <$> return bds <*> shape h
+shape (Imply bds h m) = Imply <$> return bds <*> shape h <*> return m
 shape (Exists (Abst x t) t2) = do
   t' <- shape t
   t2' <- shape t2
@@ -485,10 +485,10 @@ shape (Pi (Abst x t) t2 _) = do
   t' <- shape t
   t2' <- shape t2
   return $ PiInt (abst x t') t2'
-shape (PiImp (Abst x t) t2) = do
+shape (PiImp (Abst x t) t2 m) = do
   t' <- shape t
   t2' <- shape t2
-  return $ PiImp (abst x t') t2'
+  return $ PiInt (abst x t') t2' 
 shape (Lam (Abst x t)) = do
   t' <- shape t
   return $ LamP (abst x t')
