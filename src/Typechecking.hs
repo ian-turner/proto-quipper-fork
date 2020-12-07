@@ -444,9 +444,10 @@ typeCheck flag a (Forall (Abst xs m) ty) mod = do
       when (isExplicit x ann'') $ throwError $ ImplicitVarErr x ann''
 
 typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
+  mod1' <- updateModality mod1
   let lxs = length xs
       lbd = length bds
-      msubs = modResolution Equal mod1 identityMod
+      msubs = modResolution Equal mod1' identityMod
   when (msubs == Nothing) $ throwError $ ModalityErr mod1 identityMod a
   let Just s' = msubs
   updateModeSubst s'
@@ -469,7 +470,8 @@ typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
           return (Imply bds ty' mod2, LamDict (abst pre a))
 
 typeCheck flag a (Imply bds ty mod2) mod1 = do
-  let msubs = modResolution Equal mod1 identityMod
+  mod1' <- updateModality mod1
+  let msubs = modResolution Equal mod1' identityMod
   when (msubs == Nothing) $ throwError $ ModalityErr mod1 identityMod a
   let Just s' = msubs
   updateModeSubst s'
@@ -498,7 +500,8 @@ typeCheck flag a@(Var _) (Bang ty m) mod =
 
 -- Inserting lift on Bang.
 typeCheck flag a (Bang ty m) mod = do
-  let msubs = modResolution Equal mod identityMod
+  mod' <- updateModality mod
+  let msubs = modResolution Equal mod' identityMod
   when (msubs == Nothing) $ throwError $ ModalityErr mod identityMod a
   let Just s' = msubs
   updateModeSubst s'
@@ -664,15 +667,21 @@ typeCheck flag a@(Pair t1 t2) (Exists p ty) mod =
           return (Exists p ty', Pair ann1 ann2)
 
 
-typeCheck flag a@(Pair t1 t2) d =
+typeCheck flag a@(Pair t1 t2) d mod =
   do sd <- updateWithSubst d
      ns <- newNames ["#unif", "#unif"]
      case erasePos sd of
        Tensor ty1 ty2 ->
-         do (ty1', t1', mode1) <- typeCheck flag t1 ty1
-            (ty2', t2', mode2) <- typeCheck flag t2 ty2
-            return (Tensor ty1' ty2', Pair t1' t2',
-                    modalAnd mode1 mode2)
+         do (ty1', t1') <- typeCheck flag t1 ty1 mod
+            mod' <- updateModality mod
+            let msubs = modResolution Equal mod' identityMod
+                mod2 = case msubs of
+                          Nothing -> mod
+                          _ -> identityMod
+
+            (ty2', t2') <- typeCheck flag t2 ty2 mod2
+            return (Tensor ty1' ty2', Pair t1' t2')
+                    
        b -> freshNames ns $ \ (x1:x2:[]) ->
          do let ty = Tensor (MetaVar x1) (MetaVar x2)
                 (res, (s, bs)) = runUnify GEq sd ty
@@ -1239,8 +1248,10 @@ addAnn flag mode e a (Imply bds ty) env = do
 
 addAnn flag mode e a t env = return (a, t, env, mode)
 
+-- expecting a to be either a Const or Var
 handleBangConstVar flag a (Bang ty2 m2) mod = do
-  let msubs = modResolution Equal mod identityMod
+  mod' <- updateModality mod
+  let msubs = modResolution Equal mod' identityMod
   when (msubs == Nothing) $ throwError $ ModalityErr mod identityMod a
   let Just s' = msubs
   updateModeSubst s'
@@ -1268,9 +1279,11 @@ handleBangValue flag a ty1@(Bang ty m) = do
       tym' <- updateWithSubst tym
       case erasePos tym' of
         tym1@(Bang _ _) -> do
-          (unifRes, (s, bs)) <- normalizeUnif GEq tym1 ty1
+          tym1' <- updateWithModeSubst tym1
+          ty1' <- updateWithModeSubst typ1
+          (unifRes, (s, bs)) <- normalizeUnif GEq tym1' ty1'
           case unifRes of
-            UnifError -> throwError $ NotEq a ty1 tym1
+            UnifError -> throwError $ NotEq a ty1' tym1'
             ModeError p1 p2 ->
               throwError $ ModalityGEqErr a ty1 tym1 p1 p2
             Success -> do
