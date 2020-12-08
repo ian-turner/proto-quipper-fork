@@ -309,14 +309,14 @@ typeCheck True (Arrow ty1 ty2 mod) Set cm = do
   (_, ty2') <- typeCheck True ty2 Set cm
   return (Set, Arrow ty1' ty2' mod)
 
-typeCheck True (Imply tys ty2) Set m = do
+typeCheck True (Imply tys ty2 mod) Set m = do
   res <- mapM (\x -> typeCheck True x Set m) tys
   let tys1 = map (\(x, y) -> y) res
   mapM checkClass tys1
   updateParamInfo tys1
   updateSimpleInfo tys1
   (_, ty2') <- typeCheck True ty2 Set m
-  return (Set, Imply tys1 ty2')
+  return (Set, Imply tys1 ty2' mod)
 
 typeCheck True (Tensor ty1 ty2) Set m = do
   (_, ty1') <- typeCheck True ty1 Set m
@@ -341,7 +341,7 @@ typeCheck True (Pi (Abst xs m) ty mod) Set cm = do
   mapM_ removeVar xs
   return (Set, res)
 
-typeCheck True pty@(PiImp (Abst xs m) ty) Set mod = do
+typeCheck True pty@(PiImp (Abst xs m) ty mod2) Set mod = do
   isP <- isParam ty
   when (not isP) $ throwError $ ForallLinearErr xs ty pty
   (_, tyAnn) <-
@@ -352,7 +352,7 @@ typeCheck True pty@(PiImp (Abst xs m) ty) Set mod = do
   (_, ann2) <- typeCheck True m Set mod
   ann2' <- updateWithSubst ann2
   ann2'' <- resolveGoals ann2'
-  let res = PiImp (abst xs ann2'') tyAnn 
+  let res = PiImp (abst xs ann2'') tyAnn mod2
   mapM_ removeVar xs
   return (Set, res)
 
@@ -447,7 +447,7 @@ typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
   mod1' <- updateModality mod1
   let lxs = length xs
       lbd = length bds
-      msubs = modResolution Equal mod1' identityMod
+      msubs = modeResolution Equal mod1' identityMod
   when (msubs == Nothing) $ throwError $ ModalityErr mod1 identityMod a
   let Just s' = msubs
   updateModeSubst s'
@@ -471,7 +471,7 @@ typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
 
 typeCheck flag a (Imply bds ty mod2) mod1 = do
   mod1' <- updateModality mod1
-  let msubs = modResolution Equal mod1' identityMod
+  let msubs = modeResolution Equal mod1' identityMod
   when (msubs == Nothing) $ throwError $ ModalityErr mod1 identityMod a
   let Just s' = msubs
   updateModeSubst s'
@@ -501,15 +501,15 @@ typeCheck flag a@(Var _) (Bang ty m) mod =
 -- Inserting lift on Bang.
 typeCheck flag a (Bang ty m) mod = do
   mod' <- updateModality mod
-  let msubs = modResolution Equal mod' identityMod
+  let msubs = modeResolution Equal mod' identityMod
   when (msubs == Nothing) $ throwError $ ModalityErr mod identityMod a
   let Just s' = msubs
   updateModeSubst s'
   handleBangValue flag a (Bang ty m) 
 
 typeCheck False c@(Lam bind) t mod = do
-  let msubs = modResolution Equal mod identityMod
-  when (msubs == Nothing) $ throwError $ ModalityErr mod identityMod a
+  let msubs = modeResolution Equal mod identityMod
+  when (msubs == Nothing) $ throwError $ ModalityErr mod identityMod c
   let Just s' = msubs
   updateModeSubst s'
   mod' <- updateModality mod
@@ -517,7 +517,7 @@ typeCheck False c@(Lam bind) t mod = do
   handleFunctions at c t
   where
     handleFunctions at _ t
-      | not (at == t) = typeCheck False c at mod'
+      | not (at == t) = typeCheck False c at mod
     handleFunctions (Arrow t1 t2 mod1) c@(Lam bind) t =
       open bind $ \xs m ->
         case xs of
@@ -674,11 +674,11 @@ typeCheck flag a@(Pair t1 t2) d mod =
        Tensor ty1 ty2 ->
          do (ty1', t1') <- typeCheck flag t1 ty1 mod
             mod' <- updateModality mod
-            let msubs = modResolution Equal mod' identityMod
-                mod2 = case msubs of
-                          Nothing -> mod
-                          _ -> identityMod
-
+            let msubs = modeResolution Equal mod' identityMod
+            mod2 <- case msubs of
+                          Nothing -> return mod'
+                          Just s' ->
+                            updateModeSubst s' >> return identityMod
             (ty2', t2') <- typeCheck flag t2 ty2 mod2
             return (Tensor ty1' ty2', Pair t1' t2')
                     
@@ -693,31 +693,54 @@ typeCheck flag a@(Pair t1 t2) d mod =
                    updateModeSubst bs
                    let x1' = substitute sub' (MetaVar x1)
                        x2' = substitute sub' (MetaVar x2)
-                   (x1'', t1', mode1) <- typeCheck flag t1 x1'
-                   (x2'', t2', mode2) <- typeCheck flag t2 x2'
+                   (x1'', t1') <- typeCheck flag t1 x1' mod
+                   mod' <- updateModality mod
+                   let msubs = modeResolution Equal mod' identityMod
+                   mod2 <- case msubs of
+                            Nothing -> return mod'
+                            Just s' -> updateModeSubst s' >> return identityMod
+                   (x2'', t2') <- typeCheck flag t2 x2' mod2
                    let res = Pair t1' t2'
-                   return (Tensor x1'' x2'', res, modalAnd mode1 mode2)
+                   return (Tensor x1'' x2'', res)
               UnifError -> throwError (TensorExpErr a b)
               ModeError p1 p2 ->
                 throwError $ ModalityGEqErr a sd ty p1 p2
-                   
-typeCheck flag (Let m bd) goal =
+ 
+typeCheck flag (Let m bd) goal mod =
   do (t', ann, mode) <- typeInfer flag m
      open bd $ \ x t ->
-       do m'' <- shape ann
-          addVarDef x t' m'' 
-          (goal', ann2, mode') <- typeCheck flag t goal
-          checkUsage x t
-          -- If the goal resolution fails,
-          -- delay it for upper level to resolve 
-          ann2' <- (resolveGoals ann2 >>= updateWithSubst)
-                       `catchError` \ e -> return ann2
-          removeVar x
-          let res = Let ann (abst x ann2')
-          return (goal', res, modalAnd mode mode')
+       do mode' <- updateModality mode
+          let msubs = modeResolution Equal mode' identityMod
+          case msubs of
+            Nothing ->
+              freshNames ["#alpha", "#beta", "#gamma"] $
+              \ [alpha, beta, gamma] ->
+              do let freshMode = M (BVar alpha) (BVar beta) (BVar gamma)
+                 (goal', ann2) <- typeCheck flag t goal freshMode
+                 checkUsage x t
+                 -- If the goal resolution fails,
+                 -- delay it for upper level to resolve 
+                 ann2' <- (resolveGoals ann2 >>= updateWithSubst)
+                             `catchError` \ e -> return ann2
+                 removeVar x
+                 let res = Let ann (abst x ann2')
+                 return (goal', res)
+            Just s' -> 
+              do updateModeSubst s' 
+                 m'' <- shape ann
+                 addVarDef x t' m'' 
+                 (goal', ann2) <- typeCheck flag t goal mod
+                 checkUsage x t
+                 -- If the goal resolution fails,
+                 -- delay it for upper level to resolve 
+                 ann2' <- (resolveGoals ann2 >>= updateWithSubst)
+                            `catchError` \ e -> return ann2
+                 removeVar x
+                 let res = Let ann (abst x ann2')
+                 return (goal', res)
 
 
-typeCheck flag (LetPair m (Abst xs n)) goal =
+typeCheck flag (LetPair m (Abst xs n)) goal mod =
   do (t', ann, mode1) <- typeInfer flag m
      at <- updateWithSubst t'
      case at of
@@ -776,7 +799,7 @@ typeCheck flag (LetPair m (Abst xs n)) goal =
                             return (goal', res, modalAnd mode1' mode2)
 
                 
-typeCheck flag a@(LetPat m bd) goal =
+typeCheck flag a@(LetPat m bd) goal mod =
   do (tt, ann, mode1) <- typeInfer flag m
      ss <- getSubst
      let t' = substitute ss tt
@@ -830,7 +853,7 @@ typeCheck flag a@(LetPat m bd) goal =
                  _ -> Left (NoBind r)
 
 
-typeCheck flag a@(Case tm (B brs)) goal =
+typeCheck flag a@(Case tm (B brs)) goal mod =
   do (t, ann, mode1) <- typeInfer flag tm
      at <- updateWithSubst t
      let t' = flatten at
@@ -919,22 +942,24 @@ typeCheck flag a@(Case tm (B brs)) goal =
                       mapM removeLocalInst ins
                       return (goal''', abst (PApp kid axs') ann2', mode')
 
-typeCheck flag a@(Const x) ty = inferAddAnn flag a ty
-typeCheck flag a@(Var x) ty = inferAddAnn flag a ty
-typeCheck flag a@(App _ _) ty = inferAddAnn flag a ty
-typeCheck flag a ty
-  | isBuildIn a = inferAddAnn flag a ty
-typeCheck flag tm ty = equality flag tm ty
+typeCheck flag a@(Const x) ty mod = inferAddAnn flag a ty
+typeCheck flag a@(Var x) ty mod = inferAddAnn flag a ty
+typeCheck flag a@(App _ _) ty mod = inferAddAnn flag a ty
+typeCheck flag a ty mod
+  | isBuildIn a = inferAddAnn flag a ty mod
+typeCheck flag tm ty mod = equality flag tm ty mod
 
 -- equality flag tm ty | trace ("eq:" ++ (show $ disp tm)) $ False = undefined
-equality flag tm ty =
+equality flag tm ty mod =
   do ty' <- updateWithSubst ty
-     if not (ty == ty') then typeCheck flag tm ty'
+     if not (ty == ty') then typeCheck flag tm ty' mod
        else 
        do (tym, ann, mode) <- typeInfer flag tm
           tym1 <- updateWithSubst tym
           ty1 <- updateWithSubst ty'
-          (unifRes, (sub, bs)) <- normalizeUnif GEq tym1 ty1
+          tym1' <- updateWithModeSubst tym1
+          ty1' <-  updateWithModeSubst ty1
+          (unifRes, (sub, bs)) <- normalizeUnif GEq tym1' ty1'
           case unifRes of
              UnifError ->
                throwError $ withPosition tm (UnifErr tym1 ty1)
@@ -948,8 +973,8 @@ equality flag tm ty =
                st <- get
                let msub = modeSubstitution st
                ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
-               mode' <- updateModality mode
-               return (ty1', ann, mode')
+               -- mode' <- updateModality mode
+               return (ty1', ann)
 
           
           
@@ -1257,7 +1282,7 @@ handleBangConstVar flag a (Bang ty2 m2) mod = do
   updateModeSubst s'
   (ty', _, _) <- typeInfer flag a
   case ty' of
-    Bang ty1 m1 -> equality flag a (Bang ty2 m2)
+    Bang ty1 m1 -> equality flag a (Bang ty2 m2) 
     _ -> handleBangValue flag a (Bang ty2 m2)
 
 handleBangValue flag a ty1@(Bang ty m) = do
