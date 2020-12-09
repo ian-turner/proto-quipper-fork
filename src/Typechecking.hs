@@ -448,7 +448,7 @@ typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
   let lxs = length xs
       lbd = length bds
       msubs = modeResolution Equal mod1' identityMod
-  when (msubs == Nothing) $ throwError $ ModalityErr mod1 identityMod a
+  when (msubs == Nothing) $ throwError $ ModalityErr mod1' identityMod a
   let Just s' = msubs
   updateModeSubst s'
   if lxs <= lbd
@@ -472,7 +472,7 @@ typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
 typeCheck flag a (Imply bds ty mod2) mod1 = do
   mod1' <- updateModality mod1
   let msubs = modeResolution Equal mod1' identityMod
-  when (msubs == Nothing) $ throwError $ ModalityErr mod1 identityMod a
+  when (msubs == Nothing) $ throwError $ ModalityErr mod1' identityMod a
   let Just s' = msubs
   updateModeSubst s'
   let ns1 = take (length bds) (repeat "#inst")
@@ -500,19 +500,14 @@ typeCheck flag a@(Var _) (Bang ty m) mod =
 
 -- Inserting lift on Bang.
 typeCheck flag a (Bang ty m) mod = do
-  mod' <- updateModality mod
-  let msubs = modeResolution Equal mod' identityMod
-  when (msubs == Nothing) $ throwError $ ModalityErr mod identityMod a
-  let Just s' = msubs
-  updateModeSubst s'
-  handleBangValue flag a (Bang ty m) 
+  handleBangValue flag a (Bang ty m) mod
 
 typeCheck False c@(Lam bind) t mod = do
-  let msubs = modeResolution Equal mod identityMod
-  when (msubs == Nothing) $ throwError $ ModalityErr mod identityMod c
+  mod' <- updateModality mod
+  let msubs = modeResolution Equal mod' identityMod
+  when (msubs == Nothing) $ throwError $ ModalityErr mod' identityMod c
   let Just s' = msubs
   updateModeSubst s'
-  mod' <- updateModality mod
   at <- updateWithSubst t
   handleFunctions at c t
   where
@@ -656,17 +651,27 @@ typeCheck False c@(Lam bind) t mod = do
       throwError $ withPosition l $ LamErr l ty
       
 typeCheck flag a@(Pair t1 t2) (Exists p ty) mod =
-  do (ty', ann1) <- typeCheck flag t1 ty identityMod
+  do let mode1 = freshMode2 ["y", "z"]
+         mode2 = freshMode ["u", "v", "w"]
+     (ty', ann1) <- typeCheck flag t1 ty mode1
      open p $ \ x t ->
        do t1 <- shape ann1
           let t' = apply [(x, t1)] t
-          (p', ann2) <- typeCheck flag t2 t' mod
+          (p', ann2) <- typeCheck flag t2 t' mode2
+          mode1' <- updateModality mode1
+          mode2' <- updateModality mode2
+          mod' <- updateModality mod
+          let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+          when (s == Nothing) $ throwError $
+                  ModalityErr (modalAnd mode1' mode2') mod' a
+          let Just s'@(s1, s2, s3) = s
+          updateModeSubst s'     
           -- t' is an instance of t, it does not contain x anymore,
           -- hence the return type should be Exists p ty', not
           -- Exists (abst x p') ty'
           return (Exists p ty', Pair ann1 ann2)
 
-
+ 
 typeCheck flag a@(Pair t1 t2) d mod =
   do sd <- updateWithSubst d
      let mode1 = freshMode ["a", "b", "c"]
@@ -1289,30 +1294,36 @@ addAnn flag mode e a t env = return (a, t, env, mode)
 handleBangConstVar flag a (Bang ty2 m2) mod = do
   mod' <- updateModality mod
   let msubs = modResolution Equal mod' identityMod
-  when (msubs == Nothing) $ throwError $ ModalityErr mod identityMod a
+  when (msubs == Nothing) $ throwError $ ModalityErr mod' identityMod a
   let Just s' = msubs
   updateModeSubst s'
   (ty', _, _) <- typeInfer flag a
   case ty' of
     Bang ty1 m1 -> equality flag a (Bang ty2 m2) 
-    _ -> handleBangValue flag a (Bang ty2 m2)
+    _ -> handleBangValue flag a (Bang ty2 m2) mod
 
-handleBangValue flag a ty1@(Bang ty m) = do
+handleBangValue flag a ty1@(Bang ty m) mod = do
   r <- isValue a
+  mod' <- updateModality mod
   if r
     then do
       checkParamCxt a
       (t, ann) <- typeCheck flag a ty m
-      -- let s = modeResolution GEq cMode m
-      -- when (s == Nothing) $ throwError $ ModalityErr cMode m a
-      -- let Just s'@(s1, s2, s3) = s
-      -- updateModeSubst s'
+      let s = modeResolution Equal mod' identityMod
+      when (s == Nothing) $ throwError $ ModalityErr mod' identityMod a
+      let Just s'@(s1, s2, s3) = s
+      updateModeSubst s'
       m' <- updateModality m
       t' <- updateWithModeSubst t
       return (Bang t' (simplify m'), Lift ann)
     else do
       checkParamCxt a
       (tym, ann, cMode) <- typeInfer flag a
+      cMode' <- updateModality cMode
+      let s = modeResolution Equal cMode' mod' 
+      when (s == Nothing) $ throwError $ ModalityErr cMode' mod' a
+      let Just s'@(s1, s2, s3) = s
+      updateModeSubst s'     
       tym' <- updateWithSubst tym
       case erasePos tym' of
         tym1@(Bang _ _) -> do
@@ -1329,7 +1340,6 @@ handleBangValue flag a ty1@(Bang ty m) = do
               updateSubst sub'
               updateModeSubst bs
               ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
-              -- mode' <- updateModality cMode
               return (ty1', ann)
         _ -> throwError $ BangValue a (Bang ty m)
 

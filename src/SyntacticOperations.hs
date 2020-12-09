@@ -836,6 +836,11 @@ freshMode s =
   freshNames (take 3 s) $
   \ [x, y, z] -> M (BVar x) (BVar y) (BVar z)
 
+freshMode2 :: [String] -> Modality
+freshMode2 s =
+  freshNames (take 2 s) $
+  \ [y, z] -> M (BConst True) (BVar y) (BVar z)
+
 -- | Bind all the free mod variables.
 abstractMode :: Exp -> Exp
 abstractMode e =
