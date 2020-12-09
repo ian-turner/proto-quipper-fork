@@ -718,16 +718,24 @@ typeCheck flag a@(Pair t1 t2) d mod =
               ModeError p1 p2 ->
                 throwError $ ModalityGEqErr a sd ty p1 p2
  
-typeCheck flag (Let m bd) goal mod =
+typeCheck flag a@(Let m bd) goal mod =
   do (t', ann, mode) <- typeInfer flag m
      open bd $ \ x t ->
-       do mode' <- updateModality mode
-          let msubs = modeResolution Equal mode' identityMod
+       do mode1@(M alpha beta gamma) <- updateModality mode
+          let msubs = modeResolve Equal alpha (BConst True)
           case msubs of
-            Nothing ->
-              do let freshM = freshMode ["#alpha", "#beta", "#gamma"]
-                 (goal', ann2) <- typeCheck flag t goal freshM
+            [] ->
+              do let mode2 = freshMode ["#alpha", "#beta", "#gamma"]
+                 (goal', ann2) <- typeCheck flag t goal mode2
                  checkUsage x t
+                 mod' <- updateModality mod
+                 mode1' <- updateModality mode1
+                 mode2' <- updateModality mode2
+                 let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+                 when (s == Nothing) $ throwError $
+                    ModalityErr (modalAnd mode1' mode2') mod' a
+                 let Just s'@(s1, s2, s3) = s
+                 updateModeSubst s'     
                  -- If the goal resolution fails,
                  -- delay it for upper level to resolve 
                  ann2' <- (resolveGoals ann2 >>= updateWithSubst)
@@ -735,12 +743,21 @@ typeCheck flag (Let m bd) goal mod =
                  removeVar x
                  let res = Let ann (abst x ann2')
                  return (goal', res)
-            Just s' -> 
-              do updateModeSubst s' 
+            s':_ -> 
+              do updateModeSubst (s', [], [])
                  m'' <- shape ann
-                 addVarDef x t' m'' 
-                 (goal', ann2) <- typeCheck flag t goal mod
+                 addVarDef x t' m''
+                 let mode2 = freshMode ["#alpha", "#beta", "#gamma"]
+                 (goal', ann2) <- typeCheck flag t goal mode2
                  checkUsage x t
+                 mod' <- updateModality mod
+                 mode1' <- updateModality mode1
+                 mode2' <- updateModality mode2
+                 let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+                 when (s == Nothing) $ throwError $
+                     ModalityErr (modalAnd mode1' mode2') mod' a
+                 let Just s'@(s1, s2, s3) = s
+                 updateModeSubst s'     
                  -- If the goal resolution fails,
                  -- delay it for upper level to resolve 
                  ann2' <- (resolveGoals ann2 >>= updateWithSubst)
@@ -750,42 +767,54 @@ typeCheck flag (Let m bd) goal mod =
                  return (goal', res)
 
 
-typeCheck flag (LetPair m (Abst xs n)) goal mod =
+typeCheck flag a@(LetPair m (Abst xs n)) goal mod =
   do (t', ann, mode1) <- typeInfer flag m
      at <- updateWithSubst t'
      mode1' <- updateModality mode1
-     let msubs = modeResolution Equal mod' identityMod
-     mod2 <- case msubs of
-               Nothing -> return mod'
-               Just s' ->
-                   updateModeSubst s' >> return identityMod
-
      case at of
        Exists (Abst x1 b') t1 ->
          do when (length xs /= 2) $ throwError $ ArityExistsErr at xs
             let (x:y:[]) = xs
                 b = n
+                mode2 = freshMode ["alpha", "beta", "gamma"]
             addVar x t1
             addVar y (apply [(x1, Var x)] b')
-            (goal', ann2, mode2) <- typeCheck flag b goal
+            (goal', ann2) <- typeCheck flag b goal mode2
             ann2' <- updateWithSubst ann2
             ann3 <- resolveGoals ann2'
             checkUsage y b
             checkUsage x b
             removeVar x
             removeVar y
+            mod' <- updateModality mod
+            mode1' <- updateModality mode1
+            mode2' <- updateModality mode2
+            let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+            when (s == Nothing) $ throwError $
+                     ModalityErr (modalAnd mode1' mode2') mod' a
+            let Just s'@(s1, s2, s3) = s
+            updateModeSubst s'     
             let res = LetPair ann (abst [x, y] ann3)
-            return (goal', res, modalAnd mode1 mode2)
+            return (goal', res)
        _ -> case unTensor (length xs) at of
          Just ts ->
            do let env = zip xs ts
+                  mode2 = freshMode ["alpha", "beta", "gamma"]
               mapM (\ (x, t) -> addVar x t) env
-              (goal', ann2, mode2) <- typeCheck flag n goal
+              (goal', ann2) <- typeCheck flag n goal mode2
               mapM (\ (x, t) -> checkUsage x n) env
               mapM removeVar xs
               ann2' <- updateWithSubst ann2
+              mod' <- updateModality mod
+              mode1' <- updateModality mode1
+              mode2' <- updateModality mode2
+              let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+              when (s == Nothing) $ throwError $
+                     ModalityErr (modalAnd mode1' mode2') mod' a
+              let Just s'@(s1, s2, s3) = s
+              updateModeSubst s'     
               let res = LetPair ann (abst xs ann2') 
-              return (goal', res, modalAnd mode1 mode2)
+              return (goal', res)
          Nothing -> do
            nss <- newNames $ map (\ x -> "#unif") xs
            freshNames nss $ \ (h:ns) ->
@@ -804,16 +833,25 @@ typeCheck flag (LetPair m (Abst xs n)) goal mod =
                             updateModeSubst bs
                             let ts' = map (substitute sub') vars
                                 env' = zip xs ts'
+                                mode2 = freshMode ["alpha", "beta", "gamma"]
                             mapM (\ (x, t) -> addVar x t) env'
-                            (goal', ann2, mode2) <-
+                            (goal', ann2) <-
                               typeCheck flag n (bSubstitute bs $
                                                   substitute sub' goal)
+                                                  mode2
                             mapM (\ x -> checkUsage x n) xs
                             mapM removeVar xs
-                            ann2' <- updateWithSubst ann2
+                            mod' <- updateModality mod
                             mode1' <- updateModality mode1
+                            mode2' <- updateModality mode2
+                            let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+                            when (s == Nothing) $ throwError $
+                                  ModalityErr (modalAnd mode1' mode2') mod' a
+                            let Just s'@(s1, s2, s3) = s
+                            updateModeSubst s'     
+                            ann2' <- updateWithSubst ann2
                             let res = LetPair ann (abst xs ann2') 
-                            return (goal', res, modalAnd mode1' mode2)
+                            return (goal', res)
 
                 
 typeCheck flag a@(LetPat m bd) goal mod =
@@ -840,11 +878,20 @@ typeCheck flag a@(LetPat m bd) goal mod =
                  updateSubst sub''
                  updateModeSubst bs
                  let goal' = bSubstitute bs (substitute sub'' goal)
-                 (goal'', ann2, mode2) <- typeCheck flag n goal'
+                     mode2 = freshMode ["alpha", "beta", "gamma"]
+                 (goal'', ann2) <- typeCheck flag n goal' mode2
                  subb <- getSubst
                  mapM (\ (Right v) ->
                          checkUsage v n >>= \ r -> (return (v, r))) vs
                  mapM_ (\ (Right v) -> removeVar v) vs
+                 mod' <- updateModality mod
+                 mode1' <- updateModality mode1
+                 mode2' <- updateModality mode2
+                 let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+                 when (s == Nothing) $ throwError $
+                     ModalityErr (modalAnd mode1' mode2') mod' a
+                 let Just s'@(s1, s2, s3) = s
+                 updateModeSubst s'     
                  -- It is important to update the environment before
                  -- going out of a dependent pattern matching
                  updateLocalInst subb
@@ -853,7 +900,7 @@ typeCheck flag a@(LetPat m bd) goal mod =
                  let axs' =  map (substVar subb) axs
                      goal''' = substitute subb goal''
                      res = LetPat ann (abst (PApp kid axs') ann2')
-                 return (goal''', res, modalAnd mode1 mode2)
+                 return (goal''', res)
      where
            varDep (Var x) goal = isDpmVar x goal
            varDep _ _ = return False
@@ -885,8 +932,16 @@ typeCheck flag a@(Case tm (B brs)) goal mod =
      let brss = map (\ (x, y, z) -> y) r
          ms = map (\ (x, y, z) -> z) r
      updateCountWith exitCase
+     mode1' <- updateModality mode1
+     mod' <- updateModality mod
+     let mode'' = foldr modalAnd mode1' ms
+     let s = modeResolution Equal mode'' mod' 
+     when (s == Nothing) $ throwError $
+        ModalityErr mode'' mod' a
+     let Just s'@(s1, s2, s3) = s
+     updateModeSubst s'     
      let res = Case ann (B brss)
-     return (goal, res, foldr modalAnd mode1 ms)
+     return (goal, res) -- foldr modalAnd mode1 ms
   where makeSub (Var x) s u =
           do u' <- shape $ substitute s u
              return $ s `Map.union` Map.fromList [(x, u')]
@@ -932,7 +987,8 @@ typeCheck flag a@(Case tm (B brs)) goal mod =
                       updateSubst sub''
                       updateModeSubst bs
                       let goal' = bSubstitute bs (substitute sub'' goal)
-                      (goal'', ann2, mode') <- typeCheck flag m goal'
+                          mode = freshMode ["a", "b", "c"]
+                      (goal'', ann2) <- typeCheck flag m goal' mode
                       subb <- getSubst 
                       mapM (\ (Right v) -> checkUsage v m >>=
                                            \ r -> return (v, r)) vs
@@ -957,6 +1013,7 @@ typeCheck flag a@(Case tm (B brs)) goal mod =
                       let axs' = map (substVar subb) axs
                       mapM_ (\ (Right v) -> removeVar v) vs
                       mapM removeLocalInst ins
+                      mode' <- updateModality mode
                       return (goal''', abst (PApp kid axs') ann2', mode')
 
 typeCheck flag a@(Const x) ty mod = inferAddAnn flag a ty
