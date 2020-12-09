@@ -669,20 +669,23 @@ typeCheck flag a@(Pair t1 t2) (Exists p ty) mod =
 
 typeCheck flag a@(Pair t1 t2) d mod =
   do sd <- updateWithSubst d
-     ns <- newNames ["#unif", "#unif"]
+     let mode1 = freshMode ["a", "b", "c"]
+         mode2 = freshMode ["a2", "b2", "c2"]
      case erasePos sd of
        Tensor ty1 ty2 ->
-         do (ty1', t1') <- typeCheck flag t1 ty1 mod
+         do (ty1', t1') <- typeCheck flag t1 ty1 mode1
+            (ty2', t2') <- typeCheck flag t2 ty2 mode2
+            mode1' <- updateModality mode1
+            mode2' <- updateModality mode2
             mod' <- updateModality mod
-            let msubs = modeResolution Equal mod' identityMod
-            mod2 <- case msubs of
-                          Nothing -> return mod'
-                          Just s' ->
-                            updateModeSubst s' >> return identityMod
-            (ty2', t2') <- typeCheck flag t2 ty2 mod2
+            let conj = modalAnd mode1' mode2'
+                msubs = modeResolution Equal mod' conj
+            when (msubs == Nothing) $ throwError $
+                 ModalityErr mod' conj a
+            let Just s' = msubs
+            updateModeSubst s'
             return (Tensor ty1' ty2', Pair t1' t2')
-                    
-       b -> freshNames ns $ \ (x1:x2:[]) ->
+       b -> freshNames ["#unif1", "#unif2"] $ \ (x1:x2:[]) ->
          do let ty = Tensor (MetaVar x1) (MetaVar x2)
                 (res, (s, bs)) = runUnify GEq sd ty
             case res of
@@ -693,13 +696,17 @@ typeCheck flag a@(Pair t1 t2) d mod =
                    updateModeSubst bs
                    let x1' = substitute sub' (MetaVar x1)
                        x2' = substitute sub' (MetaVar x2)
-                   (x1'', t1') <- typeCheck flag t1 x1' mod
+                   (x1'', t1') <- typeCheck flag t1 x1' mode1
+                   (x2'', t2') <- typeCheck flag t2 x2' mode2
+                   mode1' <- updateModality mode1
+                   mode2' <- updateModality mode2
                    mod' <- updateModality mod
-                   let msubs = modeResolution Equal mod' identityMod
-                   mod2 <- case msubs of
-                            Nothing -> return mod'
-                            Just s' -> updateModeSubst s' >> return identityMod
-                   (x2'', t2') <- typeCheck flag t2 x2' mod2
+                   let conj = modalAnd mode1' mode2'
+                       msubs = modeResolution Equal mod' conj
+                   when (msubs == Nothing) $ throwError $
+                     ModalityErr mod' conj a
+                   let Just s' = msubs
+                   updateModeSubst s'
                    let res = Pair t1' t2'
                    return (Tensor x1'' x2'', res)
               UnifError -> throwError (TensorExpErr a b)
@@ -713,10 +720,8 @@ typeCheck flag (Let m bd) goal mod =
           let msubs = modeResolution Equal mode' identityMod
           case msubs of
             Nothing ->
-              freshNames ["#alpha", "#beta", "#gamma"] $
-              \ [alpha, beta, gamma] ->
-              do let freshMode = M (BVar alpha) (BVar beta) (BVar gamma)
-                 (goal', ann2) <- typeCheck flag t goal freshMode
+              do let freshM = freshMode ["#alpha", "#beta", "#gamma"]
+                 (goal', ann2) <- typeCheck flag t goal freshM
                  checkUsage x t
                  -- If the goal resolution fails,
                  -- delay it for upper level to resolve 
@@ -743,6 +748,13 @@ typeCheck flag (Let m bd) goal mod =
 typeCheck flag (LetPair m (Abst xs n)) goal mod =
   do (t', ann, mode1) <- typeInfer flag m
      at <- updateWithSubst t'
+     mode1' <- updateModality mode1
+     let msubs = modeResolution Equal mod' identityMod
+     mod2 <- case msubs of
+               Nothing -> return mod'
+               Just s' ->
+                   updateModeSubst s' >> return identityMod
+
      case at of
        Exists (Abst x1 b') t1 ->
          do when (length xs /= 2) $ throwError $ ArityExistsErr at xs
@@ -1351,4 +1363,3 @@ inferAddAnn flag a ty = do
           return (ty1', a2, mode'')
 
 
-  
