@@ -77,7 +77,7 @@ typeInfer flag a@(Const kid) = do
 typeInfer flag a@(App t1 t2) = do
   (t', ann, m) <- typeInfer flag t1
   if isKind t'
-    then handleTypeApp ann t' t1 t2 m
+    then handleTypeApp ann t' t1 t2
     else handleTermApp flag ann t1 t' t1 t2 m
 
 typeInfer False a@(UnBox) =
@@ -1016,9 +1016,9 @@ typeCheck flag a@(Case tm (B brs)) goal mod =
                       mode' <- updateModality mode
                       return (goal''', abst (PApp kid axs') ann2', mode')
 
-typeCheck flag a@(Const x) ty mod = inferAddAnn flag a ty
-typeCheck flag a@(Var x) ty mod = inferAddAnn flag a ty
-typeCheck flag a@(App _ _) ty mod = inferAddAnn flag a ty
+typeCheck flag a@(Const x) ty mod = inferAddAnn flag a ty mod
+typeCheck flag a@(Var x) ty mod = inferAddAnn flag a ty mod
+typeCheck flag a@(App _ _) ty mod = inferAddAnn flag a ty mod
 typeCheck flag a ty mod
   | isBuildIn a = inferAddAnn flag a ty mod
 typeCheck flag tm ty mod = equality flag tm ty mod
@@ -1029,6 +1029,13 @@ equality flag tm ty mod =
      if not (ty == ty') then typeCheck flag tm ty' mod
        else 
        do (tym, ann, mode) <- typeInfer flag tm
+          mode' <- updateModality mode
+          mod' <- updateModality mod
+          let s = modeResolution Equal mode' mod' 
+          when (s == Nothing) $ throwError $
+              ModalityErr mode' mod' tm
+          let Just s'@(s1, s2, s3) = s
+          updateModeSubst s'     
           tym1 <- updateWithSubst tym
           ty1 <- updateWithSubst ty'
           tym1' <- updateWithModeSubst tym1
@@ -1047,7 +1054,6 @@ equality flag tm ty mod =
                st <- get
                let msub = modeSubstitution st
                ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
-               -- mode' <- updateModality mode
                return (ty1', ann)
 
           
@@ -1113,7 +1119,7 @@ normalizeDUnif t1 t2 = do
       return $ runDUnify t1'' t2''
 
 -- | Extend the typing environment with
--- the environment induced by pattern.
+-- the environment induced by a pattern.
 -- Its first argument is the argument list from 'Pattern'.
 -- Its second argument is the type of the constructor,
 -- its third argument is the constructor
@@ -1153,7 +1159,7 @@ extendEnv xs (Forall bind ty) kid
       let vs' = (map Right ys) ++ vs
       return (h, vs', ins, kid'')
 
-extendEnv xs (Imply bds ty) kid = do
+extendEnv xs (Imply bds ty _) kid = do
   let ns1 = take (length bds) (repeat "#inst")
   ns <- newNames ns1
   freshNames ns $ \ns -> do
@@ -1164,12 +1170,12 @@ extendEnv xs (Imply bds ty) kid = do
 
 extendEnv [] t kid = return (t, [], [], kid)
 
-extendEnv (Right x:xs) (Arrow t1 t2) kid = do
+extendEnv (Right x:xs) (Arrow t1 t2 _) kid = do
   addVar x t1
   (h, ys, ins, kid') <- extendEnv xs t2 kid
   return (h, Right x : ys, ins, kid')
 
-extendEnv (Right x:xs) (Pi bind ty) kid
+extendEnv (Right x:xs) (Pi bind ty mod) kid
   | not (isKind ty) =
     open bind $ \ys t' -> do
       let y = head ys
@@ -1181,29 +1187,29 @@ extendEnv (Right x:xs) (Pi bind ty) kid
           (h, ys, ins, kid') <- extendEnv xs t'' kid
           return (h, (Right x : ys), ins, kid')
         else do
-          (h, ys, ins, kid') <- extendEnv xs (Pi (abst (tail ys) t'') ty) kid
+          (h, ys, ins, kid') <- extendEnv xs (Pi (abst (tail ys) t'') ty mod) kid
           return (h, (Right x : ys), ins, kid')
 
 extendEnv a b kid = throwError $ ExtendEnvErr a b
 
 -- | Infer a type for a type application.
 handleTypeApp ::
-     Exp -> Exp -> Exp -> Exp -> Modality -> TCMonad (Exp, Exp, Modality)
-handleTypeApp ann t' t1 t2 m =
+     Exp -> Exp -> Exp -> Exp -> TCMonad (Exp, Exp, Modality)
+handleTypeApp ann t' t1 t2 =
   case erasePos t' of
-    Arrow k1 k2 -> do
-      (_, ann2, _) <- typeCheck True t2 k1
-      return (k2, AppP ann ann2, m)
-    Pi b ty ->
+    Arrow k1 k2 _ -> do
+      (_, ann2) <- typeCheck True t2 k1 identityMod
+      return (k2, AppP ann ann2, identityMod)
+    Pi b ty mod ->
       open b $ \vs b' -> do
-        (_, ann2, _) <- typeCheck True t2 ty
+        (_, ann2) <- typeCheck True t2 ty identityMod
         let t2' = erasePos ann2
         b'' <- betaNormalize (apply [(head vs, t2')] b')
         let k2 =
               if null (tail vs)
                 then b''
-                else Pi (abst (tail vs) b'') ty
-        return (k2, AppP ann ann2, m)
+                else Pi (abst (tail vs) b'') ty mod
+        return (k2, AppP ann ann2, identityMod)
     a -> throwError $ KAppErr t1 (App t1 t2) a
 
 -- | Infer a type for a term application.
@@ -1222,30 +1228,32 @@ handleTermApp flag ann pos t' t1 t2 mode1 = do
   mapM (\(x, t) -> addVar x t) anEnv
   rt' <- updateWithSubst rt
   case rt' of
-    Arrow ty1 ty2
+    Arrow ty1 ty2 mode2
       | isKind ty1 -> do
-        (_, ann2, _) <- typeCheck True t2 ty1
+        (_, ann2) <- typeCheck True t2 ty1 identityMod
         let res = AppDepTy a1' ann2
-        return (ty2, res, mode1')
-    Arrow ty1 ty2 -> do
-      (_, ann2, mode2) <- typeCheck flag t2 ty1
+        return (ty2, res, modalAnd mode1' mode2)
+    Arrow ty1 ty2 mode2 -> do
+      let mode3 = freshMode ["a", "b", "c"]
+      (_, ann2) <- typeCheck flag t2 ty1 mode3
+      mode3' <- updateModality mode3
       let res =
             if flag
               then AppP a1' ann2
               else App a1' ann2
-      let newMode = modalAnd mode1' mode2
+      let newMode = modalAnd (modalAnd mode1' mode2) mode3'
       return (ty2, res, newMode)
     ArrowP ty1 ty2 -> do
-      (_, ann2, _) <- typeCheck True t2 ty1
+      (_, ann2) <- typeCheck True t2 ty1 identityMod
       let res = AppP a1' ann2
       return (ty2, res, identityMod)
-    b@(Pi bind ty) ->
+    b@(Pi bind ty mode2) ->
       open bind $ \xs m -> do
                 -- typecheck or kind check t2
                 -- since t2 may travels to m, we
                 -- normalize [[t2]/x]m
         let flag' = isKind ty
-        (_, kann, mode2) <- typeCheck flag' t2 ty
+        (_, kann) <- typeCheck flag' t2 ty identityMod
         let t2' = erasePos kann
         t2'' <-
           if not flag'
@@ -1262,7 +1270,7 @@ handleTermApp flag ann pos t' t1 t2 mode1 = do
           then
             return (m', res, modalAnd mode2 mode1')
           else
-            return (Pi (abst (tail xs) m') ty, res,
+            return (Pi (abst (tail xs) m') ty mode2, res,
                      modalAnd mode2 mode1')
     b -> throwError $ ArrowErr t1 b
 
@@ -1311,16 +1319,16 @@ addAnn flag mode e a (Forall bd ty) env
           t' = apply (zip xs mvars) t
        in addAnn flag mode e a' t' (new ++ env)
        
-addAnn flag mode e a (PiImp bd ty) env
+addAnn flag mode e a (PiImp bd ty mode2) env
   | isKind ty =
     open bd $ \xs t ->
       let mvars = map MetaVar xs
           a' = foldl AppDepTy a mvars
           new = map (\x -> (x, ty)) xs
           t' = apply (zip xs mvars) t
-       in addAnn flag mode e a' t' (new ++ env)
+       in addAnn flag (modalAnd mode mode2) e a' t' (new ++ env)
        
-addAnn flag mode e a (PiImp bd ty) env
+addAnn flag mode e a (PiImp bd ty mode2) env
   | otherwise =
     open bd $ \xs t ->
       let app =
@@ -1331,9 +1339,9 @@ addAnn flag mode e a (PiImp bd ty) env
           a' = foldl app a mvars
           new = map (\x -> (x, ty)) xs
           t' = apply (zip xs mvars) t
-       in addAnn flag mode e a' t' (new ++ env)
+       in addAnn flag (modalAnd mode mode2) e a' t' (new ++ env)
 
-addAnn flag mode e a (Imply bds ty) env = do
+addAnn flag mode e a (Imply bds ty mode2) env = do
   ts <- get
   let i = clock ts
       ns = zipWith (\i b -> "#goalinst" ++ (show i)) [i ..] bds
@@ -1343,20 +1351,20 @@ addAnn flag mode e a (Imply bds ty) env = do
     put ts {clock = i'}
     mapM_ (\((x, t), e) -> addGoalInst x t e) instEnv
     let a' = foldl AppDict a (map MetaVar ns)
-    addAnn flag mode e a' ty env
+    addAnn flag (modalAnd mode mode2) e a' ty env
 
 addAnn flag mode e a t env = return (a, t, env, mode)
 
 -- expecting a to be either a Const or Var
 handleBangConstVar flag a (Bang ty2 m2) mod = do
   mod' <- updateModality mod
-  let msubs = modResolution Equal mod' identityMod
+  let msubs = modeResolution Equal mod' identityMod
   when (msubs == Nothing) $ throwError $ ModalityErr mod' identityMod a
   let Just s' = msubs
   updateModeSubst s'
   (ty', _, _) <- typeInfer flag a
   case ty' of
-    Bang ty1 m1 -> equality flag a (Bang ty2 m2) 
+    Bang ty1 m1 -> equality flag a (Bang ty2 m2) mod
     _ -> handleBangValue flag a (Bang ty2 m2) mod
 
 handleBangValue flag a ty1@(Bang ty m) mod = do
@@ -1385,7 +1393,7 @@ handleBangValue flag a ty1@(Bang ty m) mod = do
       case erasePos tym' of
         tym1@(Bang _ _) -> do
           tym1' <- updateWithModeSubst tym1
-          ty1' <- updateWithModeSubst typ1
+          ty1' <- updateWithModeSubst ty1
           (unifRes, (s, bs)) <- normalizeUnif GEq tym1' ty1'
           case unifRes of
             UnifError -> throwError $ NotEq a ty1' tym1'
@@ -1402,10 +1410,10 @@ handleBangValue flag a ty1@(Bang ty m) mod = do
 
 -- note that ty1 is prefix free.
 -- inferAddAnn flag a ty | trace ("ann:"++ (show $ disp a) ++ ":" ++ (show $ disp ty)) $ False = undefined 
-inferAddAnn flag a ty = do
+inferAddAnn flag a ty mod = do
   ty2 <- updateWithSubst ty
   if not (ty2 == ty)
-    then typeCheck flag a ty2
+    then typeCheck flag a ty2 mod
     else do
       (tym, ann, mode) <- typeInfer flag a
       tym1 <- updateWithSubst tym >>= updateWithModeSubst
@@ -1427,6 +1435,6 @@ inferAddAnn flag a ty = do
           let msub = modeSubstitution st
           ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
           mode'' <- updateModality mode'
-          return (ty1', a2, mode'')
+          return (ty1', a2)
 
 
