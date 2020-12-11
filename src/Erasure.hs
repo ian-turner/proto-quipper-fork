@@ -70,7 +70,7 @@ erasure (Tensor e1 e2) = do
   e1' <- erasure e1
   e2' <- erasure e2
   return $ ETensor e1' e2'
-erasure (Arrow e1 e2) = do
+erasure (Arrow e1 e2 _) = do
   e1' <- erasure e1
   e2' <- erasure e2
   return $ EArrow e1' e2'
@@ -140,7 +140,7 @@ erasure (LetPat m bd) =
     helper (Mod (Abst _ t)) args b b' = helper t args b b'
         -- The only way a data constructor can have a Pi type
         -- is when it is an existential type.
-    helper (Pi bds t) args b b'
+    helper (Pi bds t _) args b b'
       | not (isKind t) =
         open bds $ \ys m -> do
           let (vs, res) = splitAt (length ys) args
@@ -152,7 +152,7 @@ erasure (LetPat m bd) =
         let (vs, res) = splitAt (length ys) args
          in do checkExplicit vs b
                helper m res b b'
-    helper (Arrow t1 t2) (x:xs) b b' = do
+    helper (Arrow t1 t2 _) (x:xs) b b' = do
       vs' <- helper t2 xs b b'
       -- let Right x' = x
       -- return $ x' : vs'
@@ -160,16 +160,17 @@ erasure (LetPat m bd) =
         Right x' ->
            return $ x' : vs'
         Left (NoBind a) -> error $ "helperArrowErasure" ++ show (disp a)
-    helper (Imply [t1] t2) (x:xs) b b' = do
+    helper (Imply [t1] t2 _) (x:xs) b b' = do
       vs' <- helper t2 xs b b'
       let (Right x') = x
       return $ x' : vs'
-    helper (Imply (t1:ts) t2) (x:xs) b b' = do
-      vs' <- helper (Imply ts t2) xs b b'
+    helper (Imply (t1:ts) t2 mod) (x:xs) b b' = do
+      vs' <- helper (Imply ts t2 mod) xs b b'
       let (Right x') = x
       return $ x' : vs'
     helper a [] b b' = return []
     helper a _ b b' = error $ "from helper erasure-letPat"
+
 erasure l@(Case e (B br)) = do
   e' <- erasure e
   brs <- mapM helper br
@@ -187,7 +188,7 @@ erasure l@(Case e (B br)) = do
     helper2 (Mod (Abst _ t)) args b b' = helper2 t args b b'
              -- The only way a data constructor can have a Pi type
              -- is when it is an existential type.
-    helper2 (Pi bds t) args ann m'
+    helper2 (Pi bds t _) args ann m'
       | not (isKind t) =
         open bds $ \ys m -> do
           let (vs, res) = splitAt (length ys) args
@@ -199,16 +200,16 @@ erasure l@(Case e (B br)) = do
         let (vs, res) = splitAt (length ys) args
          in do checkExplicit vs ann
                helper2 m res ann m'
-    helper2 (Arrow t1 t2) (x:xs) ann m' = do
+    helper2 (Arrow t1 t2 _) (x:xs) ann m' = do
       vs' <- helper2 t2 xs ann m'
       let (Right x') = x
       return $ x' : vs'
-    helper2 (Imply [t1] t2) (x:xs) ann m' = do
+    helper2 (Imply [t1] t2 _) (x:xs) ann m' = do
       vs' <- helper2 t2 xs ann m'
       let (Right x') = x
       return $ x' : vs'
-    helper2 (Imply (t1:ts) t2) (x:xs) ann m' = do
-      vs' <- helper2 (Imply ts t2) xs ann m'
+    helper2 (Imply (t1:ts) t2 mod) (x:xs) ann m' = do
+      vs' <- helper2 (Imply ts t2 mod) xs ann m'
       let (Right x') = x
       return $ x' : vs'
     helper2 a [] _ _ = return []

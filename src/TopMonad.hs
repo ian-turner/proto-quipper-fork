@@ -188,13 +188,13 @@ topTypeInfer def = tcTop $
      rt' <- resolveGoals rt `catchError` \ e -> throwError $ withPosition def e
      ann'' <- resolveGoals ann1 `catchError` \ e -> throwError $ withPosition def e
      return $ (rt', ann'')     
-       where elimConstraint e a (A.Imply (b:bds) ty) = 
+       where elimConstraint e a (A.Imply (b:bds) ty mod) = 
                  do ns <- newNames ["#outergoalinst"]
                     freshNames ns $ \ [n] ->
                       do addGoalInst n b e
                          let a' = A.AppDict a (A.Var n)
-                         elimConstraint e a' (A.Imply bds ty)
-             elimConstraint e a (A.Imply [] ty) = elimConstraint e a ty
+                         elimConstraint e a' (A.Imply bds ty mod)
+             elimConstraint e a (A.Imply [] ty _) = elimConstraint e a ty
              elimConstraint e a (A.Pos _ ty) = elimConstraint e a ty    
              elimConstraint e a t = return (a, t)
 

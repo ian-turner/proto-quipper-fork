@@ -28,8 +28,9 @@ import Nominal
 -- | Check an expression against a type.
 -- The flag indicates if it is a parameter type checking.
 -- Here parameter type checking means using shape of the context to
--- type check a parameter term.
--- Currently we only use proofCheck to check programs.
+-- type check a parameter term. 
+-- Currently we only use proofCheck to check programs. And we do not
+-- check modality.  
 proofCheck :: Bool -> Exp -> Exp -> TCMonad ()
 -- | Infer a type for an expression.
 proofInfer :: Bool -> Exp -> TCMonad Exp
@@ -37,36 +38,42 @@ proofInfer True (LBase kid) = lookupId kid >>= \x -> return $ (classifier x)
 proofInfer True (Base kid) = lookupId kid >>= \x -> return $ (classifier x)
 proofInfer True Unit = return Set
 proofInfer True Set = return Sort
-proofInfer True ty@(Arrow t1 t2) = do
+
+proofInfer True ty@(Arrow t1 t2 mod) = do
   a1 <- proofInfer True t1
   a2 <- proofInfer True t2
   case (a1, a2) of
     (Set, Set) -> return Set
     (Set, Sort) -> return Sort
     (Sort, Sort) -> return Sort
-    (b1, b2) -> throwError (NotEq ty Set (Arrow b1 b2))
+    (b1, b2) -> throwError (NotEq ty Set (Arrow b1 b2 mod))
+
 proofInfer True ty@(Circ t1 t2 m) = do
   a1 <- proofInfer True t1
   a2 <- proofInfer True t2
   case (a1, a2) of
     (Set, Set) -> return Set
     (b1, b2) -> throwError (NotEq ty Set (Circ b1 b2 m))
-proofInfer True a@(Imply [] t) = do
+
+proofInfer True a@(Imply [] t _) = do
   ty <- proofInfer True t
   case ty of
     Set -> return Set
     _ -> throwError (NotEq t Set ty)
-proofInfer True a@(Imply (x:xs) t) = do
+
+proofInfer True a@(Imply (x:xs) t mod) = do
   ty <- proofInfer True x
   updateParamInfo [x]
   case ty of
-    Set -> proofInfer True (Imply xs t)
+    Set -> proofInfer True (Imply xs t mod)
     _ -> throwError (NotEq x Set ty)
+ 
 proofInfer True (Bang ty _) = do
   a <- proofInfer True ty
   case a of
     Set -> return Set
     b -> throwError (NotEq ty Set b)
+
 proofInfer True ty@(Tensor t1 t2) = do
   a1 <- proofInfer True t1
   a2 <- proofInfer True t2
@@ -85,7 +92,8 @@ proofInfer True ty@(Exists bd t) = do
           Set -> return Set
           _ -> throwError (NotEq m Set tm)
     _ -> throwError (NotEq t Set a)
-proofInfer True ty@(Pi bd t) = do
+
+proofInfer True ty@(Pi bd t _) = do
   a <- proofInfer True t
   case a of
     Set ->
@@ -105,6 +113,7 @@ proofInfer True ty@(Pi bd t) = do
           Set -> return Set
           _ -> throwError (NotEq m Set tm)
     _ -> throwError (NotEq t Set a)
+ 
 proofInfer True ty@(Forall bd t) = do
   a <- proofInfer True t
   case a of
@@ -122,6 +131,7 @@ proofInfer True ty@(Forall bd t) = do
         mapM_ removeVar xs
         case tm of
           Set -> return Set
+
 proofInfer flag a@(Var x) = do
   (t, _) <- lookupVar x
   if flag
@@ -141,25 +151,27 @@ proofInfer flag a@(Const kid) = do
       if flag
         then shape cl
         else return cl
+
 proofInfer False a@(AppDep t1 t2) = do
   t' <- proofInfer False t1
   case t' of
-    b@(Pi bd ty) ->
+    b@(Pi bd ty _) ->
       open bd $ \xs m -> do
         proofCheck False t2 ty
         t2' <- shape t2
         m' <- betaNormalize (apply [(head xs, t2')] m)
         if null (tail xs)
           then return m'
-          else return $ Pi (abst (tail xs) m') ty
-    b@(PiImp bd ty) ->
+          else return $ Pi (abst (tail xs) m') ty identityMod
+    b@(PiImp bd ty _) ->
       open bd $ \xs m -> do
         proofCheck False t2 ty
         t2' <- shape t2
         m' <- betaNormalize (apply [(head xs, t2')] m)
         if null (tail xs)
           then return m'
-          else return $ PiImp (abst (tail xs) m') ty
+          else return $ PiImp (abst (tail xs) m') ty identityMod
+
 proofInfer flag a@(AppDepInt t1 t2) = do
   t' <- proofInfer True t1
   case t' of
@@ -170,29 +182,30 @@ proofInfer flag a@(AppDepInt t1 t2) = do
         if null (tail xs)
           then return m'
           else return $ PiInt (abst (tail xs) m') ty
+
 proofInfer flag a@(AppDepTy t1 t2) = do
   t' <- proofInfer flag t1
   case t' of
-    (Arrow ty1 ty2)
+    (Arrow ty1 ty2 _)
       | isKind ty1 -> do
         proofCheck True t2 ty1
         return ty2
-    b@(Pi bd ty)
+    b@(Pi bd ty mod)
       | not flag ->
         open bd $ \xs m -> do
           proofCheck True t2 ty
           m' <- betaNormalize (apply [(head xs, t2)] m)
           if null (tail xs)
             then return m'
-            else return $ Pi (abst (tail xs) m') ty
-    b@(PiImp bd ty)
+            else return $ Pi (abst (tail xs) m') ty mod
+    b@(PiImp bd ty mod)
       | not flag ->
         open bd $ \xs m -> do
           proofCheck True t2 ty
           m' <- betaNormalize (apply [(head xs, t2)] m)
           if null (tail xs)
             then return m'
-            else return $ PiImp (abst (tail xs) m') ty
+            else return $ PiImp (abst (tail xs) m') ty mod
     b@(PiInt bd ty)
       | flag ->
         open bd $ \xs m -> do
@@ -201,32 +214,36 @@ proofInfer flag a@(AppDepTy t1 t2) = do
           if null (tail xs)
             then return m'
             else return $ PiInt (abst (tail xs) m') ty
+
 proofInfer False a@(App t1 t2) = do
   t' <- proofInfer False t1
   case t' of
-    Arrow ty m -> proofCheck False t2 ty >> return m
+    Arrow ty m _ -> proofCheck False t2 ty >> return m
     b -> throwError $ ArrowErr t1 b
+
 proofInfer flag a@(AppP t1 t2) = do
   t' <- proofInfer True t1
   case t' of
-    Arrow ty m
+    Arrow ty m _
       | isKind t' -> proofCheck True t2 ty >> return m
     ArrowP ty m -> proofCheck True t2 ty >> return m
-    b@(Pi bd ty)
+    b@(Pi bd ty mod)
       | isKind b ->
         open bd $ \xs m -> do
           proofCheck True t2 ty
           m' <- betaNormalize (apply [(head xs, t2)] m)
           if null (tail xs)
             then return m'
-            else return $ Pi (abst (tail xs) m') ty
+            else return $ Pi (abst (tail xs) m') ty mod
     b -> throwError $ ArrowErr t1 b
+
 proofInfer flag a@(AppDict t1 t2) = do
   t' <- proofInfer flag t1
   case t' of
-    Imply (ty:[]) m -> proofCheck True t2 ty >> return m
-    Imply (ty:res) m -> proofCheck True t2 ty >> return (Imply res m)
+    Imply (ty:[]) m _ -> proofCheck True t2 ty >> return m
+    Imply (ty:res) m mod -> proofCheck True t2 ty >> return (Imply res m mod)
     b -> throwError $ ArrowErr t1 b
+
 proofInfer flag a@(AppType t1 t2) = do
   t' <- proofInfer flag t1
   case erasePos t' of
@@ -265,21 +282,24 @@ proofInfer flag a@(AppTm t1 t2) = do
         if null (tail xs)
           then return m'
           else return $ Forall (abst (tail xs) m') kd
+
 proofInfer flag Reverse =
   freshNames ["a", "b"] $ \[a, b] ->
     let va = Var a
         vb = Var b
         simpClass = Id "Simple"
-        t1 = Arrow (Circ va vb identityMod) (Circ vb va identityMod)
-        t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1
+        t1 = Arrow (Circ va vb identityMod) (Circ vb va identityMod) identityMod
+        t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1 identityMod
         ty = Forall (abst [a, b] t1') Set
      in return ty
+
 proofInfer flag Dynlift =
   let ty =
         Bang
-          (Arrow (LBase (Id "Bit")) (Base (Id "Bool")))
+          (Arrow (LBase (Id "Bit")) (Base (Id "Bool")) identityMod)
           (M (BConst False) (BConst False) (BConst False))
    in return ty
+
 proofInfer flag a@(WithComputed) =
   freshNames ["a", "b", "c", "d", "e", "x", "y"] $ \xs@[a, b, c, d, e, x, y] ->
     let vxs@[va, vb, vc, vd, ve, vx, vy] = map Var xs
@@ -291,11 +311,12 @@ proofInfer flag a@(WithComputed) =
             (Circ va (Tensor vb ve) mod1)
             (Arrow
                (Circ (Tensor vb vc) (Tensor vb vd) mod2)
-               (Circ (Tensor va vc) (Tensor va vd) mod2))
-        t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1
+               (Circ (Tensor va vc) (Tensor va vd) mod2) identityMod) identityMod
+        t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1 identityMod
         ty = Forall (abst [a, b, c, d, e] t1') Set
         ty' = abstractMode ty
      in return ty'
+
 proofInfer flag a@(Controlled) =
   freshNames ["a", "b", "s"] $ \[a, b, s'] ->
     let va = Var a
@@ -305,24 +326,26 @@ proofInfer flag a@(Controlled) =
         t1 =
           Arrow
             (Circ va vb identityMod)
-            (Bang (Arrow va (Arrow s (Tensor vb s))) identityMod)
+            (Bang (Arrow va (Arrow s (Tensor vb s) identityMod) identityMod) identityMod)
+            identityMod
         t1' =
           Imply
             [ AppP (Base simpClass) s
             , AppP (Base simpClass) va
             , AppP (Base simpClass) vb
             ]
-            t1
+            t1 identityMod
         ty = Forall (abst [a, b, s'] t1') Set
         ty' = abstractMode ty
      in return ty'
+
 proofInfer flag UnBox =
   freshNames ["a", "b"] $ \[a, b] ->
     let va = Var a
         vb = Var b
         simpClass = Id "Simple"
-        t1 = Arrow (Circ va vb identityMod) (Bang (Arrow va vb) identityMod)
-        t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1
+        t1 = Arrow (Circ va vb identityMod) (Bang (Arrow va vb identityMod) identityMod) identityMod
+        t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1 identityMod
         ty = Forall (abst [a, b] t1') Set
      in return ty
 proofInfer flag t@(Box) =
@@ -330,38 +353,41 @@ proofInfer flag t@(Box) =
     let va = Var a
         vb = Var b
         simpClass = Id "Simple"
-        t1 = Arrow (Bang (Arrow va vb) identityMod) (Circ va vb identityMod)
-        t1' = Imply [(AppP (Base simpClass) va), (AppP (Base simpClass) vb)] t1
-        boxType = Pi (abst [a] (Forall (abst [b] t1') Set)) Set
+        t1 = Arrow (Bang (Arrow va vb identityMod) identityMod) (Circ va vb identityMod) identityMod
+        t1' = Imply [(AppP (Base simpClass) va), (AppP (Base simpClass) vb)] t1 identityMod
+        boxType = Pi (abst [a] (Forall (abst [b] t1') Set)) Set identityMod
     return boxType
+    
 proofInfer flag t@(ExBox) =
   freshNames ["a", "b", "p", "n"] $ \[a, b, p, n] -> do
     let va = Var a
         vb = Var b
         vp = Var p
         vn = Var n
-        kp = Arrow vb Set
+        kp = Arrow vb Set identityMod
         simpClass = Id "Simple"
         paramClass = Id "Parameter"
         simpA = AppP (Base simpClass) va
         paramB = AppP (Base paramClass) vb
         simpP = AppP (Base simpClass) (AppP vp vn)
         t1Output = Exists (abst n (AppP vp vn)) (vb)
-        t1 = Bang (Arrow va t1Output) identityMod
+        t1 = Bang (Arrow va t1Output identityMod) identityMod
         output =
           Exists
-            (abst n $ Imply [simpP] (Circ va (AppP vp vn) identityMod))
+            (abst n $ Imply [simpP] (Circ va (AppP vp vn) identityMod) identityMod)
             (vb)
-        beforePi = Arrow t1 output
+        beforePi = Arrow t1 output identityMod
         r =
           Pi
             (abst [a] $
              Forall
-               (abst [b] (Imply [simpA, paramB] $ Pi (abst [p] $ beforePi) kp))
+               (abst [b] (Imply [simpA, paramB] (Pi (abst [p] beforePi) kp identityMod) identityMod))
                Set)
-            Set
+            Set identityMod
     return r
+
 proofInfer flag (Star) = return Unit
+
 proofInfer False a@(Force t) = do
   ty <- proofInfer False t
   case ty of
@@ -378,6 +404,7 @@ proofInfer flag a@(Pair t1 t2) = do
   return $ (Tensor ty1 ty2)
 proofInfer flag (Pos p e) =
   proofInfer flag e `catchError` \e -> throwError $ collapsePos p e
+
 proofInfer False (LamAnn ty (Abst xs m)) = do
   if isKind ty
     then proofCheck True ty Sort
@@ -392,11 +419,12 @@ proofInfer False (LamAnn ty (Abst xs m)) = do
       if x `S.member` getVars All ty'
         then do
           removeVar x
-          return $ Pi (abst [x] ty') ty1
+          return $ Pi (abst [x] ty') ty1 identityMod
         else do
           when (not p) $ checkUsage x m >> return ()
           removeVar x
-          return (Arrow ty1 ty')
+          return (Arrow ty1 ty' identityMod)
+
 proofInfer flag (WithType a t) = do
   proofCheck True t Set
   proofCheck False a t
@@ -405,8 +433,10 @@ proofInfer flag e = throwError $ Unhandle e
 
 proofCheck flag (Pos p e) t =
   proofCheck flag e t `catchError` \e -> throwError $ collapsePos p e
+
 proofCheck flag e (Mod (Abst _ t)) = proofCheck flag e t
-proofCheck False a@(Lam bd) (Arrow t1 t2) =
+
+proofCheck False a@(Lam bd) (Arrow t1 t2 _) =
   open bd $ \xs m -> do
     addVar (head xs) t1
     proofCheck
@@ -416,6 +446,7 @@ proofCheck False a@(Lam bd) (Arrow t1 t2) =
          else (Lam (abst (tail xs) m)))
       t2
     checkUsage (head xs) m
+
 proofCheck True a@(LamP bd) (ArrowP t1 t2) =
   open bd $ \xs m -> do
     addVar (head xs) t1
@@ -425,7 +456,7 @@ proofCheck True a@(LamP bd) (ArrowP t1 t2) =
          then m
          else (LamP (abst (tail xs) m)))
       t2
-proofCheck True a@(LamP bd) b@(Arrow t1 t2)
+proofCheck True a@(LamP bd) b@(Arrow t1 t2 _)
   | isKind b =
     open bd $ \xs m -> do
       addVar (head xs) t1
@@ -435,7 +466,7 @@ proofCheck True a@(LamP bd) b@(Arrow t1 t2)
            then m
            else (LamP (abst (tail xs) m)))
         t2
-proofCheck flag a@(LamDict bd) (Imply (t1:[]) t2) =
+proofCheck flag a@(LamDict bd) (Imply (t1:[]) t2 _) =
   open bd $ \xs m -> do
     addVar (head xs) t1
     updateParamInfo [t1]
@@ -445,7 +476,7 @@ proofCheck flag a@(LamDict bd) (Imply (t1:[]) t2) =
          then m
          else (LamDict (abst (tail xs) m)))
       t2
-proofCheck flag a@(LamDict bd) (Imply (t1:ts) t2) =
+proofCheck flag a@(LamDict bd) (Imply (t1:ts) t2 mod) =
   open bd $ \xs m -> do
     addVar (head xs) t1
     updateParamInfo [t1]
@@ -454,19 +485,19 @@ proofCheck flag a@(LamDict bd) (Imply (t1:ts) t2) =
       (if (null $ tail xs)
          then m
          else (LamDict (abst (tail xs) m)))
-      (Imply ts t2)
-proofCheck False a@(LamDep bd1) exp@(Pi bd2 ty) =
-  handleAbs False LamDep Pi bd1 bd2 ty True
-proofCheck False a@(LamDep bd1) exp@(PiImp bd2 ty) =
-  handleAbs False LamDep PiImp bd1 bd2 ty False
+      (Imply ts t2 mod)
+proofCheck False a@(LamDep bd1) exp@(Pi bd2 ty _) =
+  handleAbs False LamDep (\ x y -> Pi x y identityMod) bd1 bd2 ty True
+proofCheck False a@(LamDep bd1) exp@(PiImp bd2 ty _) =
+  handleAbs False LamDep (\ x y -> PiImp x y identityMod) bd1 bd2 ty False
 proofCheck True a@(LamDepInt bd1) exp@(PiInt bd2 ty) =
   handleAbs True LamDepInt PiInt bd1 bd2 ty False
 proofCheck True a@(LamDepTy bd1) exp@(PiInt bd2 ty) =
   handleAbs True LamDepTy PiInt bd1 bd2 ty False
-proofCheck False a@(LamDepTy bd1) exp@(Pi bd2 ty) =
-  handleAbs False LamDepTy Pi bd1 bd2 ty False
-proofCheck False a@(LamDepTy bd1) exp@(PiImp bd2 ty) =
-  handleAbs False LamDepTy PiImp bd1 bd2 ty False
+proofCheck False a@(LamDepTy bd1) exp@(Pi bd2 ty _) =
+  handleAbs False LamDepTy (\ x y -> Pi x y identityMod) bd1 bd2 ty False
+proofCheck False a@(LamDepTy bd1) exp@(PiImp bd2 ty _) =
+  handleAbs False LamDepTy (\ x y -> PiImp x y identityMod) bd1 bd2 ty False
 proofCheck flag (LamTm bd1) exp@(Forall bd2 ty) =
   handleAbs flag LamTm Forall bd1 bd2 ty False
 proofCheck flag (LamType bd1) exp@(Forall bd2 ty) =
@@ -474,12 +505,14 @@ proofCheck flag (LamType bd1) exp@(Forall bd2 ty) =
 proofCheck flag (Lift m) (Bang t _) = do
   checkParamCxt m
   proofCheck flag m t
+
 proofCheck flag a@(Pair t1 t2) (Exists p ty) = do
   proofCheck flag t1 ty
   open p $ \x t -> do
     ts <- shape t1
     let t' = apply [(x, ts)] t
     proofCheck flag t2 t'
+
 proofCheck flag (Let m bd) goal =
   open bd $ \x t -> do
     t' <- proofInfer flag m
@@ -513,6 +546,7 @@ proofCheck flag (LetPair m bd) goal = do
             mapM removeVar xs
             return res
           Nothing -> throwError $ TensorErr (length xs) m t'
+
 proofCheck flag a@(LetPat m bd) goal =
   open bd $ \(PApp kid args) n -> do
     tt <- proofInfer flag m
@@ -688,19 +722,19 @@ inst ::
   -> [Either (NoBind Exp) Variable]
   -> TCMonad (Exp, [Either (NoBind Exp) Variable])
 inst (Mod (Abst _ t)) xs = inst t xs
-inst (Arrow t1 t2) (Right x:xs) = do
+inst (Arrow t1 t2 _) (Right x:xs) = do
   addVar x t1
   (h, vs) <- inst t2 xs
   return (h, Right x : vs)
-inst (Imply [t1] t2) (Right x:xs) = do
+inst (Imply [t1] t2 _) (Right x:xs) = do
   addVar x t1
   (h, vs) <- inst t2 xs
   return (h, Right x : vs)
-inst (Imply (t1:ts) t2) (Right x:xs) = do
+inst (Imply (t1:ts) t2 mod) (Right x:xs) = do
   addVar x t1
-  (h, vs) <- inst (Imply ts t2) xs
+  (h, vs) <- inst (Imply ts t2 mod) xs
   return (h, Right x : vs)
-inst (Pi bd t) (Right x:xs)
+inst (Pi bd t mod) (Right x:xs)
   | not (isKind t) =
     open bd $ \ys t' -> do
       let y = head ys
@@ -712,7 +746,7 @@ inst (Pi bd t) (Right x:xs)
           return (h, Right x : xs')
         else do
           addVar x t
-          (h, xs') <- inst (Pi (abst (tail ys) t'') t) xs
+          (h, xs') <- inst (Pi (abst (tail ys) t'') t mod) xs
           return (h, Right x : xs')
 inst (Forall bd t) (Right x:xs) =
   open bd $ \ys t' -> do
@@ -727,6 +761,7 @@ inst (Forall bd t) (Right x:xs) =
         addVar x t
         (h, xs') <- inst (Forall (abst (tail ys) t'') t) xs
         return (h, Right x : xs')
+
 inst (Forall bd t) (Left (NoBind x):xs) =
   open bd $ \ys t' -> do
     let y = head ys

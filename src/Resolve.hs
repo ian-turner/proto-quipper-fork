@@ -285,12 +285,16 @@ resolve d (C.Case t br) = do
 resolve d (C.Arrow t u) = 
   do t' <- resolve d t
      u' <- resolve d u
-     return (Arrow t' u')
+     ns <- refresh ["#x", "#y", "#z"]
+     let m = freshMode ns
+     return (Arrow t' u' m)
 
 resolve d (C.Imply t u) = 
   do ts <- mapM (resolve d) t
      u' <- resolve d u
-     return (Imply ts u')
+     ns <- refresh ["#x", "#y", "#z"]
+     let m = freshMode ns
+     return (Imply ts u' m)
 
 resolve d (C.Tensor t u) = 
   do t' <- resolve d t
@@ -328,13 +332,17 @@ resolve d (C.Pi vs t1 t2) =
   lscopeVars d vs $ \d' xs -> 
   do t1' <- resolve d t1
      t2' <- resolve d' t2
-     return (Pi (abst xs t2') t1')
+     ns <- refresh ["#x", "#y", "#z"]
+     let m = freshMode ns
+     return (Pi (abst xs t2') t1' m)
 
 resolve d (C.PiImp vs t1 t2) =
   lscopeVars d vs $ \d' xs -> 
   do t1' <- resolve d t1
      t2' <- resolve d' t2
-     return (PiImp (abst xs t2') t1')
+     ns <- refresh ["#x", "#y", "#z"]
+     let m = freshMode ns
+     return (PiImp (abst xs t2') t1' m)
 
 resolve d (C.Exists v t1 t2) =
   lscopeVars d [v] $ \d' (x:[]) -> 
