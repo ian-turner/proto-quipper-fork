@@ -13,6 +13,7 @@ module Parser
   ) where
 
 import ConcreteSyntax
+import SyntacticOperations
 import qualified Syntax as A
 import Utils
 
@@ -90,7 +91,7 @@ initialOpTable =
     unaryBang op f =
       Prefix $ do
         reservedOp op
-        return (\x -> f x Nothing)
+        return (\x -> f x)
 
 -- | Parse a Proto-Quipper-D module from a file name /srcName/ and file
 -- handler /cnts/.
@@ -738,7 +739,7 @@ circType = do
       comma
       u <- typeExp
       return (t, u)
-  return $ Circ t u Nothing
+  return $ Circ t u 
 
 -- | Parse @Type@.
 set :: Parser Exp

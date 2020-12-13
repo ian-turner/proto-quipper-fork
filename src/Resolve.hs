@@ -282,11 +282,9 @@ resolve d (C.Case t br) = do
         helper (C.Pos p x) = helper x
         helper a = throwError NoNest 
 
-resolve d (C.Arrow t u) = 
+resolve d (C.Arrow t u m) = 
   do t' <- resolve d t
      u' <- resolve d u
-     ns <- refresh ["#x", "#y", "#z"]
-     let m = freshMode ns
      return (Arrow t' u' m)
 
 resolve d (C.Imply t u) = 
@@ -451,7 +449,7 @@ resolveDecl scope (C.Data p d ts vs constrs) =
                   let lsc' = toLScope sc'
                   let ty = foldr (\ x z -> case x of
                                         Left (y, e) -> C.Pi y e z
-                                        Right e -> C.Arrow e z
+                                        Right e -> C.Arrow e z identityMod
                                  ) hd cArgs1
                       t = floatingParam ts vs ty []
                   t' <- resolve lsc' t
@@ -485,10 +483,10 @@ resolveDecl scope (C.Class pos c vs mths) =
        let tyArgs = map C.Var $ concat $ map (\ x -> (fst x)) vs
            head = foldl C.App (C.Base c) tyArgs
            tys = map (\ (_, _, t, m) -> (t, m)) mths
-           dictTy = C.Forall vs (foldr (\ (x, m) y -> C.Arrow (C.Bang x (Just m)) y) head tys)
+           dictTy = C.Forall vs (foldr (\ (x, m) y -> C.Arrow (C.Bang x  (Just m)) y) head tys)
            kd1 = foldr (\ (x, ty) y -> C.Pi x ty y) C.Set vs
            lscope = toLScope scope'
-       dictType <- resolve lscope dictTy    
+       dictType <- resolve lscope dictTy     
        kd2 <- resolve lscope kd1
        let kd = removeVacuousPi kd2
        (mths', scope'') <- makeMethods scope' head vs mths

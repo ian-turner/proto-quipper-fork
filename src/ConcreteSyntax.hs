@@ -22,8 +22,8 @@ data Exp
   | Arrow Exp Exp -- ^ Linear arrow type: @T -> T@.
   | Imply [Exp] Exp -- ^ Constraint type: @(P) => T@.
   | Tensor Exp Exp -- ^ Tensor product: @T * T'@.
-  | Bang Exp (Maybe (Bool, Bool, Bool)) -- ^ Bang type: @!A@.
-  | Circ Exp Exp (Maybe (Bool, Bool, Bool))
+  | Bang Exp -- ^ Bang type: @!A@.
+  | Circ Exp Exp 
   -- ^ Circuit type: @Circ(S, S')@.
   | Pi [String] Exp Exp -- ^ Linear dependent type: @(x : T) -> T'@.
   | PiImp [String] Exp Exp -- ^ Implicit dependent type: @{x : T} -> T'@.
