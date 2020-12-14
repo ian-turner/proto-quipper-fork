@@ -126,10 +126,10 @@ getScope = do
   return (scope s)
 
 -- | Resolve an expression at top-level.
-topResolve :: C.Exp -> Top A.Exp
-topResolve t =
+topResolve :: ResolveFlag -> C.Exp -> Top A.Exp
+topResolve b t =
   do scope <- getScope
-     scopeTop $ resolve (toLScope scope) t
+     scopeTop $ resolve b (toLScope scope) t
 
 -- | Lift the 'Resolve' monad to 'Top' monad. 
 scopeTop :: Resolve a -> Top a
@@ -188,13 +188,13 @@ topTypeInfer def = tcTop $
      rt' <- resolveGoals rt `catchError` \ e -> throwError $ withPosition def e
      ann'' <- resolveGoals ann1 `catchError` \ e -> throwError $ withPosition def e
      return $ (rt', ann'')     
-       where elimConstraint e a (A.Imply (b:bds) ty mod) = 
+       where elimConstraint e a (A.Imply (b:bds) ty) = 
                  do ns <- newNames ["#outergoalinst"]
                     freshNames ns $ \ [n] ->
                       do addGoalInst n b e
                          let a' = A.AppDict a (A.Var n)
-                         elimConstraint e a' (A.Imply bds ty mod)
-             elimConstraint e a (A.Imply [] ty _) = elimConstraint e a ty
+                         elimConstraint e a' (A.Imply bds ty)
+             elimConstraint e a (A.Imply [] ty) = elimConstraint e a ty
              elimConstraint e a (A.Pos _ ty) = elimConstraint e a ty    
              elimConstraint e a t = return (a, t)
 

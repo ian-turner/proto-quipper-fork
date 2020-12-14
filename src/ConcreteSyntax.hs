@@ -1,8 +1,10 @@
 -- | This module defines the concrete syntax for the Proto-Quipper-D surface language.
 -- The concrete syntax will be resolved into abstract syntax where the variable
 -- bindings are appropriately modelled.
+{-# LANGUAGE DeriveDataTypeable #-}
 module ConcreteSyntax where
 
+import Data.Generics
 import Data.List
 import Prelude hiding ((<>))
 import Syntax (Morphism(..))
@@ -45,7 +47,7 @@ data Exp
   | Wild -- ^ Wildcard.
   | Pos Position Exp -- ^ Position wrapper.
   | WithAnn Exp Exp -- ^ Type annotation: @t : T@.
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 --  | Circuit Exp [Gate] Exp
 -- data Gate = Gate Id [Exp] Exp Exp Exp Bool  deriving (Show, Eq)
@@ -59,7 +61,7 @@ data Binding
   | BPair ([String], Exp) -- ^ Multi-tuple binding.
   | BPattern (String, [Exp], Exp) -- ^ Let pattern binding.
   | BAnn (String, Exp, Exp) -- ^ Let annotation, will be translated away.
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 -- | Top-level declarations.
 data Decl
@@ -161,3 +163,8 @@ data Command
 
 -- | A Proto-Quipper-D program is a list of declarations.
 type Program = [Decl]
+
+removePos :: Exp -> Exp
+removePos = everywhere (mkT rm)
+  where rm (Pos _ e) = e
+        rm e = e

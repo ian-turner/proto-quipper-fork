@@ -44,6 +44,7 @@ dependencies:
 - process
 - nominal
 - network
+- syb
 
 library:
   source-dirs: src

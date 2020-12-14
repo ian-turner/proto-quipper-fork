@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE PatternSynonyms, ViewPatterns #-}
-
+{-# LANGUAGE DeriveDataTypeable #-} 
 -- | This module implements various of utility functions. 
 
 module Utils
@@ -36,6 +36,7 @@ import Text.Parsec.Error(ParseError,showErrorMessages,errorPos,errorMessages)
 import Prelude hiding((<>))
 import Nominal
 import Data.Char
+import Data.Generics 
 import System.IO.Unsafe
 -- | An empty data type for classifying variables. 
 data V
@@ -47,7 +48,7 @@ instance AtomKind V where
 -- | A variable contain an atom for nominal representation and its name string for
 -- error processing. 
 data Variable = Variable (AtomOfKind V) (NoBind String) 
-  deriving (Generic, Bindable, Nominal, NominalShow, NominalSupport, Ord)
+  deriving (Nominal.Generic, Bindable, Nominal, NominalShow, NominalSupport, Ord)
 
 instance NominalShow (NoBind String) where
   showsPrecSup sup d (NoBind x) = showsPrecSup sup d x
@@ -107,7 +108,7 @@ freshLabels n body | otherwise  =
 
 -- | Constant identifiers, they are used for top-level definitions and constructors.
 data Id = Id String
-        deriving (Show, Eq, Ord, Generic, NominalShow, NominalSupport, Nominal, Bindable)
+        deriving (Show, Eq, Ord, Nominal.Generic, NominalShow, NominalSupport, Nominal, Bindable)
 
 -- | Get the name string from an identifier.
 getName :: Id -> String
@@ -120,8 +121,9 @@ instance Disp Id where
 
 -- | Position information for error reporting. Built-in positions are
 -- generated from the built-in type classes. 
+
 data Position = P SourcePos | DummyPos | BuiltIn Int
-  deriving (Show, Eq, NominalShow, NominalSupport, Generic, Nominal)
+  deriving (Show, Eq, NominalShow, NominalSupport, Nominal.Generic, Nominal, Data, Typeable)
 
 instance Nominal SourcePos where
   pi • p = p
@@ -218,7 +220,7 @@ data Count =
     -- that is being pattern matched in the case expression. The second argument denotes
     -- the count before going into the case expression. The third argument denote the
     -- count in each branch of the case expression.
-  deriving (Show, Eq, Nominal, Generic, NominalShow, NominalSupport, Ord)
+  deriving (Show, Eq, Nominal, Nominal.Generic, NominalShow, NominalSupport, Ord)
 
 -- | The count zipper, the left component is for the
 -- current count (may be in a branch), the right component is

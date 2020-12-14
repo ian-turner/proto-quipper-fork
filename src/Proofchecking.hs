@@ -55,17 +55,17 @@ proofInfer True ty@(Circ t1 t2 m) = do
     (Set, Set) -> return Set
     (b1, b2) -> throwError (NotEq ty Set (Circ b1 b2 m))
 
-proofInfer True a@(Imply [] t _) = do
+proofInfer True a@(Imply [] t) = do
   ty <- proofInfer True t
   case ty of
     Set -> return Set
     _ -> throwError (NotEq t Set ty)
 
-proofInfer True a@(Imply (x:xs) t mod) = do
+proofInfer True a@(Imply (x:xs) t) = do
   ty <- proofInfer True x
   updateParamInfo [x]
   case ty of
-    Set -> proofInfer True (Imply xs t mod)
+    Set -> proofInfer True (Imply xs t)
     _ -> throwError (NotEq x Set ty)
  
 proofInfer True (Bang ty _) = do
@@ -240,8 +240,8 @@ proofInfer flag a@(AppP t1 t2) = do
 proofInfer flag a@(AppDict t1 t2) = do
   t' <- proofInfer flag t1
   case t' of
-    Imply (ty:[]) m _ -> proofCheck True t2 ty >> return m
-    Imply (ty:res) m mod -> proofCheck True t2 ty >> return (Imply res m mod)
+    Imply (ty:[]) m -> proofCheck True t2 ty >> return m
+    Imply (ty:res) m -> proofCheck True t2 ty >> return (Imply res m)
     b -> throwError $ ArrowErr t1 b
 
 proofInfer flag a@(AppType t1 t2) = do
@@ -289,7 +289,7 @@ proofInfer flag Reverse =
         vb = Var b
         simpClass = Id "Simple"
         t1 = Arrow (Circ va vb identityMod) (Circ vb va identityMod) identityMod
-        t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1 identityMod
+        t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1 
         ty = Forall (abst [a, b] t1') Set
      in return ty
 
@@ -312,7 +312,7 @@ proofInfer flag a@(WithComputed) =
             (Arrow
                (Circ (Tensor vb vc) (Tensor vb vd) mod2)
                (Circ (Tensor va vc) (Tensor va vd) mod2) identityMod) identityMod
-        t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1 identityMod
+        t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1 
         ty = Forall (abst [a, b, c, d, e] t1') Set
         ty' = abstractMode ty
      in return ty'
@@ -334,7 +334,7 @@ proofInfer flag a@(Controlled) =
             , AppP (Base simpClass) va
             , AppP (Base simpClass) vb
             ]
-            t1 identityMod
+            t1 
         ty = Forall (abst [a, b, s'] t1') Set
         ty' = abstractMode ty
      in return ty'
@@ -345,7 +345,7 @@ proofInfer flag UnBox =
         vb = Var b
         simpClass = Id "Simple"
         t1 = Arrow (Circ va vb identityMod) (Bang (Arrow va vb identityMod) identityMod) identityMod
-        t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1 identityMod
+        t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1 
         ty = Forall (abst [a, b] t1') Set
      in return ty
 proofInfer flag t@(Box) =
@@ -354,7 +354,7 @@ proofInfer flag t@(Box) =
         vb = Var b
         simpClass = Id "Simple"
         t1 = Arrow (Bang (Arrow va vb identityMod) identityMod) (Circ va vb identityMod) identityMod
-        t1' = Imply [(AppP (Base simpClass) va), (AppP (Base simpClass) vb)] t1 identityMod
+        t1' = Imply [(AppP (Base simpClass) va), (AppP (Base simpClass) vb)] t1 
         boxType = Pi (abst [a] (Forall (abst [b] t1') Set)) Set identityMod
     return boxType
     
@@ -374,14 +374,14 @@ proofInfer flag t@(ExBox) =
         t1 = Bang (Arrow va t1Output identityMod) identityMod
         output =
           Exists
-            (abst n $ Imply [simpP] (Circ va (AppP vp vn) identityMod) identityMod)
+            (abst n $ Imply [simpP] (Circ va (AppP vp vn) identityMod))
             (vb)
         beforePi = Arrow t1 output identityMod
         r =
           Pi
             (abst [a] $
              Forall
-               (abst [b] (Imply [simpA, paramB] (Pi (abst [p] beforePi) kp identityMod) identityMod))
+               (abst [b] (Imply [simpA, paramB] (Pi (abst [p] beforePi) kp identityMod)))
                Set)
             Set identityMod
     return r
@@ -466,7 +466,7 @@ proofCheck True a@(LamP bd) b@(Arrow t1 t2 _)
            then m
            else (LamP (abst (tail xs) m)))
         t2
-proofCheck flag a@(LamDict bd) (Imply (t1:[]) t2 _) =
+proofCheck flag a@(LamDict bd) (Imply (t1:[]) t2) =
   open bd $ \xs m -> do
     addVar (head xs) t1
     updateParamInfo [t1]
@@ -476,7 +476,7 @@ proofCheck flag a@(LamDict bd) (Imply (t1:[]) t2 _) =
          then m
          else (LamDict (abst (tail xs) m)))
       t2
-proofCheck flag a@(LamDict bd) (Imply (t1:ts) t2 mod) =
+proofCheck flag a@(LamDict bd) (Imply (t1:ts) t2) =
   open bd $ \xs m -> do
     addVar (head xs) t1
     updateParamInfo [t1]
@@ -485,7 +485,8 @@ proofCheck flag a@(LamDict bd) (Imply (t1:ts) t2 mod) =
       (if (null $ tail xs)
          then m
          else (LamDict (abst (tail xs) m)))
-      (Imply ts t2 mod)
+      (Imply ts t2)
+      
 proofCheck False a@(LamDep bd1) exp@(Pi bd2 ty _) =
   handleAbs False LamDep (\ x y -> Pi x y identityMod) bd1 bd2 ty True
 proofCheck False a@(LamDep bd1) exp@(PiImp bd2 ty _) =
@@ -726,13 +727,13 @@ inst (Arrow t1 t2 _) (Right x:xs) = do
   addVar x t1
   (h, vs) <- inst t2 xs
   return (h, Right x : vs)
-inst (Imply [t1] t2 _) (Right x:xs) = do
+inst (Imply [t1] t2) (Right x:xs) = do
   addVar x t1
   (h, vs) <- inst t2 xs
   return (h, Right x : vs)
-inst (Imply (t1:ts) t2 mod) (Right x:xs) = do
+inst (Imply (t1:ts) t2) (Right x:xs) = do
   addVar x t1
-  (h, vs) <- inst (Imply ts t2 mod) xs
+  (h, vs) <- inst (Imply ts t2) xs
   return (h, Right x : vs)
 inst (Pi bd t mod) (Right x:xs)
   | not (isKind t) =

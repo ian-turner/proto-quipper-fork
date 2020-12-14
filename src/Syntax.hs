@@ -71,7 +71,7 @@ data Exp
   | App Exp Exp -- ^ Function application.
   | AppP Exp Exp -- ^ Parameter application.
   | AppDict Exp Exp -- ^ Dictionary application.
-  | Imply [Exp] Exp Modality -- ^ Constraint types.
+  | Imply [Exp] Exp -- ^ Constraint types.
   | LamDict (Bind [Variable] Exp) -- ^ Dictionary abstraction.
   | Tensor Exp Exp -- ^ Tensor product.
   | Pair Exp Exp
@@ -350,11 +350,11 @@ instance Disp Exp where
       , dParen flag (precedence a - 1) t2
       ]
   -- display flag (Imply [] t2) = display flag t2
-  display flag a@(Imply t1 t2 mod) =
+  display flag a@(Imply t1 t2) =
     fsep
       [ parens (fsep $ punctuate comma $ map (display flag) t1)
       , text "=>"
-      , display flag mod, nest 2 $ display flag t2
+      , nest 2 $ display flag t2
       ]
   display flag Set = text "Type"
   display flag Sort = text "Sort"
@@ -702,8 +702,10 @@ data Decl
             -- 'Id': instance function name, 'Exp': instance function type,
             -- [('Position', 'Id', 'Exp')]: list of methods and their definitions.
   | Def Position Id Exp Exp Bool
-            -- ^ Function declaration. 'Id': name, 'Exp': type, 'Exp': definition
-  | GateDecl Position Id [Exp] Exp Modality (Maybe Id)
+            -- ^ Function declaration. 'Id': name, 'Exp': type, 'Exp': definition.
+             
+  | GateDecl Position Id [Exp] Exp (Maybe Id)
+
   | CircuitDecl Position Id Exp Morphism
             -- ^ Gate declaration. 'Id': name, ['Exp']: parameters, 'Exp': input/output.
   | ImportDecl Position String

@@ -88,7 +88,7 @@ typeInfer False a@(UnBox) =
         boxMode = M (BConst True) (BVar alpha) (BVar beta)
         t1 = Arrow (Circ va vb boxMode) (Bang (Arrow va vb boxMode) boxMode) identityMod
         t1' = Imply [AppP (Base simpClass) va,
-                     AppP (Base simpClass) vb] t1 identityMod
+                     AppP (Base simpClass) vb] t1 
         ty = Forall (abst [a, b] t1') Set
         ty' = abstractMode ty
      in return (ty', UnBox, identityMod)
@@ -101,7 +101,7 @@ typeInfer False a@(Reverse) =
         boxMode = M (BConst True) (BVar alpha) (BConst True)
         t1 = Arrow (Circ va vb boxMode) (Circ vb va boxMode) identityMod
         t1' = Imply [AppP (Base simpClass) va,
-                     AppP (Base simpClass) vb] t1 identityMod
+                     AppP (Base simpClass) vb] t1 
         ty = Forall (abst [a, b] t1') Set
         ty' = abstractMode ty
      in return (ty', Reverse, identityMod)
@@ -122,7 +122,7 @@ typeInfer False a@(Controlled) =
             , AppP (Base simpClass) va
             , AppP (Base simpClass) vb
             ]
-            t1 identityMod
+            t1 
         ty = Forall (abst [a, b, s'] t1') Set
         ty' = abstractMode ty
      in return (ty', Controlled, identityMod)
@@ -148,7 +148,7 @@ typeInfer False a@(WithComputed) =
             (Arrow
                (Circ (Tensor vb vc) (Tensor vb vd) mod2)
                (Circ (Tensor va vc) (Tensor va vd) mod2) identityMod) identityMod
-        t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1 identityMod
+        t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1 
         ty = Forall (abst [a, b, c, d, e] t1') Set
         ty' = abstractMode ty
      in return (ty', WithComputed, identityMod)
@@ -161,7 +161,7 @@ typeInfer False t@(Box) =
         boxMode = M (BConst True) (BVar alpha) (BVar beta)
         t1 = Arrow (Bang (Arrow va vb boxMode) boxMode) (Circ va vb boxMode) identityMod
         t1' = Imply [AppP (Base simpClass) va,
-                     AppP (Base simpClass) vb] t1 identityMod
+                     AppP (Base simpClass) vb] t1 
         boxType = Pi (abst [a] (Forall (abst [b] t1') Set)) Set identityMod
         ty' = abstractMode boxType
     return (ty', t, identityMod)
@@ -184,14 +184,14 @@ typeInfer False t@(ExBox) =
         t1 = Bang (Arrow va t1Output boxMode) boxMode
         output =
           Exists (abst n $ Imply [simpP]
-                           (Circ va (AppP vp vn) boxMode) identityMod) vb
+                           (Circ va (AppP vp vn) boxMode)) vb
         beforePi = Arrow t1 output identityMod
         r =
           Pi
             (abst [a] $
              Forall
                (abst [b] (Imply [simpA, paramB] 
-                     (Pi (abst [p] $ beforePi) kp identityMod) identityMod))
+                     (Pi (abst [p] $ beforePi) kp identityMod)))
                Set)
             Set identityMod
         r' = abstractMode r
@@ -309,14 +309,14 @@ typeCheck True (Arrow ty1 ty2 mod) Set cm = do
   (_, ty2') <- typeCheck True ty2 Set cm
   return (Set, Arrow ty1' ty2' mod)
 
-typeCheck True (Imply tys ty2 mod) Set m = do
+typeCheck True (Imply tys ty2) Set m = do
   res <- mapM (\x -> typeCheck True x Set m) tys
   let tys1 = map (\(x, y) -> y) res
   mapM checkClass tys1
   updateParamInfo tys1
   updateSimpleInfo tys1
   (_, ty2') <- typeCheck True ty2 Set m
-  return (Set, Imply tys1 ty2' mod)
+  return (Set, Imply tys1 ty2')
 
 typeCheck True (Tensor ty1 ty2) Set m = do
   (_, ty1') <- typeCheck True ty1 Set m
@@ -443,7 +443,7 @@ typeCheck flag a (Forall (Abst xs m) ty) mod = do
     checkExplicit ann'' x =
       when (isExplicit x ann'') $ throwError $ ImplicitVarErr x ann''
 
-typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
+typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty) mod1 = do
   mod1' <- updateModality mod1
   let lxs = length xs
       lbd = length bds
@@ -457,19 +457,19 @@ typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
               ty' =
                 if null post
                   then ty
-                  else Imply post ty mod2
+                  else Imply post ty 
           mapM (\(x, y) -> addVar x y) (zip xs pre)
-          (ty'', a) <- typeCheck False e ty' mod2
+          (ty'', a) <- typeCheck False e ty' identityMod
           mapM_ removeVar xs
-          return (Imply pre ty'' mod2, LamDict (abst xs a))
+          return (Imply pre ty'', LamDict (abst xs a))
         else do
           let (pre, post) = splitAt lbd xs
           mapM (\(x, y) -> addVar x y) (zip pre bds)
-          (ty', a) <- typeCheck False (LamDict (abst post e)) ty mod2
+          (ty', a) <- typeCheck False (LamDict (abst post e)) ty identityMod
           mapM_ removeVar pre
-          return (Imply bds ty' mod2, LamDict (abst pre a))
+          return (Imply bds ty', LamDict (abst pre a))
 
-typeCheck flag a (Imply bds ty mod2) mod1 = do
+typeCheck flag a (Imply bds ty) mod1 = do
   mod1' <- updateModality mod1
   let msubs = modeResolution Equal mod1' identityMod
   when (msubs == Nothing) $ throwError $ ModalityErr mod1' identityMod a
@@ -484,13 +484,13 @@ typeCheck flag a (Imply bds ty mod2) mod1 = do
     bds' <- mapM normalize bds
     let instEnv = zip ns bds'
     mapM_ (\(x, t) -> insertLocalInst x t) instEnv
-    (t, ann) <- typeCheck flag a ty mod2
+    (t, ann) <- typeCheck flag a ty identityMod
     -- Make sure we use the hypothesis before
     -- going out of the scope of Imply.
     ann' <- resolveGoals ann
     mapM_ (\(x, t) -> removeLocalInst x) instEnv
     let res = LamDict (abst ns ann')
-    return (Imply bds t mod2, res)
+    return (Imply bds t, res)
 
 typeCheck flag a@(Const _) (Bang ty m) mod =
   handleBangConstVar flag a (Bang ty m) mod
@@ -1159,7 +1159,7 @@ extendEnv xs (Forall bind ty) kid
       let vs' = (map Right ys) ++ vs
       return (h, vs', ins, kid'')
 
-extendEnv xs (Imply bds ty _) kid = do
+extendEnv xs (Imply bds ty) kid = do
   let ns1 = take (length bds) (repeat "#inst")
   ns <- newNames ns1
   freshNames ns $ \ns -> do
@@ -1341,7 +1341,7 @@ addAnn flag mode e a (PiImp bd ty mode2) env
           t' = apply (zip xs mvars) t
        in addAnn flag (modalAnd mode mode2) e a' t' (new ++ env)
 
-addAnn flag mode e a (Imply bds ty mode2) env = do
+addAnn flag mode e a (Imply bds ty) env = do
   ts <- get
   let i = clock ts
       ns = zipWith (\i b -> "#goalinst" ++ (show i)) [i ..] bds
@@ -1351,7 +1351,7 @@ addAnn flag mode e a (Imply bds ty mode2) env = do
     put ts {clock = i'}
     mapM_ (\((x, t), e) -> addGoalInst x t e) instEnv
     let a' = foldl AppDict a (map MetaVar ns)
-    addAnn flag (modalAnd mode mode2) e a' ty env
+    addAnn flag mode e a' ty env
 
 addAnn flag mode e a t env = return (a, t, env, mode)
 

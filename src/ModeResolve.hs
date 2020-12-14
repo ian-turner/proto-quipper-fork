@@ -140,10 +140,10 @@ bSubstitute s (ArrowP t t') =
       t2' = bSubstitute s t'
   in ArrowP t1' t2'  
 
-bSubstitute s (Imply t t' m) =
+bSubstitute s (Imply t t') =
   let t1' = map (bSubstitute s) t
       t2' = bSubstitute s t'
-  in Imply t1' t2' (modeSubst s m)
+  in Imply t1' t2' 
   
 bSubstitute s (Tensor t t') =
   let t1' = bSubstitute s t
@@ -309,12 +309,9 @@ booleanVarElim e =
               t2' = helper (not b) s1 t2
           in Forall (abst xs t1') t2'
 
-        helper b s1 (Imply t1 t2 (M e1 e2 e3)) =
+        helper b s1 (Imply t1 t2) =
           let t2' = helper b s1 t2
-              e1' = elim b s1 e1
-              e2' = elim b s1 e2
-              e3' = elim b s1 e3
-          in Imply t1 t2' (M e1' e2' e3')
+          in Imply t1 t2' 
         helper b s1 t = t
         
             
