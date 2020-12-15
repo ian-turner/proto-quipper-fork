@@ -55,7 +55,7 @@ process (Class pos d kd dict dictType mths) = do
           }
   tcTop $ addNewId d tp
   tcTop $ checkVacuous pos dictType
-  (_, dictTypeAnn) <- tcTop $ typeChecking True dictType Set
+  (_, dictTypeAnn) <- tcTop $ typeChecking True dictType Set identityMod
   
   let fp =
         Info
@@ -77,8 +77,10 @@ process (Class pos d kd dict dictType mths) = do
                    (abst (PApp constr (map Right mVars)) (Var $ mVars !! i)))
           tyy = erasePos $ removeVacuousPi mty
       tcTop $ checkVacuous pos tyy
-      (_, tyy') <- tcTop $ typeChecking True tyy Set
-      (tyy'', a) <- tcTop $ typeChecking False (Pos pos mth) tyy'
+      (_, tyy') <- tcTop $ typeChecking True tyy Set identityMod
+      (tyy'', a) <- tcTop $ do
+                      m <- newMode ["a", "b", "c"]
+                      typeChecking False (Pos pos mth) tyy' m
       tcTop $ proofChecking False a tyy''        
       v <- evaluation a False
       let fp =
@@ -118,13 +120,15 @@ process (Instance pos f ty mths) = do
 
 process (Def pos f' ty' def' isClifford) = do
   tcTop $ checkVacuous pos ty'
-  (_, ty) <- tcTop $ typeChecking True ty' Set
+  (_, ty) <- tcTop $ typeChecking True ty' Set identityMod
   let ty1 = erasePos $ removeVacuousPi ty
   p <- tcTop $ isParam ty1
   when (not p) $ throwError $ CompileErr $ ErrPos pos (NotParam (Const f') ty')
   let info1 = Info {classifier = ty1, identification = DefinedFunction Nothing}
   tcTop $ addNewId f' info1
-  (ty1', ann) <- tcTop $ typeChecking False (Pos pos def') ty1
+  (ty1', ann) <- tcTop $ do
+                   mode <- newMode ["a", "b", "c"]
+                   typeChecking False (Pos pos def') ty1 mode
      -- note: need to do an erasure check before proof checking
      -- st <- get
   tcTop $ proofChecking False ann ty1'     
@@ -134,7 +138,7 @@ process (Def pos f' ty' def' isClifford) = do
   v' <-
     if b
       then do
-        x <- tcTop $ typeChecking False (toExp v) ty1'
+        x <- tcTop $ typeChecking False (toExp v) ty1' identityMod
         return $ Just (snd x)
       else if isCirc v
              then return $ Just (Const f')
@@ -163,7 +167,7 @@ process (Defn pos f Nothing def isClifford) = do
   v' <-
     if b
       then do
-        x <- tcTop $ typeChecking False (toExp v) ty
+        x <- tcTop $ typeChecking False (toExp v) ty identityMod
         return $ Just (snd x)
       else return Nothing
   let fp =
@@ -185,7 +189,8 @@ process (Defn pos f Nothing def isClifford) = do
 process (Defn pos f (Just tt) def isClifford) = do
   (_, tt') <-
     tcTop $
-    typeChecking True tt Set `catchError` \e -> throwError $ ErrPos pos e
+    typeChecking True tt Set identityMod `catchError`
+       \e -> throwError $ ErrPos pos e
   let (Forall (Abst [r] ty') Set) = tt'
       ty'' = erasePos $ apply [(r, MetaVar r)] ty'
   let info1 = Info {classifier = ty'', identification = DefinedFunction Nothing}
@@ -211,7 +216,7 @@ process (Defn pos f (Just tt) def isClifford) = do
   v' <-
     if b
       then do
-        x <- tcTop $ typeChecking False (toExp v) tk1
+        x <- tcTop $ typeChecking False (toExp v) tk1 identityMod
         return $ Just (snd x)
       else return Nothing
   let fp =
@@ -223,7 +228,8 @@ process (Defn pos f (Just tt) def isClifford) = do
   where
     typeChecking''' b exp ty = do
       setInfer True
-      (ty', exp', _) <- typeCheck b exp ty
+      mode <- newMode ["a", "b", "c"]
+      (ty', exp') <- typeCheck b exp ty mode
       setInfer False
       exp'' <- updateWithSubst exp'
       r <- resolveGoals exp''
@@ -234,13 +240,13 @@ process (Defn pos f (Just tt) def isClifford) = do
 process (Data pos d kd cons) = do
   let constructors = map (\(_, id, _) -> id) cons
       types = map (\(_, _, t) -> t) cons
-  (_, kd') <- tcTop $ typeChecking True kd Sort
+  (_, kd') <- tcTop $ typeChecking True kd Sort identityMod
   dc <- tcTop $ determineClassifier d kd' constructors types
   let tp =
         Info
           {classifier = kd', identification = DataType dc constructors Nothing}
   tcTop $ addNewId d tp
-  res <- tcTop $ mapM (\t -> typeChecking True (Pos pos t) Set) types
+  res <- tcTop $ mapM (\t -> typeChecking True (Pos pos t) Set identityMod) types
   let types' = map snd res
   let funcs =
         map
@@ -437,7 +443,7 @@ checkOverlap h = do
 -- arguments /mths/ are the method definitions.
 --elaborateInstance :: Position -> Id -> Exp -> [(Position, Id, Exp)] -> TCMonad ()
 elaborateInstance pos f' ty mths = do
-  annTy <- tcTop $ typeChecking' True ty Set
+  annTy <- tcTop $ typeChecking' True ty Set identityMod
   let (env, ty') = removePrefixes False annTy
       vars =
         map
@@ -501,9 +507,10 @@ elaborateInstance pos f' ty mths = do
        in do mapM_ (\(x, t) -> addVar x t) env'
              mapM_ (\(x, t) -> insertLocalInst x t) instEnv
              updateParamInfo (map snd instEnv)
+             mode <- newMode ["a", "b", "c"]
              (t', a) <-
                typeChecking'' (map fst env') False (Pos p m)
-                   (erasePos t)
+                   (erasePos t) mode
              mapM_ (\(x, t) -> removeVar x) env'
              mapM_ (\(x, t) -> removeLocalInst x) instEnv
              return a
@@ -512,15 +519,15 @@ elaborateInstance pos f' ty mths = do
       | isKind ty = LamType (abst [x] (rebind res t))
     rebind ((Just x, ty):res) t
       | otherwise = LamTm (abst [x] (rebind res t))
-             -- A version of type checking that avoids checking forall param.
-    typeChecking' b exp ty = do
+    -- A version of type checking that avoids checking forall param.
+    typeChecking' b exp ty mod = do
       setCheckBound False
-      (ty', exp', _) <- typeCheck b exp ty
+      (ty', exp') <- typeCheck b exp ty mod
       setCheckBound True
       exp'' <- updateWithSubst exp'
       r <- resolveGoals exp''
       return $ deMeta [] r
-             -- a version of typeChecking that uses unEigenBound instead of unEigen
+    -- a version of typeChecking that uses unEigenBound instead of unEigen
     typeChecking'' vars b exp ty = do
       (ty', exp', _) <- typeCheck b exp ty
       exp'' <- resolveGoals exp'
@@ -670,9 +677,9 @@ makeTypeFun n k0 xs@((_, (Just i, _)):_) = do
        in PApp (getConst h) (map (\a -> Right (getVar a)) as)
 
 -- | Check an expression against a type. It is a wrapper on the 'typeCheck' function.
-typeChecking :: Bool -> Exp -> Exp -> TCMonad (Exp, Exp)
-typeChecking b exp ty = do
-  (ty', exp', _) <- typeCheck b exp ty
+typeChecking :: Bool -> Exp -> Exp -> Modality -> TCMonad (Exp, Exp)
+typeChecking b exp ty mod = do
+  (ty', exp') <- typeCheck b exp ty mod
   exp'' <- resolveGoals exp'
   r <- updateWithSubst exp''
   ty'' <- resolveGoals ty' >>= updateWithSubst

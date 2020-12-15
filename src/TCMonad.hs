@@ -706,6 +706,11 @@ newNames ns = do
   put ts {clock = j}
   return ns'
 
+newMode :: [String] -> TCMonad Modality
+newMode ns =
+  do ns' <- newNames ns
+     return $ freshMode ns'
+
 -- | Check if a term is in value form.
 isValue (Pos p e) = isValue e
 isValue (Var _) = return True
