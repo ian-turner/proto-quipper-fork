@@ -196,7 +196,8 @@ process (Defn pos f (Just tt) def isClifford) = do
   let info1 = Info {classifier = ty'', identification = DefinedFunction Nothing}
   tcTop $ addNewId f info1
      -- the first check obtain the type information
-  (tk', def0, s) <- tcTop $ typeChecking''' False (Pos pos def) ty''
+  (tk', def0, s) <- tcTop $ 
+                       typeChecking''' False (Pos pos def) ty'' 
   
   let tk1 = erasePos $ removeVacuousPi tk'
   let fvs = getVars All tk1
@@ -209,7 +210,9 @@ process (Defn pos f (Just tt) def isClifford) = do
   let info2 = Info {classifier = tk1, identification = DefinedFunction Nothing}
   tcTop $ addNewId f info2
      -- the second check
-  (tk', def') <- tcTop $ typeChecking False (Pos pos def) tk1
+  (tk', def') <- tcTop $ do
+                   mode <- newMode ["a", "b", "c"]
+                   typeChecking False (Pos pos def) tk1 mode
   tcTop $ proofChecking False def' tk'  
   v <- evaluation def' isClifford
   b <- tcTop $ isBasicValue v
@@ -304,30 +307,31 @@ process (Object pos id) = do
       instPS = Id $ "instAt" ++ hashPos pos ++ "SimpParam"
   elaborateInstance pos instId (App s (LBase id)) []
 
-process (GateDecl pos id params t m@(M _ (BConst flag) _) inv) = do
+process (GateDecl pos id params t inv flag) = do
   tcTop $ mapM_ checkParam params
   let (bds, h) = flattenArrows t
       t' = erasePos t
       bds'@(he:tl) = map snd bds
       params' = map erasePos params
-      h' = foldl Tensor he tl
-      hs = flattenTensor h
-      ty_inv = Bang (foldr Arrow (foldr Arrow h' hs) params) m
-      t_inv' = foldr Arrow h' hs
+--      h' = foldl Tensor he tl
+--      hs = flattenTensor h
+--      ty_inv = Bang (foldr Arrow (foldr Arrow h' hs) params) m
+--      t_inv' = foldr Arrow h' hs
   tcTop $ mapM_ checkStrictSimple (h : bds')
   when (null bds) $ throwError $ CompileErr (GateErr pos id)
-  let ty = Bang (foldr Arrow t params) m
-  (_, tk) <- tcTop $ typeChecking True ty Set
-  (_, tk_inv) <- tcTop $ typeChecking True ty_inv Set
+  let ty = Bang (foldr (\ x y -> Arrow x y identityMod) t params) identityMod 
+  (_, tk) <- tcTop $ typeChecking True ty Set identityMod
+  -- (_, tk_inv) <- tcTop $ typeChecking True ty_inv Set
   let tk' = erasePos tk
-  let tk_inv' = erasePos tk_inv
+      tk_inv' = tk'
+  --let tk_inv' = erasePos tk_inv
   gate <- makeGate id params' t' flag inv
   let fp = Info {classifier = tk', identification = DefinedGate gate}
   tcTop $ addNewId id fp
   case inv of
     Nothing -> return ()
     Just id' -> do
-      gate' <- makeGate id' params' t_inv' flag (Just id)
+      gate' <- makeGate id' params' t' flag (Just id)
       let fp' = Info {classifier = tk_inv', identification = DefinedGate gate'}
       tcTop $ addNewId id' fp'
   where
@@ -342,11 +346,13 @@ process (GateDecl pos id params t m@(M _ (BConst flag) _) inv) = do
       checkStrictSimple a
       checkStrictSimple b
     checkStrictSimple a = throwError (NotStrictSimple a)
+
 process (SimpData pos d n k0 eqs) = do
   (_, k2) <-
     tcTop $
-    (typeChecking True k0 Sort `catchError` \e -> throwError $ collapsePos pos e)
-  let k = foldr (\x y -> Arrow Set y) k2 (take n [0 ..])
+    (typeChecking True k0 Sort identityMod
+       `catchError` \e -> throwError $ collapsePos pos e)
+  let k = foldr (\x y -> Arrow Set y identityMod) k2 (take n [0 ..])
   let constructors = map (\(_, _, c, _) -> c) eqs
       pretypes = map (\(_, _, _, t) -> t) eqs
       inds = map (\(_, i, _, _) -> i) eqs
@@ -368,7 +374,7 @@ process (SimpData pos d n k0 eqs) = do
           , identification = DataType (SemiSimple indx) constructors Nothing
           }
   tcTop $ addNewId d tp1
-  p <- tcTop $ mapM (\ty -> typeChecking True ty Set) tys
+  p <- tcTop $ mapM (\ty -> typeChecking True ty Set identityMod) tys
   let tys' = map snd p
   let funcs =
         map
@@ -528,8 +534,8 @@ elaborateInstance pos f' ty mths = do
       r <- resolveGoals exp''
       return $ deMeta [] r
     -- a version of typeChecking that uses unEigenBound instead of unEigen
-    typeChecking'' vars b exp ty = do
-      (ty', exp', _) <- typeCheck b exp ty
+    typeChecking'' vars b exp ty mod = do
+      (ty', exp') <- typeCheck b exp ty mod
       exp'' <- resolveGoals exp'
       r <- updateWithSubst exp''
       ty'' <- resolveGoals ty' >>= updateWithSubst
@@ -611,7 +617,7 @@ makeGate id ps t flag inv =
                 res = VLiftCirc (abst xs (abst env unbox_morph))
              in return res
   where
-    makeInOut (Arrow t t') =
+    makeInOut (Arrow t t' _) =
       let (ins, outs) = makeInOut t'
        in (toV t : ins, outs)
     makeInOut (Pos p e) = makeInOut e

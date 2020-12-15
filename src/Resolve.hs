@@ -5,7 +5,7 @@ module Resolve
          ScopeError,
          Scope(..),
          Resolve(..),
-         ResolveFlag,
+         ResolveFlag(..),
          runResolve,
          emptyScope,
          resolve,
@@ -409,13 +409,13 @@ resolveDecl scope (C.GateDecl p gn params t (a, b, c) inv) =
      e <- resolve (Last mod) lscope' t
      case inv of
        Nothing ->  
-         return (GateDecl p id params' e Nothing, scope') 
+         return (GateDecl p id params' e Nothing b, scope') 
        Just g' -> 
          do (id', scope'') <- addConst p g' Const scope'
                               `catchError`
                               (\ err -> if g' == gn then return (id, scope')
                                         else throwError err)
-            return (GateDecl p id params' e (Just id'), scope'')
+            return (GateDecl p id params' e (Just id') b, scope'')
                     
               
 resolveDecl scope (C.Object p x) =
