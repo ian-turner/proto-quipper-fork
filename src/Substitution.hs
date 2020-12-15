@@ -58,10 +58,10 @@ substitute s (ArrowP t t') =
   let t1' = substitute s t
       t2' = substitute s t'
    in ArrowP t1' t2'
-substitute s (Imply t t') =
+substitute s (Imply t t' m) =
   let t1' = map (substitute s) t
       t2' = substitute s t'
-   in Imply t1' t2' 
+   in Imply t1' t2' m
 substitute s (Tensor t t') =
   let t1' = substitute s t
       t2' = substitute s t'

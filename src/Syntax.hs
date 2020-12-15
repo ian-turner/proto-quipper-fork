@@ -71,7 +71,7 @@ data Exp
   | App Exp Exp -- ^ Function application.
   | AppP Exp Exp -- ^ Parameter application.
   | AppDict Exp Exp -- ^ Dictionary application.
-  | Imply [Exp] Exp -- ^ Constraint types.
+  | Imply [Exp] Exp Modality -- ^ Constraint types.
   | LamDict (Bind [Variable] Exp) -- ^ Dictionary abstraction.
   | Tensor Exp Exp -- ^ Tensor product.
   | Pair Exp Exp
@@ -350,11 +350,11 @@ instance Disp Exp where
       , dParen flag (precedence a - 1) t2
       ]
   -- display flag (Imply [] t2) = display flag t2
-  display flag a@(Imply t1 t2) =
+  display flag a@(Imply t1 t2 mod) =
     fsep
       [ parens (fsep $ punctuate comma $ map (display flag) t1)
       , text "=>"
-      , nest 2 $ display flag t2
+      , display flag mod, nest 2 $ display flag t2
       ]
   display flag Set = text "Type"
   display flag Sort = text "Sort"

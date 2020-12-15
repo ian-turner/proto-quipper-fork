@@ -108,6 +108,7 @@ data ScopeError = NotInScope String
                  | MultiDef Position String Position
                  | LengthMismatch Int Int
                  | CircModeErr Modality
+
 instance Disp ScopeError where
   display flag (ScopePos p e) = display flag p $$ display flag e
   display flag (NotInScope s) =
@@ -307,11 +308,23 @@ resolve (Last mu) d (C.Arrow t u) =
           do u' <- resolve Pure d u
              return (Arrow t' u' mu)
 
-resolve f d (C.Imply t u) = 
-  do ts <- mapM (resolve f d) t
-     u' <- resolve f d u
-     return (Imply ts u')
+resolve Pure d (C.Imply t u) = 
+  do ts <- mapM (resolve Pure d) t
+     u' <- resolve Pure d u
+     return (Imply ts u' identityMod)
 
+resolve Defer d (C.Imply t u) = 
+  do ts <- mapM (resolve Defer d) t
+     u' <- resolve Defer d u
+     ns <- refresh ["#x", "#y", "#z"]
+     let m = freshMode ns
+     return (Imply ts u' m)
+ 
+resolve f@(Last mu) d (C.Imply t u) = 
+  do ts <- mapM (resolve Pure d) t
+     u' <- resolve f d u
+     return (Imply ts u' identityMod)
+     
 resolve f d (C.Tensor t u) = 
   do t' <- resolve f d t
      u' <- resolve f d u

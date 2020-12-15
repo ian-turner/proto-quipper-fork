@@ -140,10 +140,11 @@ bSubstitute s (ArrowP t t') =
       t2' = bSubstitute s t'
   in ArrowP t1' t2'  
 
-bSubstitute s (Imply t t') =
+bSubstitute s (Imply t t' m) =
   let t1' = map (bSubstitute s) t
       t2' = bSubstitute s t'
-  in Imply t1' t2' 
+      m' = modeSubst s m
+  in Imply t1' t2' m'
   
 bSubstitute s (Tensor t t') =
   let t1' = bSubstitute s t
