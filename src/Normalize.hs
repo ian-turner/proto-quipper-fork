@@ -78,10 +78,10 @@ betaNormalize a@(ArrowP t1 t2) =
      t2' <- betaNormalize t2
      return $ ArrowP t1' t2'
 
-betaNormalize a@(Imply t1 t2) =
+betaNormalize a@(Imply t1 t2 m) =
   do t1' <- mapM betaNormalize t1
      t2' <- betaNormalize t2
-     return $ Imply t1' t2' 
+     return $ Imply t1' t2' m
 
 
 betaNormalize a@(Circ t1 t2 m) = 
@@ -449,16 +449,16 @@ normalize (Tensor e1 e2) =
      e2' <- normalize e2
      return (Tensor e1' e2')
 
-normalize (Imply [] e2) =
+normalize (Imply [] e2 m) =
   do e2' <- normalize e2 
-     return $ Imply [] e2' 
+     return $ Imply [] e2' m 
      
-normalize (Imply (e1:es) e2) =
+normalize (Imply (e1:es) e2 m) =
   do e1' <- normalize e1 
-     e' <- normalize (Imply es e2) 
+     e' <- normalize (Imply es e2 m) 
      case e' of
-       Imply es' e2' ->
-         return (Imply (e1':es') e2')
+       Imply es' e2' m' ->
+         return (Imply (e1':es') e2' m')
 
      
 normalize (Bang e m) =

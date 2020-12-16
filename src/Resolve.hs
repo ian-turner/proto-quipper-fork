@@ -153,7 +153,11 @@ addScopePos p a@(ScopePos _ _) = a
 addScopePos p a = ScopePos p a
 
 -- | Flags for resolve.
-data ResolveFlag = Pure | Last Modality | Defer deriving (Eq, Show)
+data ResolveFlag =
+  Pure  -- ^ Make all modalities identitymod
+  | Last Modality -- ^ Make the last modality along arrow mu
+  | Defer -- ^ make all modalities fresh
+  deriving (Eq, Show)
 
 -- | Resolve concrete syntax to abstract syntax.
 resolve :: ResolveFlag -> LScope -> C.Exp -> Resolve Exp
@@ -308,10 +312,6 @@ resolve (Last mu) d (C.Arrow t u) =
           do u' <- resolve Pure d u
              return (Arrow t' u' mu)
 
-resolve Pure d (C.Imply t u) = 
-  do ts <- mapM (resolve Pure d) t
-     u' <- resolve Pure d u
-     return (Imply ts u' identityMod)
 
 resolve Defer d (C.Imply t u) = 
   do ts <- mapM (resolve Defer d) t
@@ -320,8 +320,8 @@ resolve Defer d (C.Imply t u) =
      let m = freshMode ns
      return (Imply ts u' m)
  
-resolve f@(Last mu) d (C.Imply t u) = 
-  do ts <- mapM (resolve Pure d) t
+resolve f d (C.Imply t u) = 
+  do ts <- mapM (resolve f d) t
      u' <- resolve f d u
      return (Imply ts u' identityMod)
      
@@ -347,45 +347,43 @@ resolve (Last mu) d (C.Bang t) =
   do t' <- resolve (Last mu) d t
      return (Bang t' identityMod)
 
--- resolve d (C.Bang t (Just (a, b,c))) = 
---   do t' <- resolve d t
---      let m = M (BConst a) (BConst b) (BConst c)
---      return (Bang t' m)
-
-resolve Pure d (C.Circ t u) = 
-  do t' <- resolve Pure d t
-     u' <- resolve Pure d u
-     return (Circ t' u' identityMod)
-
-resolve f d (C.Circ t u) = 
-  do t' <- resolve f d t
-     u' <- resolve f d u
+resolve Defer d (C.Circ t u) = 
+  do t' <- resolve Defer d t
+     u' <- resolve Defer d u
      ns <- refresh ["#x", "#y", "#z"]
      let M _ x y = freshMode ns
      return (Circ t' u' (M (BConst True) x y))
 
--- resolve d (C.Circ t u (Just (a, b, c))) = 
---   do t' <- resolve d t
---      u' <- resolve d u
---      let m = M (BConst a) (BConst b) (BConst c)
---      when (not a) $ throwError $ CircModeErr m
---      return (Circ t' u' m)
+resolve f d (C.Circ t u) = 
+  do t' <- resolve f d t
+     u' <- resolve f d u
+     return (Circ t' u' identityMod)
+
+resolve Defer d (C.Pi vs t1 t2) =
+  lscopeVars d vs $ \d' xs -> 
+  do t1' <- resolve Defer d t1
+     t2' <- resolve Defer d' t2
+     m <- refresh ["#x", "#y", "#z"] >>= \ x -> return (freshMode x)
+     return (Pi (abst xs t2') t1' m)
 
 resolve f d (C.Pi vs t1 t2) =
   lscopeVars d vs $ \d' xs -> 
   do t1' <- resolve f d t1
      t2' <- resolve f d' t2
-     m <- if f == Pure then return identityMod
-           else refresh ["#x", "#y", "#z"] >>= \ x -> return (freshMode x)
-     return (Pi (abst xs t2') t1' m)
+     return (Pi (abst xs t2') t1' identityMod)
+
+resolve Defer d (C.PiImp vs t1 t2) =
+  lscopeVars d vs $ \d' xs -> 
+  do t1' <- resolve Defer d t1
+     t2' <- resolve Defer d' t2
+     m <- refresh ["#x", "#y", "#z"] >>= \ x -> return (freshMode x)
+     return (PiImp (abst xs t2') t1' m)
 
 resolve f d (C.PiImp vs t1 t2) =
   lscopeVars d vs $ \d' xs -> 
   do t1' <- resolve f d t1
      t2' <- resolve f d' t2
-     m <- if f == Pure then return identityMod
-           else refresh ["#x", "#y", "#z"] >>= \ x -> return (freshMode x)
-     return (PiImp (abst xs t2') t1' m)
+     return (PiImp (abst xs t2') t1' identityMod)
 
 resolve f d (C.Exists v t1 t2) =
   lscopeVars d [v] $ \d' (x:[]) -> 
@@ -424,10 +422,11 @@ resolveDecl scope (C.GateDecl p gn params t (a, b, c) inv) =
        Nothing ->  
          return (GateDecl p id params' e Nothing b, scope') 
        Just g' -> 
-         do (id', scope'') <- addConst p g' Const scope'
-                              `catchError`
-                              (\ err -> if g' == gn then return (id, scope')
-                                        else throwError err)
+         do (id', scope'') <- addConst p g' Const scope' `catchError`
+                               \ err ->
+                                 if g' == gn
+                                 then return (id, scope')
+                                 else throwError err
             return (GateDecl p id params' e (Just id') b, scope'')
                     
               
@@ -463,7 +462,8 @@ resolveDecl scope (C.Defn p f qs args def isClifford) | not $ null args =
      lscopeVars lscope' args' $ \ d xs ->
        do def' <- resolve Defer d def
           let res = if null xs then def' else Lam (abst xs def') 
-          return (Defn p id (Just (abstractMode ty')) res isClifford, scope')
+          return (Defn p id (Just (abstractMode ty')) res isClifford,
+                  scope')
      where toPi [] m = m 
            toPi ((Left s):xs) m = C.Imply [s] (toPi xs m)
            toPi ((Right (vs, t)):xs) m =
@@ -472,11 +472,6 @@ resolveDecl scope (C.Defn p f qs args def isClifford) | not $ null args =
            toForall ((Left s):xs) m = C.Imply [s] (toForall xs m)
            toForall (Right (vs, t):xs) m =
              C.Forall [(vs, t)] (toForall xs m)
-
--- resolveDecl scope (C.CircuitDecl p d t m) =
---   do (id, scope') <- addConst p d Const scope
---      ty <- resolve (toLScope scope) t
---      return $ (CircuitDecl p id ty m, scope')
 
 resolveDecl scope (C.Data p d ts vs constrs) =
   do (id, scope') <- addConst p d Base scope
@@ -515,8 +510,11 @@ resolveDecl scope (C.Data p d ts vs constrs) =
                  (C.App (C.Base "Parameter") (C.Var x)) ->
                    case elemIndex x vars of
                      Nothing ->
-                       C.Forall [(vars, tyy)] (floatingParam (t:ts) vs ty acc)
-                     Just i -> C.Forall [(vars, tyy)] $ C.Imply [t] (floatingParam ts vs ty acc)
+                       C.Forall [(vars, tyy)]
+                         (floatingParam (t:ts) vs ty acc)
+                     Just i ->
+                       C.Forall [(vars, tyy)] $
+                          C.Imply [t] (floatingParam ts vs ty acc)
                  _ -> floatingParam ts ((vars, tyy):vs) ty (t:acc)
              floatingParam (t:ts) ((vars, tyy):vs) ty acc | otherwise =
                C.Forall [(vars, tyy)] $ floatingParam (t:ts) vs ty acc
@@ -528,7 +526,8 @@ resolveDecl scope (C.Class pos c vs mths) =
        let tyArgs = map C.Var $ concat $ map (\ x -> (fst x)) vs
            head = foldl C.App (C.Base c) tyArgs
            tys = map (\ (_, _, t, m) -> (t, m)) mths
-           dictTy = C.Forall vs (foldr (\ (x, m) y -> C.Arrow (C.Bang x) y) head tys) -- (Just m)
+           dictTy = C.Forall vs
+             (foldr (\ (x, m) y -> C.Arrow (C.Bang x) y) head tys) 
            kd1 = foldr (\ (x, ty) y -> C.Pi x ty y) C.Set vs
            lscope = toLScope scope'
        dictType <- resolve Pure lscope dictTy     
@@ -541,8 +540,9 @@ resolveDecl scope (C.Class pos c vs mths) =
                makeMethods scope' head vs ((p, mname, mty, (a, b, c)):cs) =
                  do (d, scope'') <- addConst p mname Const scope'
                     let lscope' = toLScope scope''
-                        ty = C.Bang (C.Forall vs (C.Imply [head] mty)) -- (Just mode)
-                    ty' <- resolve (Last (M (BConst a) (BConst b) (BConst c))) lscope' ty
+                        ty = C.Bang (C.Forall vs (C.Imply [head] mty))
+                        mode = M (BConst a) (BConst b) (BConst c)
+                    ty' <- resolve (Last mode) lscope' ty
                     (res, scope''') <- makeMethods scope'' head vs cs
                     return ((p, d, abstractMode ty'):res, scope''')
 
@@ -550,7 +550,6 @@ resolveDecl scope (C.Instance pos t mths) =
   do let lscope = toLScope scope
      t' <- resolve Pure lscope t
      mths' <- makeMethods scope mths
-     
      let (_, ty') = removePrefixes False t'
          (_, h) = flattenArrows ty'
          Just (Right d', _) = flatten h
@@ -564,7 +563,7 @@ resolveDecl scope (C.Instance pos t mths) =
                        \ e -> throwError $ ScopePos p e
                   let (Const id) = n
                   lscopeVars lscope args  $ \ d xs ->
-                    do e' <- resolve Pure d exp
+                    do e' <- resolve Defer d exp
                        let le = if null xs then e'
                              else Lam (abst xs e') 
                        res <- makeMethods scope cs
@@ -591,7 +590,8 @@ resolveDecl scope (C.SimpData pos c args resKind eqs) =
                       ty' = if null vars then ty else C.Lam vars ty
                       ty'' = if null args then ty' else C.Forall args' ty'
                       lta' = length tArgs'
-                  when (lta' /= lta) $ throwError $ ScopePos p1 (LengthMismatch lta' lta)
+                  when (lta' /= lta) $ throwError $
+                      ScopePos p1 (LengthMismatch lta' lta)
                   ty''' <- resolve Pure lscope ty''
                   (res, scope''') <- makeConstrs lta scope'' cs
                   return ((p2, mi, constr, ty'''):res, scope''')
@@ -607,6 +607,9 @@ resolveDecl scope (C.SimpData pos c args resKind eqs) =
              getVars (C.Base _) = []
              
              
-resolveDecl scope (C.ImportGlobal p f) = return (ImportDecl p f, scope)                  
-resolveDecl scope (C.OperatorDecl p s i f) = return (OperatorDecl p s i f, scope)
+resolveDecl scope (C.ImportGlobal p f) =
+  return (ImportDecl p f, scope)                  
+
+resolveDecl scope (C.OperatorDecl p s i f) =
+  return (OperatorDecl p s i f, scope)
 

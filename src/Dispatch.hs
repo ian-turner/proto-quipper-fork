@@ -330,8 +330,8 @@ initializeSimpleClass d = do
             (abst [a, b] $
              A.Imply
                [A.App s (A.Var a), A.App s (A.Var b)]
-               (A.App s $ A.Tensor (A.Var a) (A.Var b)))
-            A.Set
+               (A.App s $ A.Tensor (A.Var a) (A.Var b)) identityMod)
+            A.Set 
   elaborateInstance (BuiltIn (i + 1)) instSimp2 pt []
 
 -- | Initialize instances of SimpParam class for unit and tensor product.
@@ -358,7 +358,7 @@ initializeSimpParam d = do
                ]
                (A.App
                   (A.App s $ A.Tensor (A.Var a) (A.Var b))
-                  (A.Tensor (A.Var c) (A.Var d))))
+                  (A.Tensor (A.Var c) (A.Var d))) identityMod)
             A.Set
   elaborateInstance (BuiltIn (i + 1)) instSimp2 pt []
 
@@ -385,7 +385,7 @@ initializeParameterClass d = do
             (abst [a, b] $
              A.Imply
                [A.App s (A.Var a), A.App s (A.Var b)]
-               (A.App s $ A.Tensor (A.Var a) (A.Var b)))
+               (A.App s $ A.Tensor (A.Var a) (A.Var b)) identityMod)
             A.Set
   elaborateInstance (BuiltIn (i + 1)) instP2 pt []
   let pt2 =

@@ -310,9 +310,12 @@ booleanVarElim e =
               t2' = helper (not b) s1 t2
           in Forall (abst xs t1') t2'
 
-        helper b s1 (Imply t1 t2) =
+        helper b s1 (Imply t1 t2 (M e1 e2 e3)) =
           let t2' = helper b s1 t2
-          in Imply t1 t2' 
+              e1' = elim b s1 e1
+              e2' = elim b s1 e2
+              e3' = elim b s1 e3
+          in Imply t1 t2' (M e1' e2' e3')
         helper b s1 t = t
         
             

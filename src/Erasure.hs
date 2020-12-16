@@ -160,12 +160,12 @@ erasure (LetPat m bd) =
         Right x' ->
            return $ x' : vs'
         Left (NoBind a) -> error $ "helperArrowErasure" ++ show (disp a)
-    helper (Imply [t1] t2) (x:xs) b b' = do
+    helper (Imply [t1] t2 _) (x:xs) b b' = do
       vs' <- helper t2 xs b b'
       let (Right x') = x
       return $ x' : vs'
-    helper (Imply (t1:ts) t2) (x:xs) b b' = do
-      vs' <- helper (Imply ts t2) xs b b'
+    helper (Imply (t1:ts) t2 m) (x:xs) b b' = do
+      vs' <- helper (Imply ts t2 m) xs b b'
       let (Right x') = x
       return $ x' : vs'
     helper a [] b b' = return []
@@ -204,12 +204,12 @@ erasure l@(Case e (B br)) = do
       vs' <- helper2 t2 xs ann m'
       let (Right x') = x
       return $ x' : vs'
-    helper2 (Imply [t1] t2) (x:xs) ann m' = do
+    helper2 (Imply [t1] t2 _) (x:xs) ann m' = do
       vs' <- helper2 t2 xs ann m'
       let (Right x') = x
       return $ x' : vs'
-    helper2 (Imply (t1:ts) t2) (x:xs) ann m' = do
-      vs' <- helper2 (Imply ts t2) xs ann m'
+    helper2 (Imply (t1:ts) t2 mod) (x:xs) ann m' = do
+      vs' <- helper2 (Imply ts t2 mod) xs ann m'
       let (Right x') = x
       return $ x' : vs'
     helper2 a [] _ _ = return []

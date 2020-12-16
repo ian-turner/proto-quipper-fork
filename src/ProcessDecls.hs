@@ -290,7 +290,7 @@ process (Data pos d kd cons) = do
           instId = Id $ "instAt" ++ hashPos pos ++ "Param"
           bodies = map (\v -> App s v) (map (\x -> Var (fst x)) env')
           ty1 =
-            foldr (\(x, t) y -> Forall (abst [x] y) t) (Imply bodies head) env
+            foldr (\(x, t) y -> Forall (abst [x] y) t) (Imply bodies head identityMod) env
        in elaborateInstance pos instId ty1 []
     generateParamInstance _ _ d kd' = return ()
 
@@ -397,7 +397,7 @@ process (SimpData pos d n k0 eqs) = do
                   App s $
                   foldl App (foldl App (LBase d) (map Var tvs)) (map Var tmvs)
                 ty =
-                  foldr (\(x, t) y -> Forall (abst [x] y) t) (Imply pre hd) env
+                  foldr (\(x, t) y -> Forall (abst [x] y) t) (Imply pre hd identityMod) env
              in ty
   let insTy' =
         freshNames tvars $ \tvs ->
@@ -408,7 +408,7 @@ process (SimpData pos d n k0 eqs) = do
                   App s1 $
                   foldl App (foldl App (LBase d) (map Var tvs)) (map Var tmvs)
                 ty =
-                  foldr (\(x, t) y -> Forall (abst [x] y) t) (Imply pre hd) env
+                  foldr (\(x, t) y -> Forall (abst [x] y) t) (Imply pre hd identityMod) env
              in ty
   let instSimp = Id $ "instAt" ++ hashPos pos ++ "Simp"
       instParam = Id $ "instAt" ++ hashPos pos ++ "Parameter"
