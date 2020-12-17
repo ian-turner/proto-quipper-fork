@@ -203,7 +203,9 @@ typeInfer flag Unit = return (Set, Unit, identityMod)
 typeInfer flag a@(Pair t1 t2) = do
   (ty1, ann1, mode1) <- typeInfer flag t1
   (ty2, ann2, mode2) <- typeInfer flag t2
-  return (Tensor ty1 ty2, Pair ann1 ann2, modalAnd mode1 mode2)
+  mode1' <- updateModality mode1
+  mode2' <- updateModality mode2
+  return (Tensor ty1 ty2, Pair ann1 ann2, modalAnd mode1' mode2')
 
 typeInfer False a@(LamAnn ty (Abst xs m)) = do
   (_, tyAnn1) <-
@@ -226,34 +228,33 @@ typeInfer False a@(LamAnn ty (Abst xs m)) = do
 
 
 typeInfer flag (WithType a t) = 
-  freshNames ["#alpha", "#beta", "#gamma" ] $ \[alpha, beta, gamma] ->
   do (_, tAnn1) <- typeCheck True t Set identityMod
      let tAnn' = erasePos tAnn1
-         mod = M (BVar alpha) (BVar beta) (BVar gamma) 
+     mod <- newMode ["#alpha", "#beta", "#gamma"]
      (tAnn2, ann) <- typeCheck False a tAnn' mod
      mod' <- updateModality mod
      return (tAnn2, WithType ann tAnn2, mod')
 
 typeInfer flag a@(Case _ _) =
-  freshNames ["#case", "#alpha", "#beta", "#gamma"] $
-  \[n, alpha, beta, gamma] -> do
-    let mod = M (BVar alpha) (BVar beta) (BVar gamma) 
+  freshNames ["#case"] $
+  \[n] -> do
+    mod <- newMode ["#alpha", "#beta", "#gamma"]
     (t, ann) <- typeCheck flag a (MetaVar n) mod
     mod' <- updateModality mod
     return (t, WithType ann t, mod')
 
 typeInfer flag a@(Let _ _) =
-  freshNames ["#let", "#alpha", "#beta", "#gamma"] $
-    \[n, alpha, beta, gamma] -> do
-      let mod = M (BVar alpha) (BVar beta) (BVar gamma) 
+  freshNames ["#let"] $
+    \[n] -> do
+      mod <- newMode ["#alpha", "#beta", "#gamma"]
       (t, ann) <- typeCheck flag a (MetaVar n) mod
       mod' <- updateModality mod
       return (t, WithType ann t, mod')
 
 typeInfer flag a@(LetPair _ _) =
-  freshNames ["#letPair", "#alpha", "#beta", "#gamma"] $
-  \[n, alpha, beta, gamma] -> do
-    let mod = M (BVar alpha) (BVar beta) (BVar gamma) 
+  freshNames ["#letPair"] $
+  \[n] -> do
+    mod <- newMode ["#alpha", "#beta", "#gamma"]
     (t, ann) <- typeCheck flag a (MetaVar n) mod
     mod' <- updateModality mod
     return (t, WithType ann t, mod')
