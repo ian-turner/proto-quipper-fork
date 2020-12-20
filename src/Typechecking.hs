@@ -76,9 +76,10 @@ typeInfer flag a@(Const kid) = do
 
 typeInfer flag a@(App t1 t2) = do
   (t', ann, m) <- typeInfer flag t1
+  m' <- updateModality m
   if isKind t'
     then handleTypeApp ann t' t1 t2
-    else handleTermApp flag ann t1 t' t1 t2 m
+    else handleTermApp flag ann t1 t' t1 t2 m'
 
 typeInfer False a@(UnBox) =
   freshNames ["a", "b", "alpha", "beta"] $ \[a, b, alpha, beta] ->
@@ -448,8 +449,8 @@ typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
   mod1' <- updateModality mod1
   let lxs = length xs
       lbd = length bds
-      msubs = modeResolution Equal mod1' identityMod
-  when (msubs == Nothing) $ throwError $ ModalityErr mod1' identityMod a
+      msubs = modeResolution GEq identityMod mod1'
+  when (msubs == Nothing) $ throwError $ ModalityErr identityMod mod1' a
   let Just s' = msubs
   updateModeSubst s'
   if lxs <= lbd
@@ -472,8 +473,8 @@ typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
 
 typeCheck flag a (Imply bds ty mod2) mod1 = do
   mod1' <- updateModality mod1
-  let msubs = modeResolution Equal mod1' identityMod
-  when (msubs == Nothing) $ throwError $ ModalityErr mod1' identityMod a
+  let msubs = modeResolution GEq identityMod mod1'
+  when (msubs == Nothing) $ throwError $ ModalityErr identityMod mod1' a
   let Just s' = msubs
   updateModeSubst s'
   let ns1 = take (length bds) (repeat "#inst")
@@ -505,8 +506,8 @@ typeCheck flag a (Bang ty m) mod = do
 
 typeCheck False c@(Lam bind) t mod = do
   mod' <- updateModality mod
-  let msubs = modeResolution Equal mod' identityMod
-  when (msubs == Nothing) $ throwError $ ModalityErr mod' identityMod c
+  let msubs = modeResolution GEq identityMod mod'
+  when (msubs == Nothing) $ throwError $ ModalityErr identityMod mod' c
   let Just s' = msubs
   updateModeSubst s'
   at <- updateWithSubst t
@@ -662,7 +663,7 @@ typeCheck flag a@(Pair t1 t2) (Exists p ty) mod =
           mode1' <- updateModality mode1
           mode2' <- updateModality mode2
           mod' <- updateModality mod
-          let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+          let s = modeResolution GEq (modalAnd mode1' mode2') mod' 
           when (s == Nothing) $ throwError $
                   ModalityErr (modalAnd mode1' mode2') mod' a
           let Just s'@(s1, s2, s3) = s
@@ -685,9 +686,9 @@ typeCheck flag a@(Pair t1 t2) d mod =
             mode2' <- updateModality mode2
             mod' <- updateModality mod
             let conj = modalAnd mode1' mode2'
-                msubs = modeResolution Equal mod' conj
+                msubs = modeResolution GEq conj mod'
             when (msubs == Nothing) $ throwError $
-                 ModalityErr mod' conj a
+                 ModalityErr conj mod' a
             let Just s' = msubs
             updateModeSubst s'
             return (Tensor ty1' ty2', Pair t1' t2')
@@ -708,9 +709,9 @@ typeCheck flag a@(Pair t1 t2) d mod =
                    mode2' <- updateModality mode2
                    mod' <- updateModality mod
                    let conj = modalAnd mode1' mode2'
-                       msubs = modeResolution Equal mod' conj
+                       msubs = modeResolution GEq conj mod'
                    when (msubs == Nothing) $ throwError $
-                     ModalityErr mod' conj a
+                     ModalityErr conj mod' a
                    let Just s' = msubs
                    updateModeSubst s'
                    let res = Pair t1' t2'
@@ -732,7 +733,7 @@ typeCheck flag a@(Let m bd) goal mod =
                  mod' <- updateModality mod
                  mode1' <- updateModality mode1
                  mode2' <- updateModality mode2
-                 let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+                 let s = modeResolution GEq (modalAnd mode1' mode2') mod' 
                  when (s == Nothing) $ throwError $
                     ModalityErr (modalAnd mode1' mode2') mod' a
                  let Just s'@(s1, s2, s3) = s
@@ -754,7 +755,7 @@ typeCheck flag a@(Let m bd) goal mod =
                  mod' <- updateModality mod
                  mode1' <- updateModality mode1
                  mode2' <- updateModality mode2
-                 let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+                 let s = modeResolution GEq (modalAnd mode1' mode2') mod' 
                  when (s == Nothing) $ throwError $
                      ModalityErr (modalAnd mode1' mode2') mod' a
                  let Just s'@(s1, s2, s3) = s
@@ -789,7 +790,7 @@ typeCheck flag a@(LetPair m (Abst xs n)) goal mod =
             mod' <- updateModality mod
             mode1' <- updateModality mode1
             mode2' <- updateModality mode2
-            let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+            let s = modeResolution GEq (modalAnd mode1' mode2') mod' 
             when (s == Nothing) $ throwError $
                      ModalityErr (modalAnd mode1' mode2') mod' a
             let Just s'@(s1, s2, s3) = s
@@ -808,7 +809,7 @@ typeCheck flag a@(LetPair m (Abst xs n)) goal mod =
               mod' <- updateModality mod
               mode1' <- updateModality mode1
               mode2' <- updateModality mode2
-              let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+              let s = modeResolution GEq (modalAnd mode1' mode2') mod' 
               when (s == Nothing) $ throwError $
                      ModalityErr (modalAnd mode1' mode2') mod' a
               let Just s'@(s1, s2, s3) = s
@@ -844,7 +845,7 @@ typeCheck flag a@(LetPair m (Abst xs n)) goal mod =
                             mod' <- updateModality mod
                             mode1' <- updateModality mode1
                             mode2' <- updateModality mode2
-                            let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+                            let s = modeResolution GEq (modalAnd mode1' mode2') mod' 
                             when (s == Nothing) $ throwError $
                                   ModalityErr (modalAnd mode1' mode2') mod' a
                             let Just s'@(s1, s2, s3) = s
@@ -887,7 +888,7 @@ typeCheck flag a@(LetPat m bd) goal mod =
                  mod' <- updateModality mod
                  mode1' <- updateModality mode1
                  mode2' <- updateModality mode2
-                 let s = modeResolution Equal (modalAnd mode1' mode2') mod' 
+                 let s = modeResolution GEq (modalAnd mode1' mode2') mod' 
                  when (s == Nothing) $ throwError $
                      ModalityErr (modalAnd mode1' mode2') mod' a
                  let Just s'@(s1, s2, s3) = s
@@ -935,7 +936,7 @@ typeCheck flag a@(Case tm (B brs)) goal mod =
      mode1' <- updateModality mode1
      mod' <- updateModality mod
      let mode'' = foldr modalAnd mode1' ms
-     let s = modeResolution Equal mode'' mod' 
+     let s = modeResolution GEq mode'' mod' 
      when (s == Nothing) $ throwError $
         ModalityErr mode'' mod' a
      let Just s'@(s1, s2, s3) = s
@@ -1032,7 +1033,7 @@ equality flag tm ty mod =
        do (tym, ann, mode) <- typeInfer flag tm
           mode' <- updateModality mode
           mod' <- updateModality mod
-          let s = modeResolution Equal mode' mod' 
+          let s = modeResolution GEq mode' mod' 
           when (s == Nothing) $ throwError $
               ModalityErr mode' mod' tm
           let Just s'@(s1, s2, s3) = s
@@ -1052,8 +1053,6 @@ equality flag tm ty mod =
                let ss' = sub `mergeSub` ss 
                updateSubst ss'
                updateModeSubst bs
-               -- st <- get
-               -- let msub = modeSubstitution st
                ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
                return (ty1', ann)
 
@@ -1256,7 +1255,8 @@ handleTermApp flag ann pos t' t1 t2 mode1 = do
                 -- since t2 may travels to m, we
                 -- normalize [[t2]/x]m
         let flag' = isKind ty
-        (_, kann) <- typeCheck flag' t2 ty identityMod
+        mode3 <- newMode2 ["a", "b"]
+        (_, kann) <- typeCheck flag' t2 ty mode3
         let t2' = erasePos kann
         t2'' <-
           if not flag'
@@ -1264,6 +1264,7 @@ handleTermApp flag ann pos t' t1 t2 mode1 = do
             else return t2'
         m' <- betaNormalize (apply [(head xs, t2'')] m)
         mode2' <- updateModality mode2
+        mode3' <- updateModality mode3
         let res =
               case (flag, flag') of
                 (False, False) -> AppDep a1' kann
@@ -1272,10 +1273,10 @@ handleTermApp flag ann pos t' t1 t2 mode1 = do
                 (True, True) -> AppDepTy a1' kann
         if null (tail xs)
           then
-            return (m', res, modalAnd mode2' mode1')
+            return (m', res, modalAnd (modalAnd mode2' mode1') mode3')
           else
             return (Pi (abst (tail xs) m') ty mode2', res,
-                     modalAnd mode2' mode1')
+                     modalAnd (modalAnd mode2' mode1') mode3')
     b -> throwError $ ArrowErr t1 b
 
 -- | Add annotations to the term /a/ according to
@@ -1302,7 +1303,8 @@ addAnn flag mode e a (Bang t m) env = do
   if flag
     then addAnn flag mode e (force a) t' env
     else do
-      let newMode = modalAnd mode m
+      m' <- updateModality m
+      let newMode = modalAnd mode m'
       addAnn flag newMode e (force a) t' env
 
 addAnn flag mode e a (Forall bd ty) env
@@ -1326,24 +1328,26 @@ addAnn flag mode e a (Forall bd ty) env
 addAnn flag mode e a (PiImp bd ty mode2) env
   | isKind ty =
     open bd $ \xs t ->
-      let mvars = map MetaVar xs
-          a' = foldl AppDepTy a mvars
-          new = map (\x -> (x, ty)) xs
-          t' = apply (zip xs mvars) t
-       in addAnn flag (modalAnd mode mode2) e a' t' (new ++ env)
+      do let mvars = map MetaVar xs
+             a' = foldl AppDepTy a mvars
+             new = map (\x -> (x, ty)) xs
+             t' = apply (zip xs mvars) t
+         mode2' <- updateModality mode2
+         addAnn flag (modalAnd mode mode2') e a' t' (new ++ env)
        
 addAnn flag mode e a (PiImp bd ty mode2) env
   | otherwise =
     open bd $ \xs t ->
-      let app =
-            if flag
-              then AppDepInt
-              else AppDep
-          mvars = map MetaVar xs
-          a' = foldl app a mvars
-          new = map (\x -> (x, ty)) xs
-          t' = apply (zip xs mvars) t
-       in addAnn flag (modalAnd mode mode2) e a' t' (new ++ env)
+      do let app =
+               if flag
+               then AppDepInt
+               else AppDep
+             mvars = map MetaVar xs
+             a' = foldl app a mvars
+             new = map (\x -> (x, ty)) xs
+             t' = apply (zip xs mvars) t
+         mode2' <- updateModality mode2
+         addAnn flag (modalAnd mode mode2') e a' t' (new ++ env)
 
 addAnn flag mode e a (Imply bds ty mod) env = do
   ts <- get
@@ -1355,15 +1359,16 @@ addAnn flag mode e a (Imply bds ty mod) env = do
     put ts {clock = i'}
     mapM_ (\((x, t), e) -> addGoalInst x t e) instEnv
     let a' = foldl AppDict a (map MetaVar ns)
-    addAnn flag (modalAnd mod mode) e a' ty env
+    mod' <- updateModality mod
+    addAnn flag (modalAnd mod' mode) e a' ty env
 
 addAnn flag mode e a t env = return (a, t, env, mode)
 
 -- expecting a to be either a Const or Var
 handleBangConstVar flag a (Bang ty2 m2) mod = do
   mod' <- updateModality mod
-  let msubs = modeResolution Equal mod' identityMod
-  when (msubs == Nothing) $ throwError $ ModalityErr mod' identityMod a
+  let msubs = modeResolution GEq identityMod mod' 
+  when (msubs == Nothing) $ throwError $ ModalityErr identityMod mod' a
   let Just s' = msubs
   updateModeSubst s'
   (ty', _, _) <- typeInfer flag a
@@ -1378,7 +1383,7 @@ handleBangValue flag a ty1@(Bang ty m) mod = do
     then do
       checkParamCxt a
       (t, ann) <- typeCheck flag a ty m
-      let s = modeResolution Equal mod' identityMod
+      let s = modeResolution GEq mod' identityMod
       when (s == Nothing) $ throwError $ ModalityErr mod' identityMod a
       let Just s'@(s1, s2, s3) = s
       updateModeSubst s'
@@ -1389,7 +1394,7 @@ handleBangValue flag a ty1@(Bang ty m) mod = do
       checkParamCxt a
       (tym, ann, cMode) <- typeInfer flag a
       cMode' <- updateModality cMode
-      let s = modeResolution Equal cMode' mod' 
+      let s = modeResolution GEq cMode' mod' 
       when (s == Nothing) $ throwError $ ModalityErr cMode' mod' a
       let Just s'@(s1, s2, s3) = s
       updateModeSubst s'     

@@ -5,6 +5,7 @@ import "lib/Class.dpq"
 import "lib/List.dpq"
 import "lib/State.dpq"
 import "lib/WithGarbage.dpq"
+
 copyT : !(Qubit -> Qubit * Qubit * Qubit)
 copyT q =
    let (q1, q2) = copy q

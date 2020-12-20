@@ -27,6 +27,7 @@ minus n m = case n of
 	               Z -> n
 	               S m' -> minus n' m'
 
+
 mul : ! (Nat -> Nat -> Nat)
 mul n m = iterN n (\ x -> add m x) 0
 
