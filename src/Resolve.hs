@@ -18,6 +18,7 @@ module Resolve
 
 import Utils
 import SyntacticOperations
+import ModeResolve (booleanVarElim)
 import qualified ConcreteSyntax as C
 import Syntax
 
@@ -418,6 +419,12 @@ resolveDecl scope (C.GateDecl p gn params t (a, b, c) inv) =
          mod = M (BConst a) (BConst b) (BConst c)
      params' <- mapM (resolve Pure lscope') params
      e <- resolve (Last mod) lscope' t
+     let (bds, h) = C.flattenArrows t
+         (he:tl) = map snd bds
+         hs = C.flattenTensor h
+         h' = foldl C.Tensor he tl
+         t' = foldr C.Arrow h' hs
+     e' <- resolve (Last mod) lscope' t'
      case inv of
        Nothing ->  
          return (GateDecl p id params' e Nothing b, scope') 
@@ -427,7 +434,7 @@ resolveDecl scope (C.GateDecl p gn params t (a, b, c) inv) =
                                  if g' == gn
                                  then return (id, scope')
                                  else throwError err
-            return (GateDecl p id params' e (Just id') b, scope'')
+            return (GateDecl p id params' e (Just (id', e')) b, scope'')
                     
               
 resolveDecl scope (C.Object p x) =
@@ -526,15 +533,17 @@ resolveDecl scope (C.Class pos c vs mths) =
        let tyArgs = map C.Var $ concat $ map (\ x -> (fst x)) vs
            head = foldl C.App (C.Base c) tyArgs
            tys = map (\ (_, _, t, m) -> (t, m)) mths
-           dictTy = C.Forall vs
-             (foldr (\ (x, m) y -> C.Arrow (C.Bang x) y) head tys) 
+           dictType = C.Forall vs
+               (foldr (\ (x, m) y -> C.Arrow (C.Bang x) y) head tys) 
            kd1 = foldr (\ (x, ty) y -> C.Pi x ty y) C.Set vs
            lscope = toLScope scope'
-       dictType <- resolve Pure lscope dictTy     
+           modes = map (\ (_, _, t, m) -> m) mths
+       dictType <- resolve Defer lscope dictType
        kd2 <- resolve Pure lscope kd1
        let kd = removeVacuousPi kd2
+           dictType' = adjustModes (erasePos dictType) modes
        (mths', scope'') <- makeMethods scope' head vs mths
-       return (Class pos d kd dict (abstractMode dictType) mths', scope'')
+       return (Class pos d kd dict (abstractMode $ booleanVarElim dictType') mths', scope'')
          where makeMethods scope' head vs [] =
                  return ([], scope') 
                makeMethods scope' head vs ((p, mname, mty, (a, b, c)):cs) =
@@ -545,7 +554,22 @@ resolveDecl scope (C.Class pos c vs mths) =
                     ty' <- resolve (Last mode) lscope' ty
                     (res, scope''') <- makeMethods scope'' head vs cs
                     return ((p, d, abstractMode ty'):res, scope''')
-
+               adjustModes (Forall (Abst xs b) ty) modes =
+                 let r = adjustModes b modes in Forall (abst xs r) ty
+               adjustModes t modes =
+                 let (bds, h) = flattenArrows t
+                     bds' = zipWith changeMode (map snd bds) modes
+                 in foldr (\ x y -> Arrow x y identityMod) h bds' 
+               changeMode (Bang t mode) m =
+                 Bang (changeMode t m) mode
+               changeMode (Imply ps t mode) m =
+                 Imply ps (changeMode t m) mode
+               changeMode (Arrow t t' mode) m@(a, b, c) =
+                 case t' of
+                   Arrow _ _ _ -> Arrow t (changeMode t' m) mode
+                   _ -> Arrow t t' (M (BConst a) (BConst b) (BConst c))
+               
+               
 resolveDecl scope (C.Instance pos t mths) =
   do let lscope = toLScope scope
      t' <- resolve Pure lscope t

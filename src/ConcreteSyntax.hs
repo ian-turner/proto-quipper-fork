@@ -168,3 +168,21 @@ removePos :: Exp -> Exp
 removePos = everywhere (mkT rm)
   where rm (Pos _ e) = e
         rm e = e
+
+flattenTensor (Pos _ e) = flattenTensor e
+flattenTensor (Tensor x y) = 
+  flattenTensor x ++ flattenTensor y
+flattenTensor a = [a]
+
+-- | Flatten a type expression into bodies and head,
+-- with variables intact.
+-- e.g. @flattenArrows ((x : A1) -> A2 -> (P) => H)@ produces
+-- @([(Just x, A1), (Nothing, A2), (Nothing, P)], H)@
+
+flattenArrows :: Exp -> ([(Maybe Variable, Exp)], Exp)
+flattenArrows (Pos p a) = flattenArrows a
+flattenArrows (Arrow t1 t2) =
+  let (res, h) = flattenArrows t2 in
+  ((Nothing, t1):res, h)
+flattenArrows a = ([], a)  
+

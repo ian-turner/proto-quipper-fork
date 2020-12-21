@@ -382,7 +382,7 @@ flattenArrows (Imply t1 t2 _) =
  
 flattenArrows a = ([], a)  
 
- 
+  
 -- | Remove the leading forall quantifiers,
 -- and class quantifiers if flag is True.
 removePrefixes :: Bool -> Exp -> ([(Maybe Variable, Exp)], Exp)

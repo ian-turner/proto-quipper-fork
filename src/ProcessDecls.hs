@@ -311,29 +311,29 @@ process (GateDecl pos id params t inv flag) = do
   tcTop $ mapM_ checkParam params
   let (bds, h) = flattenArrows t
       t' = erasePos t
-      bds'@(he:tl) = map snd bds
+      bds' = map snd bds
       params' = map erasePos params
---      h' = foldl Tensor he tl
---      hs = flattenTensor h
---      ty_inv = Bang (foldr Arrow (foldr Arrow h' hs) params) m
---      t_inv' = foldr Arrow h' hs
   tcTop $ mapM_ checkStrictSimple (h : bds')
   when (null bds) $ throwError $ CompileErr (GateErr pos id)
   let ty = Bang (foldr (\ x y -> Arrow x y identityMod) t params) identityMod 
   (_, tk) <- tcTop $ typeChecking True ty Set identityMod
-  -- (_, tk_inv) <- tcTop $ typeChecking True ty_inv Set
   let tk' = erasePos tk
-      tk_inv' = tk'
-  --let tk_inv' = erasePos tk_inv
-  gate <- makeGate id params' t' flag inv
-  let fp = Info {classifier = tk', identification = DefinedGate gate}
-  tcTop $ addNewId id fp
   case inv of
-    Nothing -> return ()
-    Just id' -> do
-      gate' <- makeGate id' params' t' flag (Just id)
-      let fp' = Info {classifier = tk_inv', identification = DefinedGate gate'}
-      tcTop $ addNewId id' fp'
+    Nothing ->
+      do  gate <- makeGate id params' t' flag Nothing
+          let fp = Info {classifier = tk',
+                         identification = DefinedGate gate}
+          tcTop $ addNewId id fp
+    Just (id', t'') -> 
+      do  gate <- makeGate id params' t' flag (Just id')
+          let fp = Info {classifier = tk',
+                         identification = DefinedGate gate}
+          tcTop $ addNewId id fp
+          let t_inv = erasePos t''
+              t_inv' = Bang (foldr (\ x y -> Arrow x y identityMod) t_inv params) identityMod 
+          gate' <- makeGate id' params' t_inv flag (Just id)
+          let fp' = Info {classifier = t_inv', identification = DefinedGate gate'}
+          tcTop $ addNewId id' fp'
   where
     checkParam t = do
       p <- isParam t

@@ -8,7 +8,8 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DeriveAnyClass #-}
- 
+
+
 {-|
 This module describes the abstract syntax of Proto-Quipper-D. 
 We use Peter Selinger's nominal library to handle variable bindings 
@@ -704,7 +705,7 @@ data Decl
   | Def Position Id Exp Exp Bool
             -- ^ Function declaration. 'Id': name, 'Exp': type, 'Exp': definition.
              
-  | GateDecl Position Id [Exp] Exp (Maybe Id) Bool
+  | GateDecl Position Id [Exp] Exp (Maybe (Id, Exp)) Bool
 
   | CircuitDecl Position Id Exp Morphism
             -- ^ Gate declaration. 'Id': name, ['Exp']: parameters, 'Exp': input/output.
