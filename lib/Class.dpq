@@ -50,10 +50,10 @@ infixl 12 >
 --   (<=) x y = x < y || x == y
 object Qubit
 class QuantumOp a where
---  unary : (Simple a) => !(Qubit -> Qubit) -> a -> a
+  unary : (Simple a) => !(Qubit -> Qubit) -> a -> a
   #Boxable, #Reversible
   copy  : (Simple a) => a -> a * a
---   cnots : (Simple a) => a -> a -> a * a
+  cnots : (Simple a) => a -> a -> a * a
 
 -- instance QuantumOp Qubit where
 --   unary g q = g q

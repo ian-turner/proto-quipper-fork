@@ -95,7 +95,7 @@ main = do
         Just str -> do
           pst <- getPState
           exp' <- parserTop $ parseExp str pst
-          e <- topResolve Pure exp'
+          e <- topResolve  exp'
           (_, e'') <- topTypeInfer e
           gs <- evaluation' e'' False
           ioTop (print $ vcat $ map dispRaw gs)
@@ -112,7 +112,7 @@ main = do
       dispatch (Load False file)
       pst <- getPState
       exp' <- parserTop $ parseExp exp pst
-      e <- topResolve Pure exp'
+      e <- topResolve  exp'
       (_, e'') <- topTypeInfer e
       gs <- evaluation' e'' False
       case name of

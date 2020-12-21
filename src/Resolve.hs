@@ -5,7 +5,6 @@ module Resolve
          ScopeError,
          Scope(..),
          Resolve(..),
-         ResolveFlag(..),
          runResolve,
          emptyScope,
          resolve,
@@ -153,39 +152,33 @@ addScopePos :: Position -> ScopeError -> ScopeError
 addScopePos p a@(ScopePos _ _) = a
 addScopePos p a = ScopePos p a
 
--- | Flags for resolve.
-data ResolveFlag =
-  Pure  -- ^ Make all modalities identitymod
-  | Last Modality -- ^ Make the last modality along arrow mu
-  | Defer -- ^ make all modalities fresh
-  deriving (Eq, Show)
 
 -- | Resolve concrete syntax to abstract syntax.
-resolve :: ResolveFlag -> LScope -> C.Exp -> Resolve Exp
-resolve f d (C.Pos p e) =
-  do a <- resolve f d e `catchError` \ e -> throwError $ addScopePos p e
+resolve :: LScope -> C.Exp -> Resolve Exp
+resolve d (C.Pos p e) =
+  do a <- resolve d e `catchError` \ e -> throwError $ addScopePos p e
      return $ Pos p a
     
-resolve f d (C.Var y) = 
+resolve d (C.Var y) = 
   case lookupLScope d y of
    Nothing -> throwError $ NotInScope y
    Just x -> return x
 
-resolve f d (C.Base s) =
+resolve d (C.Base s) =
   let global = scopeMap (globalScope d) in
   case Map.lookup s global of
    Nothing -> throwError $ NotInScope s
    Just (x, _) -> return x
 
-resolve f d (C.LamAnn vs ty m) =
+resolve d (C.LamAnn vs ty m) =
   lscopeVars d vs $ \d' xs -> 
-  do m' <- resolve f d' m
-     ty' <- resolve f d' ty
+  do m' <- resolve d' m
+     ty' <- resolve d' ty
      return $ LamAnn ty' (abst xs m') 
 
-resolve f d (C.Lam vs m) =
+resolve d (C.Lam vs m) =
   lscopeVars d vs $ \d' xs -> 
-  do m' <- resolve f d' m
+  do m' <- resolve d' m
      if null xs then return m'
        else helper m' xs
   where helper (Lam bs) xs = 
@@ -195,11 +188,10 @@ resolve f d (C.Lam vs m) =
           helper e xs >>= \ e' -> return $ Pos p e'
         helper a xs = return $ Lam (xs.a) 
 
-
-resolve f d (C.Forall ((vs, t):vars) m) =
+resolve d (C.Forall ((vs, t):vars) m) =
   lscopeVars d vs $ \d' xs ->
-  do m' <- resolve f d' (C.Forall vars m)
-     t' <- resolve f d t
+  do m' <- resolve d' (C.Forall vars m)
+     t' <- resolve d t
      case m' of
        Forall bd t'' | t'' == t' ->
          open bd $ \ ys b ->
@@ -207,48 +199,47 @@ resolve f d (C.Forall ((vs, t):vars) m) =
        _ ->
          return $ Forall (xs . m') t'
 
-resolve f d (C.Forall [] m) = resolve f d m
+resolve d (C.Forall [] m) = resolve d m
 
-resolve f d (C.App m n) = 
-  do m' <- resolve f d m
-     n' <- resolve f d n
+resolve d (C.App m n) = 
+  do m' <- resolve d m
+     n' <- resolve d n
      return (App m' n')
 
-resolve f d (C.Pair m n) = 
-  do m' <- resolve f d m
-     n' <- resolve f d n
+resolve d (C.Pair m n) = 
+  do m' <- resolve d m
+     n' <- resolve d n
      return (Pair m' n')
 
-resolve f d (C.Let [] m) = resolve f d m
+resolve d (C.Let [] m) = resolve d m
 
-resolve f d (C.Let ((C.BSingle (s, n)):defs) m) =
+resolve d (C.Let ((C.BSingle (s, n)):defs) m) =
   lscopeVars d [s] $ \d' (x:[]) -> 
-  do 
-     n' <- resolve f d n
-     m' <- resolve f d' (C.Let defs m)
+  do n' <- resolve d n
+     m' <- resolve d' (C.Let defs m)
      return (Let n' (x.m'))
      
-resolve f d (C.Let ((C.BPair (ss, m)):defs) n) = 
+resolve d (C.Let ((C.BPair (ss, m)):defs) n) = 
   lscopeVars d ss $ \d' xs -> 
-    do m' <- resolve f d m
-       n' <- resolve f d' (C.Let defs n)
+    do m' <- resolve d m
+       n' <- resolve d' (C.Let defs n)
        return (LetPair m' (abst xs n'))
 
-resolve f d (C.Let ((C.BAnn (s, ty, n)):defs) m) =
+resolve d (C.Let ((C.BAnn (s, ty, n)):defs) m) =
   lscopeVars d [s] $ \ d' (x:[]) -> 
-  do n' <- resolve f d n
-     ty' <- resolve f d ty
-     m' <- resolve f d' (C.Let defs m)
+  do n' <- resolve d n
+     ty' <- resolve d ty
+     m' <- resolve d' (C.Let defs m)
      return (Let (WithType n' ty') (abst x m'))
 
-resolve f d (C.Let ((C.BPattern (c, vs, m)):defs) n) =
+resolve d (C.Let ((C.BPattern (c, vs, m)):defs) n) =
   do vs' <- mapM helper vs
      case lookupLScope d c of
        Nothing -> throwError $ NotInScope c
        Just (Const kid) ->
          lscopeVars d vs' $ \d' xs -> 
-         do m' <- resolve f d m
-            n' <- resolve f d' (C.Let defs n)
+         do m' <- resolve d m
+            n' <- resolve d' (C.Let defs n)
             return (LetPat m' (abst (PApp kid (map Right xs)) n'))
     where helper :: C.Exp -> Resolve String
           helper (C.Var x) = return x
@@ -256,18 +247,18 @@ resolve f d (C.Let ((C.BPattern (c, vs, m)):defs) n) =
           helper (C.Pos p x) = helper x
           helper a = throwError NoNest 
 
-resolve f d (C.Star) = return Star
-resolve f d (C.Box) = return Box 
-resolve f d (C.ExBox) = return ExBox
-resolve f d (C.UnBox) = return (UnBox)
-resolve f d (C.Reverse) = return (Reverse)
-resolve f d (C.Controlled) = return (Controlled)
-resolve f d (C.WithComputed) = return (WithComputed)
-resolve f d (C.Dynlift) = return (Dynlift)
+resolve d (C.Star) = return Star
+resolve d (C.Box) = return Box 
+resolve d (C.ExBox) = return ExBox
+resolve d (C.UnBox) = return (UnBox)
+resolve d (C.Reverse) = return (Reverse)
+resolve d (C.Controlled) = return (Controlled)
+resolve d (C.WithComputed) = return (WithComputed)
+resolve d (C.Dynlift) = return (Dynlift)
      
 
-resolve f d (C.Case t br) = do
-  t' <- resolve f d t
+resolve d (C.Case t br) = do
+  t' <- resolve d t
   br' <- resolveBr d br
   return (Case t' br')
   where resolveBr :: LScope -> C.Branches -> Resolve Branches
@@ -278,10 +269,10 @@ resolve f d (C.Case t br) = do
               do args' <- mapM helper args 
                  lscopeVars d args' $ \d' ys -> 
                    if null brs then
-                     do t' <- resolve f d' t
+                     do t' <- resolve d' t
                         return $ B (((PApp kid (map Right ys)).t'):[])
                    else
-                     do t' <- resolve f d' t
+                     do t' <- resolve d' t
                         B brs' <- resolveBr d brs
                         return $ B (((PApp kid (map Right ys)).t'):brs')
             Just a -> throwError $ ConstrErr a
@@ -291,113 +282,70 @@ resolve f d (C.Case t br) = do
         helper (C.Pos p x) = helper x
         helper a = throwError NoNest 
 
-resolve Defer d (C.Arrow t u) = 
-  do t' <- resolve Defer d t
-     u' <- resolve Defer d u
+resolve d (C.Arrow t u) = 
+  do t' <- resolve d t
+     u' <- resolve d u
      ns <- refresh ["#x", "#y", "#z"]
      let m = freshMode ns
      return (Arrow t' u' m)
 
-resolve Pure d (C.Arrow t u) = 
-  do t' <- resolve Pure d t
-     u' <- resolve Pure d u
-     return (Arrow t' u' identityMod)
 
-resolve (Last mu) d (C.Arrow t u) = 
-  do t' <- resolve Pure d t
-     case C.removePos u of
-        C.Arrow _ _ -> 
-          do u' <- resolve (Last mu) d u
-             return (Arrow t' u' identityMod)
-        _ ->
-          do u' <- resolve Pure d u
-             return (Arrow t' u' mu)
-
-
-resolve Defer d (C.Imply t u) = 
-  do ts <- mapM (resolve Defer d) t
-     u' <- resolve Defer d u
+resolve d (C.Imply t u) = 
+  do ts <- mapM (resolve d) t
+     u' <- resolve d u
      ns <- refresh ["#x", "#y", "#z"]
      let m = freshMode ns
      return (Imply ts u' m)
- 
-resolve f d (C.Imply t u) = 
-  do ts <- mapM (resolve f d) t
-     u' <- resolve f d u
-     return (Imply ts u' identityMod)
      
-resolve f d (C.Tensor t u) = 
-  do t' <- resolve f d t
-     u' <- resolve f d u
+resolve d (C.Tensor t u) = 
+  do t' <- resolve d t
+     u' <- resolve d u
      return (Tensor t' u')
      
-resolve f d (C.Unit) = return Unit
+resolve d (C.Unit) = return Unit
 
 
-resolve Pure d (C.Bang t) = 
-  do t' <- resolve Pure d t
-     return (Bang t' identityMod)
-
-resolve Defer d (C.Bang t) = 
-  do t' <- resolve Defer d t
+resolve d (C.Bang t) = 
+  do t' <- resolve d t
      ns <- refresh ["#x", "#y", "#z"]
      let m = freshMode ns
      return (Bang t' m)
 
-resolve (Last mu) d (C.Bang t) = 
-  do t' <- resolve (Last mu) d t
-     return (Bang t' identityMod)
 
-resolve Defer d (C.Circ t u) = 
-  do t' <- resolve Defer d t
-     u' <- resolve Defer d u
+resolve d (C.Circ t u) = 
+  do t' <- resolve d t
+     u' <- resolve d u
      ns <- refresh ["#x", "#y", "#z"]
      let M _ x y = freshMode ns
      return (Circ t' u' (M (BConst True) x y))
 
-resolve f d (C.Circ t u) = 
-  do t' <- resolve f d t
-     u' <- resolve f d u
-     return (Circ t' u' identityMod)
 
-resolve Defer d (C.Pi vs t1 t2) =
+resolve d (C.Pi vs t1 t2) =
   lscopeVars d vs $ \d' xs -> 
-  do t1' <- resolve Defer d t1
-     t2' <- resolve Defer d' t2
+  do t1' <- resolve d t1
+     t2' <- resolve d' t2
      m <- refresh ["#x", "#y", "#z"] >>= \ x -> return (freshMode x)
      return (Pi (abst xs t2') t1' m)
 
-resolve f d (C.Pi vs t1 t2) =
+resolve d (C.PiImp vs t1 t2) =
   lscopeVars d vs $ \d' xs -> 
-  do t1' <- resolve f d t1
-     t2' <- resolve f d' t2
-     return (Pi (abst xs t2') t1' identityMod)
-
-resolve Defer d (C.PiImp vs t1 t2) =
-  lscopeVars d vs $ \d' xs -> 
-  do t1' <- resolve Defer d t1
-     t2' <- resolve Defer d' t2
+  do t1' <- resolve d t1
+     t2' <- resolve d' t2
      m <- refresh ["#x", "#y", "#z"] >>= \ x -> return (freshMode x)
      return (PiImp (abst xs t2') t1' m)
 
-resolve f d (C.PiImp vs t1 t2) =
-  lscopeVars d vs $ \d' xs -> 
-  do t1' <- resolve f d t1
-     t2' <- resolve f d' t2
-     return (PiImp (abst xs t2') t1' identityMod)
-
-resolve f d (C.Exists v t1 t2) =
+resolve d (C.Exists v t1 t2) =
   lscopeVars d [v] $ \d' (x:[]) -> 
-  do t1' <- resolve f d t1
-     t2' <- resolve f d' t2
+  do t1' <- resolve d t1
+     t2' <- resolve d' t2
      return (Exists (abst x t2') t1')
 
-resolve f d (C.WithAnn m ty) =
-  do ty' <- resolve f d ty
-     m' <- resolve f d m
+resolve d (C.WithAnn m ty) =
+  do ty' <- resolve d ty
+     m' <- resolve d m
      return $ WithType m' ty'
 
-resolve f d C.Set = return Set
+resolve d C.Set = return Set
 
 -- | Add a constant to the scope.
 addConst :: Position -> String -> (Id -> Exp) -> Scope -> Resolve (Id, Scope)
@@ -417,14 +365,16 @@ resolveDecl scope (C.GateDecl p gn params t (a, b, c) inv) =
   do (id, scope') <- addConst p gn Const scope 
      let lscope' = toLScope scope'
          mod = M (BConst a) (BConst b) (BConst c)
-     params' <- mapM (resolve Pure lscope') params
-     e <- resolve (Last mod) lscope' t
+     params' <- mapM (resolve lscope') params
+     e1 <- resolve lscope' t
+     let e = booleanVarElim $ changeMode e1 mod
      let (bds, h) = C.flattenArrows t
          (he:tl) = map snd bds
          hs = C.flattenTensor h
          h' = foldl C.Tensor he tl
          t' = foldr C.Arrow h' hs
-     e' <- resolve (Last mod) lscope' t'
+     e2 <- resolve lscope' t'
+     let e' = booleanVarElim $changeMode e2 mod
      case inv of
        Nothing ->  
          return (GateDecl p id params' e Nothing b, scope') 
@@ -444,16 +394,16 @@ resolveDecl scope (C.Object p x) =
 resolveDecl scope (C.Def p f ty args def isClifford) =
   do (id, scope') <- addConst p f Const scope
      let lscope' = toLScope scope'
-     ty' <- resolve Defer lscope' ty
+     ty' <- resolve lscope' ty
      lscopeVars lscope' args $ \ d xs ->
-       do def' <- resolve Defer d def
+       do def' <- resolve d def
           let res = if null xs then def' else Lam (abst xs def') 
           return (Def p id (abstractMode ty') res isClifford, scope')
 
 resolveDecl scope (C.Defn p f [] [] def isClifford) =
   do (id, scope') <- addConst p f Const scope
      let lscope' = toLScope scope'
-     def' <- resolve Defer lscope' def
+     def' <- resolve lscope' def
      return (Defn p id Nothing def' isClifford, scope')
 
 resolveDecl scope (C.Defn p f qs args def isClifford) | not $ null args =
@@ -465,9 +415,9 @@ resolveDecl scope (C.Defn p f qs args def isClifford) | not $ null args =
                                   Right (vs, _) -> vs
                                   ) args
          ty = C.Forall [(["#r"], C.Set)] $ C.Bang (toForall qs pi) 
-     ty' <- resolve Defer lscope' ty
+     ty' <- resolve lscope' ty
      lscopeVars lscope' args' $ \ d xs ->
-       do def' <- resolve Defer d def
+       do def' <- resolve d def
           let res = if null xs then def' else Lam (abst xs def') 
           return (Defn p id (Just (abstractMode ty')) res isClifford,
                   scope')
@@ -486,8 +436,8 @@ resolveDecl scope (C.Data p d ts vs constrs) =
          head = foldl C.App (C.Base d) tyArgs
          kd1 = foldr (\ (x, ty) y -> C.Pi x ty y) C.Set vs
          lscope' = toLScope scope'
-     kd <- resolve Pure lscope' kd1
-     let dKind = removeVacuousPi kd
+     kd <- resolve lscope' kd1
+     let dKind = booleanVarElim $ removeVacuousPi kd
      (constrs', scope'') <- resolveConstrs scope' head ts vs constrs
      return (Data p id dKind constrs', scope'')
        where resolveConstrs sc hd ts env [] = return ([], sc)
@@ -499,9 +449,9 @@ resolveDecl scope (C.Data p d ts vs constrs) =
                                         Right e -> C.Arrow e z 
                                  ) hd cArgs1
                       t = floatingParam ts vs ty []
-                  t' <- resolve Pure lsc' t
+                  t' <- resolve lsc' t
                   (cs', sc'') <- resolveConstrs sc' hd ts env cs
-                  return ((p1, c1', abstractMode t'):cs' , sc'')
+                  return ((p1, c1', abstractMode $ booleanVarElim t'):cs' , sc'')
              removePos (C.Pos _ e) = removePos e
              removePos (C.App e1 e2) = C.App (removePos e1) (removePos e2)
              removePos a@(C.Base x) = a
@@ -537,10 +487,10 @@ resolveDecl scope (C.Class pos c vs mths) =
                (foldr (\ (x, m) y -> C.Arrow (C.Bang x) y) head tys) 
            kd1 = foldr (\ (x, ty) y -> C.Pi x ty y) C.Set vs
            lscope = toLScope scope'
-           modes = map (\ (_, _, t, m) -> m) mths
-       dictType <- resolve Defer lscope dictType
-       kd2 <- resolve Pure lscope kd1
-       let kd = removeVacuousPi kd2
+           modes = map (\ (_, _, t, (a,b,c)) -> M (BConst a) (BConst b) (BConst c)) mths
+       dictType <- resolve lscope dictType
+       kd2 <- resolve lscope kd1
+       let kd = booleanVarElim $ removeVacuousPi kd2
            dictType' = adjustModes (erasePos dictType) modes
        (mths', scope'') <- makeMethods scope' head vs mths
        return (Class pos d kd dict (abstractMode $ booleanVarElim dictType') mths', scope'')
@@ -551,28 +501,21 @@ resolveDecl scope (C.Class pos c vs mths) =
                     let lscope' = toLScope scope''
                         ty = C.Bang (C.Forall vs (C.Imply [head] mty))
                         mode = M (BConst a) (BConst b) (BConst c)
-                    ty' <- resolve (Last mode) lscope' ty
+                    ty' <- resolve lscope' ty
                     (res, scope''') <- makeMethods scope'' head vs cs
-                    return ((p, d, abstractMode ty'):res, scope''')
+                    return ((p, d, abstractMode $ booleanVarElim $ changeMode ty' mode):res, scope''')
                adjustModes (Forall (Abst xs b) ty) modes =
                  let r = adjustModes b modes in Forall (abst xs r) ty
                adjustModes t modes =
                  let (bds, h) = flattenArrows t
                      bds' = zipWith changeMode (map snd bds) modes
                  in foldr (\ x y -> Arrow x y identityMod) h bds' 
-               changeMode (Bang t mode) m =
-                 Bang (changeMode t m) mode
-               changeMode (Imply ps t mode) m =
-                 Imply ps (changeMode t m) mode
-               changeMode (Arrow t t' mode) m@(a, b, c) =
-                 case t' of
-                   Arrow _ _ _ -> Arrow t (changeMode t' m) mode
-                   _ -> Arrow t t' (M (BConst a) (BConst b) (BConst c))
                
                
 resolveDecl scope (C.Instance pos t mths) =
   do let lscope = toLScope scope
-     t' <- resolve Pure lscope t
+     t'' <- resolve lscope t
+     let t' = booleanVarElim t''
      mths' <- makeMethods scope mths
      let (_, ty') = removePrefixes False t'
          (_, h) = flattenArrows ty'
@@ -583,11 +526,11 @@ resolveDecl scope (C.Instance pos t mths) =
        where makeMethods scope [] = return []
              makeMethods scope ((p, mname, args, exp):cs) =
                do let lscope = toLScope scope
-                  n <- resolve Pure lscope (C.Base mname) `catchError`
+                  n <- resolve lscope (C.Base mname) `catchError`
                        \ e -> throwError $ ScopePos p e
                   let (Const id) = n
                   lscopeVars lscope args  $ \ d xs ->
-                    do e' <- resolve Defer d exp
+                    do e' <- resolve d exp
                        let le = if null xs then e'
                              else Lam (abst xs e') 
                        res <- makeMethods scope cs
@@ -596,7 +539,8 @@ resolveDecl scope (C.Instance pos t mths) =
 resolveDecl scope (C.SimpData pos c args resKind eqs) =
   do (d, scope') <- addConst pos c LBase scope
      let lscope = toLScope scope'
-     kd <- resolve Pure lscope resKind
+     kd' <- resolve lscope resKind
+     let kd = booleanVarElim kd'
      let (bd, _) = flattenArrows (snd $ removePrefixes False kd)
          lta = length bd
      (eqs', scope'') <- makeConstrs lta scope' eqs
@@ -616,9 +560,9 @@ resolveDecl scope (C.SimpData pos c args resKind eqs) =
                       lta' = length tArgs'
                   when (lta' /= lta) $ throwError $
                       ScopePos p1 (LengthMismatch lta' lta)
-                  ty''' <- resolve Pure lscope ty''
+                  ty''' <- resolve lscope ty''
                   (res, scope''') <- makeConstrs lta scope'' cs
-                  return ((p2, mi, constr, ty'''):res, scope''')
+                  return ((p2, mi, constr, booleanVarElim ty'''):res, scope''')
              isPattern :: C.Exp -> Bool
              isPattern (C.Pos p e) = isPattern e
              isPattern (C.App _ _) = True
@@ -637,3 +581,17 @@ resolveDecl scope (C.ImportGlobal p f) =
 resolveDecl scope (C.OperatorDecl p s i f) =
   return (OperatorDecl p s i f, scope)
 
+
+-- | Change the last modality of a type to m.
+changeMode (Pos _ e) m = changeMode e m
+changeMode (Bang t mode) m =
+  Bang (changeMode t m) mode
+changeMode (Imply ps t mode) m =
+  Imply ps (changeMode t m) mode
+changeMode (Arrow t t' mode) m =
+  case erasePos t' of
+    Arrow _ _ _ -> Arrow t (changeMode t' m) mode
+    _ -> Arrow t t' m
+changeMode (Forall (Abst xs b) ty) m =
+  Forall (abst xs $ changeMode b m) ty
+changeMode t m = error $ "from changeMode:" ++ show (disp t)

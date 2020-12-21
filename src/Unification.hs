@@ -97,8 +97,9 @@ unify b (Case e1 (B br1)) (Case e2 (B br2)) | br1 == br2 =
   unify b e1 e2
 
       
-unify b (Arrow t1 t2 mod1) (Arrow t3 t4 mod2) =
-  case modeResolution b mod1 mod2 of 
+unify b e1@(Arrow t1 t2 mod1) e2@(Arrow t3 t4 mod2) =
+  case modeResolution b mod1 mod2 of
+    Nothing -> return $ ModeError (mod1, e1) (mod2, e2)
     Just bsub'@(bsub1', bsub2', bsub3') -> 
       do (sub, (bsub1, bsub2, bsub3)) <- get
          let new = (mergeModeSubst bsub1' bsub1,

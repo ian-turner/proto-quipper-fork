@@ -67,7 +67,7 @@ dispatch Reload = do
     Just file -> dispatch (Load True file)
 
 dispatch (Type e) = do
-  e' <- topResolve Pure e 
+  e' <- topResolve e 
   (t', e'') <- topTypeInfer e'
      -- let fvs = getVars AllowEigen t'
      -- when (not $ S.null fvs) $
@@ -76,7 +76,7 @@ dispatch (Type e) = do
   return True
 
 dispatch (Eval e) = do
-  e' <- topResolve Pure e
+  e' <- topResolve  e
   (t', e'') <- topTypeInfer e'
   if isKind t'
     then do
@@ -91,7 +91,7 @@ dispatch (Eval e) = do
       return True
 
 dispatch (Display e) = do
-  e' <- topResolve Pure e
+  e' <- topResolve  e
   (t', et) <- topTypeInfer e'
   case t' of
     A.Circ _ _ _ -> do
@@ -108,7 +108,7 @@ dispatch (Display e) = do
       return True
 
 dispatch (Print e file) = do
-  e' <- topResolve Pure e
+  e' <- topResolve  e
   (t', et) <- topTypeInfer e'
   case t' of
     A.Circ _ _ _ -> do
@@ -128,7 +128,7 @@ dispatch (Print e file) = do
       return True
 
 dispatch (GateCount name e) = do
-  e' <- topResolve Pure e
+  e' <- topResolve  e
   (t', et) <- topTypeInfer e'
   case t' of
     A.Circ _ _ _ -> do
@@ -158,7 +158,7 @@ dispatch (GateCount name e) = do
       return True
 
 dispatch (DisplayEx e) = do
-  e' <- topResolve Pure e
+  e' <- topResolve  e
   (t', et) <- topTypeInfer e'
   case t' of
     A.Exists (Abst n (A.Circ _ _ _)) _ -> do
@@ -182,7 +182,7 @@ dispatch (ShowCirc Nothing) = do
   return True
 
 dispatch (ShowCirc (Just e)) = do
-  e' <- topResolve Pure e
+  e' <- topResolve  e
   (t', e'') <- topTypeInfer e'
      -- let fvs = getVars AllowEigen t'
   gl <- getCxt
@@ -198,7 +198,7 @@ dispatch (TopGateCount Nothing Nothing) = do
   return True
 
 dispatch (TopGateCount Nothing (Just e)) = do
-  e' <- topResolve Pure e
+  e' <- topResolve  e
   (t', e'') <- topTypeInfer e'
   gl <- getCxt
   gs <- evaluation' e'' False
@@ -208,7 +208,7 @@ dispatch (TopGateCount Nothing (Just e)) = do
 --     et <- tcTop $ erasure e''
 --     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
 dispatch (TopGateCount (Just n) (Just e)) = do
-  e' <- topResolve Pure e
+  e' <- topResolve  e
   (t', e'') <- topTypeInfer e'
   gl <- getCxt
   gs <- evaluation' e'' False
@@ -219,7 +219,7 @@ dispatch (TopGateCount (Just n) (Just e)) = do
 --     et <- tcTop $ erasure e''
 --     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
 dispatch (Annotation e) = do
-  cid <- topResolve Pure e
+  cid <- topResolve  e
   let (Const id) = cid
   env <- getCxt
   let dfs = env
@@ -313,7 +313,7 @@ dispatch (Load msg file) = do
 -- | Initialize instances of simple class for unit and tensor product.
 initializeSimpleClass d = do
   vpairs1 <- makeBuiltinClass d 1
-  s <- topResolve Pure (C.Base "Simple")
+  s <- topResolve  (C.Base "Simple")
   i <- getCounter
   scope <- getScope
   putCounter (i + 2)
@@ -337,7 +337,7 @@ initializeSimpleClass d = do
 -- | Initialize instances of SimpParam class for unit and tensor product.
 initializeSimpParam d = do
   vpairs1 <- makeBuiltinClass d 2
-  s <- topResolve Pure (C.Base "SimpParam")
+  s <- topResolve  (C.Base "SimpParam")
   i <- getCounter
   scope <- getScope
   putCounter (i + 2)
@@ -365,7 +365,7 @@ initializeSimpParam d = do
 -- | Initialze instances of Parameter class for unit, bang type and tensor product.
 initializeParameterClass d = do
   vpairs1 <- makeBuiltinClass d 1
-  s <- topResolve Pure (C.Base "Parameter")
+  s <- topResolve  (C.Base "Parameter")
   i <- getCounter
   putCounter (i + 4)
   scope <- getScope

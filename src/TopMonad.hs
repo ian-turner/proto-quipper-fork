@@ -126,10 +126,10 @@ getScope = do
   return (scope s)
 
 -- | Resolve an expression at top-level.
-topResolve :: ResolveFlag -> C.Exp -> Top A.Exp
-topResolve b t =
+topResolve :: C.Exp -> Top A.Exp
+topResolve t =
   do scope <- getScope
-     scopeTop $ resolve b (toLScope scope) t
+     scopeTop $ resolve (toLScope scope) t
 
 -- | Lift the 'Resolve' monad to 'Top' monad. 
 scopeTop :: Resolve a -> Top a

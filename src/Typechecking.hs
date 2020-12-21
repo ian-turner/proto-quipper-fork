@@ -515,7 +515,7 @@ typeCheck False c@(Lam bind) t mod = do
   where
     handleFunctions at _ t
       | not (at == t) = typeCheck False c at mod
-    handleFunctions a@(Arrow t1 t2 mod1) c@(Lam bind) t | trace ("arrow:"++ show (disp mod1) ++ ":"++ show (disp a)) False = undefined
+--    handleFunctions a@(Arrow t1 t2 mod1) c@(Lam bind) t | trace ("arrow:"++ show (disp mod1) ++ ":"++ show (disp a)) False = undefined
     handleFunctions (Arrow t1 t2 mod1) c@(Lam bind) t =
       open bind $ \xs m ->
         case xs of
@@ -769,7 +769,7 @@ typeCheck flag a@(Let m bd) goal mod =
                  let res = Let ann (abst x ann2')
                  return (goal', res)
 
-typeCheck flag a@(LetPair m (Abst xs n)) goal mod | trace ("exp mode:" ++ show (disp mod)) $ False = undefined 
+-- typeCheck flag a@(LetPair m (Abst xs n)) goal mod | trace ("exp mode:" ++ show (disp mod)) $ False = undefined 
 typeCheck flag a@(LetPair m (Abst xs n)) goal mod =
   do (t', ann, mode1) <- typeInfer flag m
      at <- updateWithSubst t'
