@@ -1,6 +1,6 @@
 module Class where
--- import "lib/Gates.dpq"
--- import "lib/Monad.dpq"
+import "lib/Gates.dpq"
+import "lib/Monad.dpq"
 
 
 infixl 9 @ -- this is multiplication, as * is reserved
@@ -14,69 +14,68 @@ infixl 12 ==
 infixl 12 <
 infixl 12 >
 
--- class Num a where
---   (+)  : a -> a -> a
---   (-)  : a -> a -> a
---   (/)  : a -> a -> a
---   (@)  : a -> a -> a
---   (>)  : a -> a -> Bool
---   (<)  : a -> a -> Bool
---   (>=)  : a -> a -> Bool
---   (<=)  : a -> a -> Bool
+class Num a where
+  (+)  : a -> a -> a
+  (-)  : a -> a -> a
+  (/)  : a -> a -> a
+  (@)  : a -> a -> a
+  (>)  : a -> a -> Bool
+  (<)  : a -> a -> Bool
+  (>=)  : a -> a -> Bool
+  (<=)  : a -> a -> Bool
 
 
--- class Equal a where
---   (==)  : (Parameter a) => a -> a -> Bool
+class Equal a where
+  (==)  : (Parameter a) => a -> a -> Bool
 
--- instance Equal Nat where
---   (==) x y =
---     case x of
---       Z -> case y of
---             Z -> True
---             S _ -> False
---       S x' -> case y of
---                Z -> False
---                S y' -> x' == y'
+instance Equal Nat where
+  (==) x y =
+    case x of
+      Z -> case y of
+            Z -> True
+            S _ -> False
+      S x' -> case y of
+               Z -> False
+               S y' -> x' == y'
 
 
--- instance Num Nat where
---   (+) = add
---   (-) = minus
---   (/) = div
---   (@) = mul
---   (>) x y = not (less x y) && not (x == y)
---   (<) = less
---   (>=) x y = not (x < y)
---   (<=) x y = x < y || x == y
-object Qubit
+instance Num Nat where
+  (+) = add
+  (-) = minus
+  (/) = div
+  (@) = mul
+  (>) x y = not (less x y) && not (x == y)
+  (<) = less
+  (>=) x y = not (x < y)
+  (<=) x y = x < y || x == y
+
 class QuantumOp a where
   unary : (Simple a) => !(Qubit -> Qubit) -> a -> a
   #Boxable, #Reversible
   copy  : (Simple a) => a -> a * a
   cnots : (Simple a) => a -> a -> a * a
 
--- instance QuantumOp Qubit where
---   unary g q = g q
---   copy q = CNot (Init0 ()) q  
---   cnots q1 q2 = CNot q1 q2
+instance QuantumOp Qubit where
+  unary g q = g q
+  copy q = CNot (Init0 ()) q  
+  cnots q1 q2 = CNot q1 q2
 
--- instance forall a b -> (QuantumOp a, QuantumOp b, Simple a, Simple b) =>
---                         QuantumOp (a * b) where
+instance forall a b -> (QuantumOp a, QuantumOp b, Simple a, Simple b) => QuantumOp (a * b) where
 
--- --   unary g p = let (p1, p2) = p in (unary g p1, unary g p2)
+  unary g p = let (p1, p2) = p in (unary g p1, unary g p2)
 
---   copy p = 
---     let (x, y) = p
---         (x', x) = copy x
---          (y', y) = copy y
---     in ((x', y'), (x, y))
+  copy p = 
+    let (x, y) = p
+        (x', x) = copy x
+        (y', y) = copy y
+    in ((x', y'), (x, y))
 
-  -- cnots p1 p2 =
-  --   let (x1, x2) = p1
-  --       (y1, y2) = p2
-  --       (x1, y1) = cnots x1 y1
-  --       (x2, y2) = cnots x2 y2
-  --   in  ((x1, x2), (y1, y2))
+  cnots p1 p2 =
+    let (x1, x2) = p1
+        (y1, y2) = p2
+        (x1, y1) = cnots x1 y1
+        (x2, y2) = cnots x2 y2
+    in  ((x1, x2), (y1, y2))
 
 
 

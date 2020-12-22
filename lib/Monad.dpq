@@ -73,7 +73,8 @@ fmap f x =
 
 (<$>) : ! forall a b (m : Type -> Type) -> (Monad m) => (a -> b) -> m a -> m b
 (<$>) f a = fmap f a
-  
+
+
 class MonadTrans (t : (Type -> Type) -> Type -> Type) where
   lift : forall (m : Type -> Type) a -> (Monad m) => m a -> t m a
 

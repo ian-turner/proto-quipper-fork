@@ -285,8 +285,9 @@ resolve d (C.Case t br) = do
 resolve d (C.Arrow t u) = 
   do t' <- resolve d t
      u' <- resolve d u
-     ns <- refresh ["#x", "#y", "#z"]
-     let m = freshMode ns
+     m <- if isKind u'
+          then return identityMod
+          else refresh ["#x", "#y", "#z"] >>= \ x -> return (freshMode x)
      return (Arrow t' u' m)
 
 
@@ -324,7 +325,9 @@ resolve d (C.Pi vs t1 t2) =
   lscopeVars d vs $ \d' xs -> 
   do t1' <- resolve d t1
      t2' <- resolve d' t2
-     m <- refresh ["#x", "#y", "#z"] >>= \ x -> return (freshMode x)
+     m <- if isKind t2'
+          then return identityMod
+          else refresh ["#x", "#y", "#z"] >>= \ x -> return (freshMode x)
      return (Pi (abst xs t2') t1' m)
 
 resolve d (C.PiImp vs t1 t2) =
@@ -491,9 +494,9 @@ resolveDecl scope (C.Class pos c vs mths) =
        dictType <- resolve lscope dictType
        kd2 <- resolve lscope kd1
        let kd = booleanVarElim $ removeVacuousPi kd2
-           dictType' = adjustModes (erasePos dictType) modes
        (mths', scope'') <- makeMethods scope' head vs mths
-       return (Class pos d kd dict (abstractMode $ booleanVarElim dictType') mths', scope'')
+       let dictType' = adjustModes (erasePos dictType) (map (\ (x, y, z) -> strip $ erasePos z) mths')
+       return (Class pos d kd dict dictType' mths', scope'')
          where makeMethods scope' head vs [] =
                  return ([], scope') 
                makeMethods scope' head vs ((p, mname, mty, (a, b, c)):cs) =
@@ -504,14 +507,26 @@ resolveDecl scope (C.Class pos c vs mths) =
                     ty' <- resolve lscope' ty
                     (res, scope''') <- makeMethods scope'' head vs cs
                     return ((p, d, abstractMode $ booleanVarElim $ changeMode ty' mode):res, scope''')
-               adjustModes (Forall (Abst xs b) ty) modes =
-                 let r = adjustModes b modes in Forall (abst xs r) ty
-               adjustModes t modes =
+               adjustModes (Forall (Abst xs b) ty) tys =
+                 let r = adjustModes b tys in Forall (abst xs r) ty
+               adjustModes t tys =
                  let (bds, h) = flattenArrows t
-                     bds' = zipWith changeMode (map snd bds) modes
+                     bds' = zipWith adjust (map snd bds) tys
                  in foldr (\ x y -> Arrow x y identityMod) h bds' 
-               
-               
+               adjust (Bang ty m) (Bang ty' m') =
+                 Bang (adjust ty ty') m'
+               adjust (Bang ty m) t' =
+                 Bang (adjust ty t') identityMod
+               adjust (Imply ps1 p1 m1) (Imply ps2 p2 m2) =
+                 Imply ps1 (adjust p1 p2) m2
+               adjust (Arrow t1 t2 m1) (Arrow t3 t4 m2) =
+                 let t1' = adjust t1 t3
+                     t2' = adjust t2 t4
+                 in Arrow t1' t2' m2
+               adjust t t' = t
+               strip (Bang ty m) = strip ty
+               strip (Forall (Abst xs b) ty) = strip b
+               strip (Imply [p] t _) = t
 resolveDecl scope (C.Instance pos t mths) =
   do let lscope = toLScope scope
      t'' <- resolve lscope t

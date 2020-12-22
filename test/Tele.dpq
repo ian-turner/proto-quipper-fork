@@ -139,6 +139,7 @@ teleBox_t1 = teleBox 9
 teleBox' : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 teleBox' n = box (Vec Qubit n) $ \ x -> tele_generic n x
 
+{-
 bellState : ! (Unit -> Unit)
 bellState u =
   let x = Init0 ()
@@ -149,7 +150,7 @@ bellState u =
       x''' = Meas x''
       r = (dynlift x''', dynlift y'')
   in ()
-
+-}
 
 -- ha = bellState ()
 
