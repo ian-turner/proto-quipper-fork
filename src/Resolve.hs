@@ -454,7 +454,7 @@ resolveDecl scope (C.Data p d ts vs constrs) =
                       t = floatingParam ts vs ty []
                   t' <- resolve lsc' t
                   (cs', sc'') <- resolveConstrs sc' hd ts env cs
-                  return ((p1, c1', abstractMode $ booleanVarElim t'):cs' , sc'')
+                  return ((p1, c1', abstractMode t'):cs' , sc'')
              removePos (C.Pos _ e) = removePos e
              removePos (C.App e1 e2) = C.App (removePos e1) (removePos e2)
              removePos a@(C.Base x) = a
