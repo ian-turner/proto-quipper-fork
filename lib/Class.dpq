@@ -55,7 +55,7 @@ class QuantumOp a where
   copy  : (Simple a) => a -> a * a
   cnots : (Simple a) => a -> a -> a * a
 
-{-
+
 instance QuantumOp Qubit where
   unary g q = g q
   copy q = CNot (Init0 ()) q  
@@ -80,4 +80,3 @@ instance forall a b -> (QuantumOp a, QuantumOp b, Simple a, Simple b) => Quantum
 
 
 
--}

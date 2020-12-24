@@ -309,15 +309,6 @@ getBVars (M e1 e2 e3) =
     getBVars' (BConst _) = S.empty
     getBVars' (BAnd e1 e2) = S.union (getBVars' e1) (getBVars' e2)
 
--- | Take a bitwise conjunction on the modality.
-modalAnd :: Modality -> Modality -> Modality
-modalAnd (M e1 e2 e3) (M e1' e2' e3') =
-  M (helper e1 e1') (helper e2 e2') (helper e3 e3')
-    where helper (BConst True) e = e
-          helper (BConst False) e = BConst False
-          helper e (BConst True) = e
-          helper e (BConst False) = BConst False
-          helper e1 e2 = BAnd e1 e2
 
 
 -- | Flatten a n-tuple into a list.

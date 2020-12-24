@@ -235,7 +235,9 @@ simplify (M e1 e2 e3) = M (simplifyB e1) (simplifyB e2) (simplifyB e3)
 simplifyB :: BExp -> BExp
 simplifyB e =
   let bs = filter (\ x -> x /= BConst True) $ flattenB e
-  in if null bs then BConst True else
+  in if null bs
+     then BConst True
+     else
        case find (\ x -> x == BConst False) bs of
          Just _ -> BConst False
          Nothing -> 
@@ -247,7 +249,7 @@ simplifyB e =
 -- occur once by 0/1 (depending on polarity).
 booleanVarElim :: Exp -> Exp
 booleanVarElim e =
-  let s = getVars ModVars e
+  let s = getVars ModVars $ simplifyExp e
       s1 = S.filter (\ x -> S.occur x s == 1) s
   in helper True s1 e
   where elim b s e =
@@ -321,3 +323,120 @@ booleanVarElim e =
             
                 
 
+-- | Take a bitwise conjunction on the modality.
+modalAnd :: Modality -> Modality -> Modality
+modalAnd (M e1 e2 e3) (M e1' e2' e3') =
+  M (helper e1 e1') (helper e2 e2') (helper e3 e3')
+    where helper (BConst True) e = e
+          helper (BConst False) e = BConst False
+          helper e (BConst True) = e
+          helper e (BConst False) = BConst False
+          helper e e' =
+            let x:xs = nub (flattenB e ++ flattenB e')
+            in foldr BAnd x xs
+
+simplifyExp a@(Var y) = a
+simplifyExp a@(MetaVar y) = a
+simplifyExp a@(Base _) = a
+simplifyExp a@(LBase _) = a      
+simplifyExp a@(Unit) = a
+simplifyExp a@(Set) = a
+simplifyExp a@(Sort) = a
+simplifyExp a@(Star) = a
+simplifyExp a@(Const _) = a
+simplifyExp (Arrow t t' m) =
+  let t1' = simplifyExp t
+      t2' = simplifyExp t'
+  in Arrow t1' t2' (simplify m)
+simplifyExp (WithType t t') =
+  let t1' = simplifyExp t
+      t2' = simplifyExp t'
+  in WithType t1' t2'     
+simplifyExp (ArrowP t t') =
+  let t1' = simplifyExp t
+      t2' = simplifyExp t'
+  in ArrowP t1' t2'  
+
+simplifyExp (Imply t t' m) =
+  let t1' = map (simplifyExp) t
+      t2' = simplifyExp t'
+      m' = simplify m
+  in Imply t1' t2' m'
+  
+simplifyExp (Tensor t t') =
+  let t1' = simplifyExp t
+      t2' = simplifyExp t'
+  in Tensor t1' t2'
+
+simplifyExp (Circ t t' m) =
+  let t1' = simplifyExp t
+      t2' = simplifyExp t'
+      m' = simplify m
+  in Circ t1' t2' m'
+
+simplifyExp (Bang t m) =
+  Bang (simplifyExp t) (simplify m)
+
+simplifyExp (Pi bind t mod) =
+  open bind $
+  \ ys m -> Pi (abst ys (simplifyExp m))
+           (simplifyExp t) (simplify mod)
+
+simplifyExp (PiImp bind t mod) =
+  open bind $
+  \ ys m -> PiImp (abst ys (simplifyExp m))
+           (simplifyExp t) (simplify mod)
+
+simplifyExp (PiInt bind t) =
+  open bind $
+  \ ys m -> PiInt (abst ys (simplifyExp m))
+            (simplifyExp t) 
+
+simplifyExp (Exists bind t) =
+  open bind $
+  \ ys m -> Exists (abst ys (simplifyExp m))
+           (simplifyExp t) 
+
+simplifyExp (Forall bind t) =
+  open bind $
+  \ ys m -> Forall (abst ys (simplifyExp m))
+           (simplifyExp t) 
+
+simplifyExp (Mod bind) =
+  open bind $
+  \ ys m -> Mod (abst ys (simplifyExp m))
+
+
+simplifyExp (App t tm) =
+  App (simplifyExp t) (simplifyExp tm)
+
+simplifyExp (AppP t tm) =
+  AppP (simplifyExp t) (simplifyExp tm)
+  
+simplifyExp (AppType t tm) =
+  AppType (simplifyExp t) (simplifyExp tm)
+
+simplifyExp (AppTm t tm) =
+  AppTm (simplifyExp t) (simplifyExp tm)
+
+simplifyExp (AppDep t tm) =
+  AppDep (simplifyExp t) (simplifyExp tm)
+
+simplifyExp (AppDepTy t tm) =
+  AppDepTy (simplifyExp t) (simplifyExp tm)
+  
+simplifyExp (AppDepInt t tm) =
+  AppDepInt (simplifyExp t) (simplifyExp tm)  
+simplifyExp (AppDict t tm) =
+  AppDict (simplifyExp t) (simplifyExp tm)
+
+
+simplifyExp (Pair t tm) =
+  Pair (simplifyExp t) (simplifyExp tm)
+
+simplifyExp (ForceP t) = ForceP (simplifyExp t)
+simplifyExp (Lift t) = Lift (simplifyExp t) 
+
+simplifyExp (Pos p e) = Pos p (simplifyExp e)
+simplifyExp a@(Case _ _) = a
+simplifyExp a = error ("from simplifyExp: " ++ show (disp a))  

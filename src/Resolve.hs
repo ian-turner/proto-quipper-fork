@@ -440,7 +440,7 @@ resolveDecl scope (C.Data p d ts vs constrs) =
          kd1 = foldr (\ (x, ty) y -> C.Pi x ty y) C.Set vs
          lscope' = toLScope scope'
      kd <- resolve lscope' kd1
-     let dKind = booleanVarElim $ removeVacuousPi kd
+     let dKind = removeVacuousPi kd
      (constrs', scope'') <- resolveConstrs scope' head ts vs constrs
      return (Data p id dKind constrs', scope'')
        where resolveConstrs sc hd ts env [] = return ([], sc)
@@ -493,10 +493,10 @@ resolveDecl scope (C.Class pos c vs mths) =
            modes = map (\ (_, _, t, (a,b,c)) -> M (BConst a) (BConst b) (BConst c)) mths
        dictType <- resolve lscope dictType
        kd2 <- resolve lscope kd1
-       let kd = booleanVarElim $ removeVacuousPi kd2
+       let kd = removeVacuousPi kd2
        (mths', scope'') <- makeMethods scope' head vs mths
-       let dictType' = adjustModes (erasePos dictType) (map (\ (x, y, z) -> strip $ erasePos z) mths')
-       return (Class pos d kd dict dictType' mths', scope'')
+       let dictType' = adjustModes (abstractMode $ erasePos dictType) (map (\ (x, y, z) -> strip $ erasePos z) mths')
+       return (Class pos d kd dict (dictType') mths', scope'')
          where makeMethods scope' head vs [] =
                  return ([], scope') 
                makeMethods scope' head vs ((p, mname, mty, (a, b, c)):cs) =
@@ -506,7 +506,7 @@ resolveDecl scope (C.Class pos c vs mths) =
                         mode = M (BConst a) (BConst b) (BConst c)
                     ty' <- resolve lscope' ty
                     (res, scope''') <- makeMethods scope'' head vs cs
-                    return ((p, d, abstractMode $ booleanVarElim $ changeMode ty' mode):res, scope''')
+                    return ((p, d, abstractMode $ changeMode ty' mode):res, scope''')
                adjustModes (Forall (Abst xs b) ty) tys =
                  let r = adjustModes b tys in Forall (abst xs r) ty
                adjustModes t tys =
@@ -527,6 +527,7 @@ resolveDecl scope (C.Class pos c vs mths) =
                strip (Bang ty m) = strip ty
                strip (Forall (Abst xs b) ty) = strip b
                strip (Imply [p] t _) = t
+
 resolveDecl scope (C.Instance pos t mths) =
   do let lscope = toLScope scope
      t'' <- resolve lscope t
@@ -555,7 +556,7 @@ resolveDecl scope (C.SimpData pos c args resKind eqs) =
   do (d, scope') <- addConst pos c LBase scope
      let lscope = toLScope scope'
      kd' <- resolve lscope resKind
-     let kd = booleanVarElim kd'
+     let kd = kd'
      let (bd, _) = flattenArrows (snd $ removePrefixes False kd)
          lta = length bd
      (eqs', scope'') <- makeConstrs lta scope' eqs
