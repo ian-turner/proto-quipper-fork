@@ -1427,24 +1427,30 @@ inferAddAnn flag a ty mod = do
     else do
       (tym, ann, mode) <- typeInfer flag a
       tym1 <- updateWithSubst tym >>= updateWithModeSubst
-      ty1 <- updateWithSubst ty2
+      ty1 <- updateWithSubst ty2  >>= updateWithModeSubst
       (a2, tym1', anEnv, mode') <- addAnn flag mode a ann tym1 []
       mapM (\(x, t) -> addVar x t) anEnv
-      (unifRes, (s, bs)) <- normalizeUnif GEq tym1' ty1
+      mod' <- updateModality mod
+      mode'' <- updateModality mode'
+      let s = modeResolution GEq mode'' mod' 
+      when (s == Nothing) $ throwError $
+              ModalityErr mode'' mod' a
+      let Just s'@(s1, s2, s3) = s
+      updateModeSubst s'     
+      tym1'' <- updateWithModeSubst tym1'
+      ty1' <- updateWithModeSubst ty1
+      (unifRes, (s, bs)) <- normalizeUnif GEq tym1'' ty1'
       case unifRes of
         UnifError ->
-          throwError $ NotEq a ty1 tym1'
+          throwError $ NotEq a ty1' tym1''
         ModeError p1 p2 ->
-          throwError $ ModalityGEqErr a ty1 tym1' p1 p2
+          throwError $ ModalityGEqErr a ty1' tym1'' p1 p2
         Success -> do
           ss <- getSubst
           let sub' = s `mergeSub` ss
           updateSubst sub'
           updateModeSubst bs
-          st <- get
-          let msub = modeSubstitution st
-          ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
-          mode'' <- updateModality mode'
-          return (ty1', a2)
+          ty1'' <- updateWithModeSubst ty1' >>= updateWithSubst
+          return (ty1'', a2)
 
 

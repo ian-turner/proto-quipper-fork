@@ -203,3 +203,4 @@ toffoliGate a b x y z =
 cnotGate : ! (Bool -> Qubit -> Qubit -> Qubit * Qubit)
 cnotGate f x y = if f then CNot x y else let (x, y) = CNot x (QNot y) in (x, QNot y)
 
+

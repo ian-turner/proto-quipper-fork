@@ -123,8 +123,10 @@ process (Def pos f' ty' def' isClifford) = do
   (_, ty) <- tcTop $ typeChecking True ty' Set identityMod
   let ty1 = erasePos $ removeVacuousPi ty
   p <- tcTop $ isParam ty1
-  when (not p) $ throwError $ CompileErr $ ErrPos pos (NotParam (Const f') ty')
-  let info1 = Info {classifier = ty1, identification = DefinedFunction Nothing}
+  when (not p) $ throwError $ CompileErr $
+    ErrPos pos (NotParam (Const f') ty')
+  let info1 = Info {classifier = ty1,
+                    identification = DefinedFunction Nothing}
   tcTop $ addNewId f' info1
   (ty1', ann) <- tcTop $ do
                    mode <- newMode ["a", "b", "c"]
@@ -689,7 +691,6 @@ typeChecking b exp ty mod = do
   exp'' <- resolveGoals exp'
   r <- updateWithSubst exp''
   ty'' <- resolveGoals ty' >>= updateWithSubst
-     -- let ty''' = unEigen ty''
   ty2 <- updateWithModeSubst ty''
   return (abstractMode $ booleanVarElim ty2, deMeta [] r)
 

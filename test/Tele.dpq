@@ -2,13 +2,6 @@ module Tele where
 
 import "lib/Prelude.dpq"
 
-compose : ! forall b c -> (a : Type) ->
-             (Simple c, Simple a, Simple b) =>
-             Circ(a, b) -> Circ(b, c) -> Circ(a, c)
-compose a f g =
-  let f' = unbox f
-      g' = unbox g
-  in box a (\ x -> g' (f' x))
 
 share : ! (Qubit -> Qubit * Qubit)
 share a = let b = Init0 ()
@@ -139,18 +132,20 @@ teleBox_t1 = teleBox 9
 teleBox' : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 teleBox' n = box (Vec Qubit n) $ \ x -> tele_generic n x
 
-{-
-bellState : ! (Unit -> Unit)
-bellState u =
-  let x = Init0 ()
-      y = Init0 ()
-      x' = H x
-      (y', x'') = CNot y x'
-      y'' = Meas y'
-      x''' = Meas x''
-      r = (dynlift x''', dynlift y'')
-  in ()
--}
+
+
+
+-- bellState : ! (Unit -> Bool * Bool)
+-- bellState u =
+--   let x = Init0 ()
+--       y = Init0 ()
+--       x' = H x
+--       (y', x'') = CNot y x'
+--       y'' = Meas y'
+--       x''' = Meas x''
+--       -- r = (dynlift x''', dynlift y'')
+--   in  (dynlift x''', dynlift y'')
+
 
 -- ha = bellState ()
 
