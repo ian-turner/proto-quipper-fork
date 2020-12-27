@@ -127,6 +127,14 @@ bSubstitute s a@(Set) = a
 bSubstitute s a@(Sort) = a
 bSubstitute s a@(Star) = a
 bSubstitute s a@(Const _) = a
+bSubstitute s a@(Dynlift) = a
+bSubstitute s a@(Force m) = Force (bSubstitute s m)
+bSubstitute s a@(Box) = a
+bSubstitute s a@(UnBox) = a
+bSubstitute s a@(WithComputed) = a
+bSubstitute s a@(ExBox) = a
+bSubstitute s a@(Controlled) = a
+bSubstitute s a@(Reverse) = a
 bSubstitute s (Arrow t t' m) =
   let t1' = bSubstitute s t
       t2' = bSubstitute s t'
@@ -221,8 +229,48 @@ bSubstitute s (ForceP t) = ForceP (bSubstitute s t)
 bSubstitute s (Lift t) = Lift (bSubstitute s t) 
 
 bSubstitute s (Pos p e) = Pos p (bSubstitute s e)
-bSubstitute s a@(Case _ _) = a
-bSubstitute s a = error ("from bSubstitute: " ++ show (disp a))  
+bSubstitute s (Case tm (B br)) =
+  Case (bSubstitute s tm) (B (helper br))
+  where helper br =
+          map
+          (\b ->
+             open b $ \(PApp id ps) m ->
+              abst (PApp id ps) (bSubstitute s m))
+          br
+
+bSubstitute s (Lam (Abst x tm)) =
+  Lam (abst x (bSubstitute s tm))
+bSubstitute s (LamP (Abst x tm)) =
+  LamP (abst x (bSubstitute s tm))
+
+bSubstitute s (LamDict (Abst x tm)) =
+  LamDict (abst x (bSubstitute s tm))
+bSubstitute s (LamDep (Abst x tm)) =
+  LamDep (abst x (bSubstitute s tm))
+
+bSubstitute s (LamDepTy (Abst x tm)) =
+  LamDepTy (abst x (bSubstitute s tm))
+
+bSubstitute s (LamTm (Abst x tm)) =
+  LamTm (abst x (bSubstitute s tm))
+
+bSubstitute s (LamType (Abst x tm)) =
+  LamType (abst x (bSubstitute s tm))
+
+bSubstitute s (Let m bd) =
+  let m' = bSubstitute s m
+   in open bd $ \y b -> Let m' (abst y (bSubstitute s b))
+
+bSubstitute s (LetPair m bd) =
+  let m' = bSubstitute s m
+   in open bd $ \ys b -> LetPair m' (abst ys (bSubstitute s b))
+
+bSubstitute s (LetPat m bd) =
+  let m' = bSubstitute s m
+   in open bd $ \(PApp id ps) b ->
+                  LetPat m' (abst (PApp id ps) (bSubstitute s b))
+  
+bSubstitute s a = error ("from bSubstitute: " ++ show ( a))  
 
 
 flattenB a@(BConst x) = [a]
@@ -247,11 +295,17 @@ simplifyB e =
 
 -- | Eliminate excessive boolean mode variables, i.e., replace all the variables that
 -- occur once by 0/1 (depending on polarity).
+
+data ElimFlag = Bl Bool | Konst 
+
+not' (Bl b) = Bl (not b)
+not' Konst = Konst
+
 booleanVarElim :: Exp -> Exp
 booleanVarElim e =
   let s = getVars ModVars $ simplifyExp e
       s1 = S.filter (\ x -> S.occur x s == 1) s
-  in helper True s1 e
+  in helper (Bl True) s1 e
   where elim b s e =
           let evars = flattenB e
               evars' = filter (\ x ->
@@ -260,7 +314,9 @@ booleanVarElim e =
                                   BConst _ -> True
                               ) evars
           in if null evars' then
-               BConst b
+               case b of
+                 Bl b' -> BConst b'
+                 Konst -> BConst True
              else foldr BAnd (head evars') (tail evars')
 
         helper b s1 (Bang ty (M e1 e2 e3)) =
@@ -275,7 +331,7 @@ booleanVarElim e =
               e3' = elim b s1 e3
           in Circ s u (M e1' e2' e3')
         helper b s1 (Arrow t1 t2 (M e1 e2 e3)) =
-          let t1' = helper (not b) s1 t1
+          let t1' = helper (not' b) s1 t1
               t2' = helper b s1 t2
               e1' = elim b s1 e1
               e2' = elim b s1 e2
@@ -294,7 +350,7 @@ booleanVarElim e =
           in Exists (abst xs t1') t2'
         helper b s1 (Pi (Abst xs t1) t2 (M e1 e2 e3)) =
           let t1' = helper b s1 t1
-              t2' = helper (not b) s1 t2
+              t2' = helper Konst s1 t2
               e1' = elim b s1 e1
               e2' = elim b s1 e2
               e3' = elim b s1 e3
@@ -302,14 +358,15 @@ booleanVarElim e =
 
         helper b s1 (PiImp (Abst xs t1) t2 (M e1 e2 e3)) =
           let t1' = helper b s1 t1 
-              t2' = helper (not b) s1 t2
+              t2' = helper Konst s1 t2
               e1' = elim b s1 e1
               e2' = elim b s1 e2
               e3' = elim b s1 e3
           in PiImp (abst xs t1') t2' (M e1' e2' e3')
+
         helper b s1 (Forall (Abst xs t1) t2) =
           let t1' = helper b s1 t1
-              t2' = helper (not b) s1 t2
+              t2' = helper Konst s1 t2
           in Forall (abst xs t1') t2'
 
         helper b s1 (Imply t1 t2 (M e1 e2 e3)) =

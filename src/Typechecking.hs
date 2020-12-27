@@ -1302,11 +1302,12 @@ addAnn flag mode e a (Bang t m) env = do
       then shape t
       else return t
   if flag
-    then addAnn flag mode e (force a) t' env
-    else do
-      m' <- updateModality m
-      let newMode = modalAnd mode m'
-      addAnn flag newMode e (force a) t' env
+    then
+    addAnn flag mode e (force a) t' env
+    else
+    do m' <- updateModality m
+       let newMode = modalAnd mode m'
+       addAnn flag newMode e (force a) t' env
 
 addAnn flag mode e a (Forall bd ty) env
   | isKind ty =
@@ -1419,7 +1420,7 @@ handleBangValue flag a ty1@(Bang ty m) mod = do
         _ -> throwError $ BangValue a (Bang ty m)
 
 -- note that ty1 is prefix free.
--- inferAddAnn flag a ty | trace ("ann:"++ (show $ disp a) ++ ":" ++ (show $ disp ty)) $ False = undefined 
+-- inferAddAnn flag a ty mod | trace ("inferAnn:"++ (show $ disp a) ++ ":" ++ (show $ disp mod)) $ False = undefined 
 inferAddAnn flag a ty mod = do
   ty2 <- updateWithSubst ty
   if not (ty2 == ty)

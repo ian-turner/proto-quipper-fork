@@ -22,7 +22,7 @@ addSS : ! (n m : Nat) -> Eq Nat (add n (S (S m))) (add (S (S n)) m)
 addSS n m = let p1 = addS n (S m)
                 p2 = cong S (addS n m)
             in trans p1 p2
-{-
+
 addSS' : ! (n m : Nat) -> Eq Nat (add (S (S n)) m) (add n (S (S m)))
 addSS' n m = sym (add n (S (S m))) (addSS n m)
 
@@ -72,4 +72,3 @@ complement m l pf =
 
 complement' : ! (m l : Nat) -> Eq Bool (l <= m) True -> Eq Nat (add l (minus m l)) m
 complement' m l pf = sym m (complement m l pf)
--}

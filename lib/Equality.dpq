@@ -26,13 +26,13 @@ trans p1 p2 =
       E pf2 = p2
   in E (\ p l -> pf2 p (pf1 p l))    
 
-
-cong : ! forall a -> (Parameter a) =>
-           forall (n m : a) -> (f : !(a -> a)) -> Eq a n m -> Eq a (f n) (f m)
-cong f pf =
-  let E pf = pf in
-  E (\ p -> pf (\ n -> p (f n)))
-
 subst : ! forall a -> (Parameter a) =>
              forall (n m : a) -> (p : a -> Type) -> Eq a n m -> p n -> p m
 subst p eq = let E eq = eq in eq p 
+
+cong : ! forall a -> (Parameter a) =>
+           forall (n m : a) -> (f : !(a -> a)) -> Eq a n m -> Eq a (f n) (f m)
+cong f pf = 
+  let E pf = pf in
+  E (\ p -> pf (\ n -> p (f n)))
+

@@ -689,7 +689,7 @@ typeChecking :: Bool -> Exp -> Exp -> Modality -> TCMonad (Exp, Exp)
 typeChecking b exp ty mod = do
   (ty', exp') <- typeCheck b exp ty mod
   exp'' <- resolveGoals exp'
-  r <- updateWithSubst exp''
+  r <- updateWithSubst exp'' >>= updateWithModeSubst
   ty'' <- resolveGoals ty' >>= updateWithSubst
   ty2 <- updateWithModeSubst ty''
   return (abstractMode $ booleanVarElim ty2, deMeta [] r)
