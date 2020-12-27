@@ -273,6 +273,8 @@ isParam t@(App x _) =
                       else return True)
           m
       return $ and s
+
+
 isParam t@(AppP x _) =
   case flatten t of
     Nothing -> return False
@@ -385,6 +387,7 @@ updateCount x = do
           put ts {lcontext = gamma'}
 
 -- | Get the shape of an expression. It does not transform a kind expression.
+-- shape a | trace ("shape:" ++ show ( a)) False = undefined
 shape a
   | isKind a = return a
 shape Unit = return Unit
@@ -435,6 +438,7 @@ shape a@(WithType t1 t2) = do
   t1' <- shape t1
   t2' <- shape t2
   return $ WithType t1' t2'
+
 shape a@(AppP t1 t2) =
   case flatten a of
     Just (Right k, _) -> do

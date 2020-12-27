@@ -1420,7 +1420,7 @@ handleBangValue flag a ty1@(Bang ty m) mod = do
         _ -> throwError $ BangValue a (Bang ty m)
 
 -- note that ty1 is prefix free.
--- inferAddAnn flag a ty mod | trace ("inferAnn:"++ (show $ disp a) ++ ":" ++ (show $ disp mod)) $ False = undefined 
+-- inferAddAnn flag a ty mod | trace ("inferAnn:"++ (show $ disp a) ++ ":" ++ (show $ disp ty)) $ False = undefined 
 inferAddAnn flag a ty mod = do
   ty2 <- updateWithSubst ty
   if not (ty2 == ty)
@@ -1442,8 +1442,8 @@ inferAddAnn flag a ty mod = do
       ty1' <- updateWithModeSubst ty1
       (unifRes, (s, bs)) <- normalizeUnif GEq tym1'' ty1'
       case unifRes of
-        UnifError ->
-          throwError $ NotEq a ty1' tym1''
+        UnifError -> error $ "tym:" ++ (show $ tym) ++ show flag
+          -- throwError $ NotEq a ty1' tym1'' 
         ModeError p1 p2 ->
           throwError $ ModalityGEqErr a ty1' tym1'' p1 p2
         Success -> do

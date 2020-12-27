@@ -4,6 +4,7 @@ import "lib/Vec.dpq"
 
 data List a = Nil | Cons a (List a)
 
+
 -- appendL : ! forall a  -> List a  -> List a -> List a
 -- appendL l1 l2 =
 --               case l1 of
@@ -33,11 +34,14 @@ vecToList v =
    case v of
      VNil -> Nil
      VCons x xs -> Cons x (vecToList xs)
-     
+
+
+
 listToVec : ! (x : List Qubit) -> Vec Qubit (toNat x)
 listToVec x = case x of
                 Nil -> VNil
                 Cons y zs -> VCons y (listToVec zs)
+
 
 -- listToVec does no appear to be that useful after all because the conversion is
 -- not really free->

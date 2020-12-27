@@ -377,6 +377,7 @@ flattenArrows a = ([], a)
 -- | Remove the leading forall quantifiers,
 -- and class quantifiers if flag is True.
 removePrefixes :: Bool -> Exp -> ([(Maybe Variable, Exp)], Exp)
+removePrefixes flag (Mod (Abst _ ty)) = removePrefixes flag ty
 removePrefixes flag (Forall bd ty) =
   open bd $ \ vs m ->
   let vs' = map (\ x -> (Just x, ty)) vs
