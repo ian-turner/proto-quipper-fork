@@ -517,12 +517,13 @@ proofCheck flag a@(Pair t1 t2) (Exists p ty) = do
 proofCheck flag (Let m bd) goal =
   open bd $ \x t -> do
     t' <- proofInfer flag m
-    m'' <- shape m
-    addVarDef x t' m''
+    (shape m >>= (\ y -> addVarDef x t' y) )`catchError` \ e ->
+      addVar x t'
     r <- proofCheck flag t goal
     when (not flag) $ checkUsage x t
     removeVar x
     return r
+
 proofCheck flag (LetPair m bd) goal = do
   t' <- proofInfer flag m
   case t' of

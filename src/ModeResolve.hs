@@ -257,6 +257,9 @@ bSubstitute s (LamTm (Abst x tm)) =
 bSubstitute s (LamType (Abst x tm)) =
   LamType (abst x (bSubstitute s tm))
 
+bSubstitute s (LamAnn ty (Abst x tm)) =
+  LamAnn (bSubstitute s ty) (abst x (bSubstitute s tm))
+
 bSubstitute s (Let m bd) =
   let m' = bSubstitute s m
    in open bd $ \y b -> Let m' (abst y (bSubstitute s b))

@@ -262,6 +262,11 @@ typeInfer flag a@(LetPair _ _) =
 
 typeInfer flag a@(Lam _) = throwError $ LamInferErr a
 
+typeInfer flag (Tensor ty1 ty2) =
+  do (_, ty1') <- typeCheck flag ty1 Set identityMod
+     (_, ty2') <- typeCheck flag ty2 Set identityMod
+     return (Set, Tensor ty1' ty2', identityMod)
+  
 typeInfer flag e = throwError $ Unhandle e
 
 typeCheck flag (Pos p e) ty mod = do

@@ -373,7 +373,8 @@ instance Disp TypeError where
     display flag e $$ text "current environment:" $$ display flag env
   display flag (AppendSub env e) =
     display flag e $$ text "current substitution:" $$ display flag env
-
+  display flag ShapeErr = text "Shape error: " $$ text "can't take the shape of dynlift"
+--  display flag a = error $ "from TypeError display: " ++ show a
 instance Disp [(Variable, Exp)] where
   display b vs = vcat $ map helper vs
     where
