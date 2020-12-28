@@ -727,8 +727,9 @@ typeCheck flag a@(Let m bd) goal mod =
        do mode1@(M alpha beta gamma) <- updateModality mode
           let msubs = modeResolve Equal alpha (BConst True)
           case msubs of
-            [] ->
+            [] -> 
               do mode2 <- newMode ["#alpha", "#beta", "#gamma"]
+                 addVar x t'
                  (goal', ann2) <- typeCheck flag t goal mode2
                  checkUsage x t
                  mod' <- updateModality mod
@@ -805,7 +806,7 @@ typeCheck flag a@(LetPair m (Abst xs n)) goal mod =
               mapM (\ (x, t) -> addVar x t) env
               (goal', ann2) <- typeCheck flag n goal mode2
               mapM (\ (x, t) -> checkUsage x n) env
-              mapM removeVar xs
+              
               ann2' <- updateWithSubst ann2
               mod' <- updateModality mod
               mode1' <- updateModality mode1
@@ -814,7 +815,8 @@ typeCheck flag a@(LetPair m (Abst xs n)) goal mod =
               when (s == Nothing) $ throwError $
                      ModalityErr (modalAnd mode1' mode2') mod' a
               let Just s'@(s1, s2, s3) = s
-              updateModeSubst s'     
+              updateModeSubst s'
+              mapM removeVar xs
               let res = LetPair ann (abst xs ann2') 
               return (goal', res)
          Nothing -> do
@@ -842,7 +844,7 @@ typeCheck flag a@(LetPair m (Abst xs n)) goal mod =
                                                   substitute sub' goal)
                                                   mode2
                             mapM (\ x -> checkUsage x n) xs
-                            mapM removeVar xs
+                            
                             mod' <- updateModality mod
                             mode1' <- updateModality mode1
                             mode2' <- updateModality mode2
@@ -852,6 +854,7 @@ typeCheck flag a@(LetPair m (Abst xs n)) goal mod =
                             let Just s'@(s1, s2, s3) = s
                             updateModeSubst s'     
                             ann2' <- updateWithSubst ann2
+                            mapM removeVar xs
                             let res = LetPair ann (abst xs ann2') 
                             return (goal', res)
 
@@ -1442,8 +1445,8 @@ inferAddAnn flag a ty mod = do
       ty1' <- updateWithModeSubst ty1
       (unifRes, (s, bs)) <- normalizeUnif GEq tym1'' ty1'
       case unifRes of
-        UnifError -> error $ "tym:" ++ (show $ tym) ++ show flag
-          -- throwError $ NotEq a ty1' tym1'' 
+        UnifError -> -- error $ "tym:" ++ (show $ tym) ++ show flag
+          throwError $ NotEq a ty1' tym1'' 
         ModeError p1 p2 ->
           throwError $ ModalityGEqErr a ty1' tym1'' p1 p2
         Success -> do

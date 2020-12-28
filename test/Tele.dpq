@@ -134,17 +134,17 @@ teleBox' n = box (Vec Qubit n) $ \ x -> tele_generic n x
 
 
 
--- FIXME
--- bellState : ! (Unit -> Unit)
--- bellState u =
---   let x = Init0 ()
---       y = Init0 ()
---       x' = H x
---       (y', x'') = CNot y x'
---       y'' = Meas y'
---       x''' = Meas x''
---       r = (dynlift x''', dynlift y'')
---   in ()
+
+bellState : ! (Unit -> Unit)
+bellState u =
+  let x = Init0 ()
+      y = Init0 ()
+      x' = H x
+      (y', x'') = CNot y x'
+      y'' = Meas y'
+      x''' = Meas x''
+      r = (dynlift x''', dynlift y'')
+  in ()
 
 
 -- ha = bellState ()

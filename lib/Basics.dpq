@@ -64,13 +64,13 @@ not b =
   False -> b
 
 
-compose : ! forall b c -> (a : Type) ->
-             (Simple c, Simple a, Simple b) =>
-             Circ(a, b) -> Circ(b, c) -> Circ(a, c)
-compose a f g =
-  let f' = unbox f
-      g' = unbox g
-  in box a (\ x -> g' (f' x))
+-- compose : ! forall b c -> (a : Type) ->
+--              (Simple c, Simple a, Simple b) =>
+--              Circ(a, b) -> Circ(b, c) -> Circ(a, c)
+-- compose a f g =
+--   let f' = unbox f
+--       g' = unbox g
+--   in box a (\ x -> g' (f' x))
 
 
 -- idV : ! (Bool -> Bool)

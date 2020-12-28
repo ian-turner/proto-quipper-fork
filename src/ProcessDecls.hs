@@ -132,10 +132,8 @@ process (Def pos f' ty' def' isClifford) = do
                    mode <- newMode ["a", "b", "c"]
                    typeChecking False (Pos pos def') ty1 mode
      -- note: need to do an erasure check before proof checking
-     -- st <- get
   tcTop $ proofChecking False ann ty1'     
   v <- evaluation ann isClifford
-       -- trace (show $ dispRaw f' <+> dispRaw ty1' <+> dispRaw (modeSubstitution st) ) $
   b <- tcTop $ isBasicValue v
   v' <-
     if b
@@ -270,7 +268,7 @@ process (Data pos d kd cons) = do
        in freshNames [("x" ++ show n)] $ \[x] -> (x, e) : env
     genEnv n ((Just a, e):res) =
       let env = genEnv n res
-       in (a, e) : env
+      in (a, e) : env
     genEnv n [] = []
     generateParamInstance pos Param d kd' =
       let (bds, _) = flattenArrows kd'
