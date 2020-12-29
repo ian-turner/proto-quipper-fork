@@ -292,3 +292,8 @@ depFold p f a l =
       f b (depFold p (\ x -> f x) a bs)
 
 
+decrease : ! (x : Nat) -> Vec Nat x
+decrease x =
+  case x of
+    Z -> VNil
+    S y -> VCons x (decrease y)

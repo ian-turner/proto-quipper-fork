@@ -48,6 +48,7 @@ data TypeError
   | Originated Exp TypeError
   | ResolveErr Exp
   | ErrDoc Doc
+  | AddDoc Doc TypeError
   | TypeClassNotValid Exp
   | MethodsErr [Id] [Id]
   | InstanceOverlap Exp Id Exp
@@ -373,7 +374,9 @@ instance Disp TypeError where
     display flag e $$ text "current environment:" $$ display flag env
   display flag (AppendSub env e) =
     display flag e $$ text "current substitution:" $$ display flag env
-  display flag ShapeErr = text "Shape error: " $$ text "can't take the shape of dynlift"
+  display flag ShapeErr = text "Shape error: " $$ text "can't take the shape"
+  display flag (AddDoc e err) =
+    display flag err $$ e
 --  display flag a = error $ "from TypeError display: " ++ show a
 instance Disp [(Variable, Exp)] where
   display b vs = vcat $ map helper vs

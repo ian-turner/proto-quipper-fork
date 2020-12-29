@@ -423,6 +423,7 @@ shape a@(MetaVar x) = do
         TypeVar _ s
           | s -> return Unit
           | otherwise -> return a
+shape a@(Bang _ (M (BConst False) _ _)) = throwError ShapeErr
 shape a@(Bang _ _) = return a
 shape a@(Lift _) = return a
 shape a@(Circ _ _ _) = return a
@@ -476,8 +477,13 @@ shape (AppTm t1 t2) = do
   return $ AppTm t1' t2
 shape (Tensor t1 t2) = Tensor <$> shape t1 <*> shape t2
 shape (Pair t1 t2) = Pair <$> shape t1 <*> shape t2
-shape (Arrow t1 t2 _) = ArrowP <$> shape t1 <*> shape t2
+shape (Arrow t1 t2 (M (BConst False) _ _)) =
+  throwError ShapeErr
+shape (Arrow t1 t2 _) =   ArrowP <$> shape t1 <*> shape t2
+shape (Imply bds h (M (BConst False) _ _)) =
+  throwError ShapeErr
 shape (Imply bds h m) = Imply <$> return bds <*> shape h <*> return m
+
 shape (Exists (Abst x t) t2) = do
   t' <- shape t
   t2' <- shape t2
@@ -486,14 +492,20 @@ shape (Forall (Abst x t) t2) = do
   t' <- shape t
   return $ Forall (abst x t') t2
 shape a@(ArrowP a1 a2) = ArrowP <$> shape a1 <*> shape a2
-shape (Pi (Abst x t) t2 _) = do
-  t' <- shape t
-  t2' <- shape t2
-  return $ PiInt (abst x t') t2'
+
+shape (Pi (Abst x t) t2 (M (BConst False) _ _)) = throwError ShapeErr
+
+shape (Pi (Abst x t) t2 _) = 
+  do t' <- shape t
+     t2' <- shape t2
+     return $ PiInt (abst x t') t2'
+
+shape (PiImp (Abst x t) t2 (M (BConst False) _ _)) = throwError ShapeErr
 shape (PiImp (Abst x t) t2 m) = do
   t' <- shape t
   t2' <- shape t2
   return $ PiInt (abst x t') t2' 
+
 shape (Lam (Abst x t)) = do
   t' <- shape t
   return $ LamP (abst x t')

@@ -61,7 +61,9 @@ typeInfer flag a@(Var x) = do
   (t, _) <- lookupVar x
   if flag
     then do
-      t' <- shape t
+      t' <- shape t `catchError`
+            \ e -> throwError $ AddDoc
+                   (text "for the expression" $$ (nest 2 $ disp t)) e
       return (t', a, identityMod)
     else do
       updateCount x
@@ -127,6 +129,10 @@ typeInfer False a@(Controlled) =
         ty = Forall (abst [a, b, s'] t1') Set
         ty' = abstractMode ty
      in return (ty', Controlled, identityMod)
+
+typeInfer True Dynlift =
+  throwError $ ErrDoc $
+  text "dynlift should not be used in a type expression"
 
 typeInfer False Dynlift =
   let ty =
@@ -663,7 +669,9 @@ typeCheck flag a@(Pair t1 t2) (Exists p ty) mod =
      mode2 <- newMode ["u", "v", "w"]
      (ty', ann1) <- typeCheck flag t1 ty mode1
      open p $ \ x t ->
-       do t1 <- shape ann1
+       do t1 <- shape ann1 `catchError`
+            \ e -> throwError $ AddDoc (text "for the expression" $$
+                                        (nest 2 $ disp t1)) e
           let t' = apply [(x, t1)] t
           (p', ann2) <- typeCheck flag t2 t' mode2
           mode1' <- updateModality mode1
@@ -754,7 +762,10 @@ typeCheck flag a@(Let m bd) goal mod =
                  return (goal', res)
             s':_ -> 
               do updateModeSubst (s', [], [])
-                 m'' <- shape ann
+                 m'' <- shape ann `catchError`
+                        \ e -> throwError $
+                               AddDoc (text "for the expression" $$
+                                       (nest 2 $ disp m)) e
                  addVarDef x t' m''
                  mode2 <- newMode ["#alpha", "#beta", "#gamma"]
                  (goal', ann2) <- typeCheck flag t goal mode2
@@ -763,6 +774,7 @@ typeCheck flag a@(Let m bd) goal mod =
                  mode1' <- updateModality mode1
                  mode2' <- updateModality mode2
                  let s = modeResolution GEq (modalAnd mode1' mode2') mod' 
+                         
                  when (s == Nothing) $ throwError $
                      ModalityErr (modalAnd mode1' mode2') mod' a
                  let Just s'@(s1, s2, s3) = s
@@ -915,8 +927,11 @@ typeCheck flag a@(LetPat m bd) goal mod =
            varDep (Var x) goal = isDpmVar x goal
            varDep _ _ = return False
            makeSub (Var x) s u =
-             do  u' <- shape $ substitute s u
-                 return $ Map.union s (Map.fromList [(x, u')])
+             do let m = substitute s u
+                u' <- shape m  `catchError`
+                       \ e -> throwError $ AddDoc
+                              (text "for the expression" $$ (nest 2 $ disp m)) e
+                return $ Map.union s (Map.fromList [(x, u')])
            makeSub (Pos p x) s u = makeSub x s u
            makeSub a s u = return s
            
@@ -953,7 +968,10 @@ typeCheck flag a@(Case tm (B brs)) goal mod =
      let res = Case ann (B brss)
      return (goal, res)
   where makeSub (Var x) s u =
-          do u' <- shape $ substitute s u
+          do let m = substitute s u
+             u' <- shape m  `catchError`
+                   \ e -> throwError $ AddDoc
+                          (text "for the expression" $$ (nest 2 $ disp m)) e
              return $ s `Map.union` Map.fromList [(x, u')]
         makeSub (Pos p x) s u = makeSub x s u
         makeSub a s u = return s
@@ -1269,7 +1287,9 @@ handleTermApp flag ann pos t' t1 t2 mode1 = do
         let t2' = erasePos kann
         t2'' <-
           if not flag'
-            then shape t2'
+            then shape t2'  `catchError`
+                 \ e -> throwError $ AddDoc
+                        (text "for the expression" $$ (nest 2 $ disp t2')) e
             else return t2'
         m' <- betaNormalize (apply [(head xs, t2'')] m)
         mode2' <- updateModality mode2
@@ -1307,7 +1327,9 @@ addAnn flag mode e a (Bang t m) env = do
           else Force
   t' <-
     if flag
-      then shape t
+      then shape t  `catchError`
+                       \ e -> throwError $ AddDoc
+                              (text "for the expression" $$ (nest 2 $ disp t)) e
       else return t
   if flag
     then
