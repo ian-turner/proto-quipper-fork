@@ -33,3 +33,44 @@ logicalAndInv x y xy =
   in if r
      then let (y, x) = cz y x in (x, y)
      else (x, y)
+
+logicalAndInv' = unbox $ reverse $ boxCirc $ \ x -> uncurry logicalAnd x
+
+
+leftBlock : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit)
+leftBlock input =
+  let (c, i, t) = input
+      (i, c) = CNot i c
+      (t, c) = CNot t c
+      (i, t, it) = logicalAnd i t
+      (it, c) = CNot it c
+   in (c, i, t, it)
+
+
+rightBlock : ! (Qubit * Qubit * Qubit * Qubit ->  Qubit * Qubit * Qubit)
+rightBlock input =
+  let (c, i, t, it) = input
+      (it, c) = CNot it c
+      (i, t) = logicalAndInv' (i, t, it)
+      (i, c) = CNot i c
+      (t, i) = CNot t i
+   in (c, i, t)
+
+
+
+nested : ! forall (n : Nat) -> Qubit -> Vec Qubit n -> Vec Qubit n -> Vec Qubit n * Vec Qubit n * Qubit
+nested c is ts =
+  case is of
+    VNil ->  (VNil, ts, c)
+    VCons i is' ->
+      let VCons t ts' = ts
+          (c, i, t, c') = leftBlock (c, i, t)          
+          (is'', ts'', c'') = nested c' is' ts'
+          (c, i, t) = rightBlock (c, i, t, c'')
+      in (VCons i is'', VCons t ts'', c)
+
+
+boxNested (n : Nat) = box (Qubit * Vec Qubit n * Vec Qubit n) $
+                        \ input -> let (c, is, ts) = input in nested c is ts
+-- test2 : Vec Bool 4 * Vec Bool 4 * Bool
+-- test2 = measure $ nested (init False) [Init1 (), Init1 (), Init1 (), Init1 ()] [Init1 (), Init0 (), Init0 (), Init0 ()]
