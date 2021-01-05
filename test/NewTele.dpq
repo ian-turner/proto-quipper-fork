@@ -57,9 +57,9 @@ tele_generic n q =
       b = bob b (x, y)
   in b
 
-{-
--- boxTeleG' (n : Nat) = box (Vec Qubit n) (\ x -> tele_generic n x)
 
+-- boxTeleG' (n : Nat) = box (Vec Qubit n) (\ x -> tele_generic n x)
+{-
 -- Note that 8 qubits is the upper limit for teleportation
 -- in my computer. So this is less than ideal.
 

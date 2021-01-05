@@ -149,11 +149,11 @@ bellState u =
 
 -- ha = bellState ()
 
--- teleportation =
---   let x = [Init1 (), Init0 (), Init0 (), Init0 (), Init0 (), Init1 ()]
---       r = unbox (teleBox 6) x
---       r' = map Meas r
---       r'' = map dynlift r'
---   in r''
+teleportation =
+  let x = [Init1 (), Init0 (), Init0 (), Init0 (), Init0 (), Init1 ()]
+      r = unbox (teleBox 6) x
+      r' = map Meas r
+      r'' = map dynlift r'
+  in r''
 
 -- test2 = let x = teleportation in box Qubit (\ x -> let y = dynlift (Meas (H (Init0 ()))) in x)

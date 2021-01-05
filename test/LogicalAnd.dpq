@@ -1,0 +1,35 @@
+module LogicalAnd where
+
+import "lib/Prelude.dpq"
+
+logicalAnd : ! (Qubit -> Qubit -> Qubit * Qubit * Qubit)
+logicalAnd x y =
+    let t = TGate (H (Init0 ()))
+        (t, x) = CNot t x
+        (t, y) = CNot t y
+        (y, t) = CNot y t 
+        (x, t) = CNot x t
+        x = TGate_Inv x
+        y = TGate_Inv y
+        t = TGate t
+        (x, t) = CNot x t
+        (y, t) = CNot y t
+        t = SGate (H t)
+     in (x, y, t)
+
+
+circ1 = boxCirc $ \ x -> uncurry logicalAnd x
+
+test : Bool * Bool * Bool
+test = measure $ logicalAnd (init False) (init False)
+
+-- Controlled Z gate, which is a member of Clifford group.
+cz (x y : Qubit) = let (x, y) = CNot (H x) y in (H x, y)
+
+
+logicalAndInv : ! (Qubit -> Qubit -> Qubit -> Qubit * Qubit)
+logicalAndInv x y xy =
+  let r = measure (H xy)
+  in if r
+     then let (y, x) = cz y x in (x, y)
+     else (x, y)
