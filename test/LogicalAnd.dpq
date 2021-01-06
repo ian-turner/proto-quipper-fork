@@ -77,3 +77,7 @@ boxNested (n : Nat) = box (Qubit * Vec Qubit n * Vec Qubit n) $
                         \ input -> let (c, is, ts) = input in nested c is ts
 -- test2 : Vec Bool 4 * Vec Bool 4 * Bool
 -- test2 = measure $ nested (init False) [Init1 (), Init1 (), Init1 (), Init1 ()] [Init1 (), Init0 (), Init0 (), Init0 ()]
+
+test3 = boxCirc $ \ x -> H (Init0 x)
+
+h = boxCirc Init0

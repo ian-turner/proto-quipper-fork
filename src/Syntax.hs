@@ -586,7 +586,7 @@ instance Disp Value where
   display flag (VControlled) = text "controlled"
   display flag (VWithComputed) = text "withComputed"
   display flag (VDynlift) = text "dynlift"
-  display flag (Wired (Abst _ m)) = display flag m
+  display flag (Wired (Abst ws m)) = brackets (hsep $ punctuate comma $ map (display flag) ws) $$ display flag m
   display flag (VLam (Abst _ bd)) = open bd $ \vs b ->
     fsep
         [ text "\\"
@@ -599,7 +599,11 @@ instance Disp Value where
   display flag (VLift (Abst _ m)) =
     text "vlift" <+> display flag m
   -- text "<lift-value>"
-  display flag (VLiftCirc (Abst vs (Abst env e))) = text "<fun-value>"
+  display flag (VLiftCirc (Abst vs (Abst env e))) = 
+    -- text "<fun-value>"
+    brackets (hsep $ punctuate comma $ map (display flag) vs) $$
+    braces (display flag env)
+    $$ display flag e
   display flag a@(VApp t t') =
     case toNat a of
       Nothing ->

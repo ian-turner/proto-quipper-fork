@@ -43,7 +43,7 @@ type Eval a = StateT EvalState ReadWrite a
 data EvalState =
   ES
     { evalEnv :: Context -- ^ The global evaluation context.
-    , labels :: [Label]
+    , labels :: [Label] -- ^ labels generated during evaluation 
     }
 
 initES gl = ES {evalEnv = gl, labels = []}
@@ -111,12 +111,14 @@ eval !lenv EControlled = return VControlled
 eval !lenv EWithComputed = return VWithComputed
 eval !lenv a@(EBox) = return VBox
 eval !lenv a@(EExBox) = return VExBox
+
 -- Note that because QuantumState is an example
 -- of state monad, sequencing is enforced. So each
 -- statement will be evaluated to weak head normal form in sequence.
 -- This means /w/ below will be evaluated to weak head normal form,
 -- hence making the implementation conforming the eager evaluation
 -- strategy. As a result, we do not get lazy circuit in the sense of Quipper.
+
 eval !lenv (EApp m n) = do
   v <- eval lenv m
   w <- eval lenv n
@@ -130,6 +132,7 @@ eval !lenv (ELet m bd) = do
   open bd $ \x n ->
     let lenv' = addDefinition x m' lenv
      in eval lenv' n
+
 eval !lenv (ELetPair m (Abst xs n)) = do
   m' <- eval lenv m
   let r = unVPair (length xs) m'
@@ -207,10 +210,10 @@ evalApp (VForce VDynlift) (VLabel v) = do
 -- append gates
 evalApp (VForce (VApp VUnBox (Wired (Abst wires morph)))) w = do
   let binding = makeBinding (input morph) w
-      res = wires \\ getWires (input morph)
+      res = wires -- \\ getWires (input morph)
   st <- get
   let st' = st{labels = labels st ++ res}
-  put st
+  put st'
   appendMorph binding morph
 
 evalApp (VApp (VApp (VApp VBox q) _) _) v =
