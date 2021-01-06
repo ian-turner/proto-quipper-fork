@@ -35,7 +35,10 @@ logicalAndInv x y xy =
      else (x, y)
 
 logicalAndInv' = unbox $ reverse $ boxCirc $ \ x -> uncurry logicalAnd x
-
+-- logicalAndInv' (input : Qubit * Qubit * Qubit) =
+--   let (x, y, z) = input
+--       _ = Term0 z
+--   in (x, y)
 
 leftBlock : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit)
 leftBlock input =

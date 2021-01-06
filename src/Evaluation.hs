@@ -76,7 +76,9 @@ eval !lenv a@(EConst k) = do
           throw $ userError ("undefined: " ++ (show $ disp k))
         DefinedMethod _ v -> return v
         DefinedInstFunction _ v -> return v
+
 eval !lenv (EBase k) = return $ VBase k
+
 eval !lenv a@(ELBase k) = do
   st <- get
   let genv = evalEnv st
@@ -87,6 +89,7 @@ eval !lenv a@(ELBase k) = do
         DataType Simple _ (Just (ELBase id)) -> return (VLBase id)
         DataType (SemiSimple _) _ (Just d) -> eval lenv d
         DataType _ _ Nothing -> return (VBase k)
+
 eval !lenv (EForce m) = do
   m' <- eval lenv m
   case m' of
@@ -134,6 +137,7 @@ eval !lenv (ELetPair m (Abst xs n)) = do
     Just vs ->
       let lenv' = foldl (\a (x, y) -> addDefinition x y a) lenv (zip xs vs)
        in eval lenv' n
+
 eval !lenv (ELetPat m bd) = do
   m' <- eval lenv m
   case vflatten m' of
@@ -193,27 +197,37 @@ evalApp VUnBox v =
   case v of
     (Wired _) -> return $ VApp VUnBox v
     _ -> return VUnBox
+
 evalApp (VForce VDynlift) (VLabel v) = do
   b <- dynamicLift v
   if b
     then return $ VConst (Id "True")
     else return $ VConst (Id "False")
+
 -- append gates
 evalApp (VForce (VApp VUnBox (Wired (Abst wires morph)))) w = do
   let binding = makeBinding (input morph) w
+      res = wires \\ getWires (input morph)
+  st <- get
+  let st' = st{labels = labels st ++ res}
+  put st
   appendMorph binding morph
+
 evalApp (VApp (VApp (VApp VBox q) _) _) v =
   case v of
     VLift (Abst lenv m) -> evalBox lenv (Right m) q
     VApp VUnBox w -> return w
     m@(VLiftCirc _) -> evalBox Map.empty (Left m) q
     a -> error $ "evalApp VBox:" ++ (show $ disp a)
+
 evalApp (VApp (VApp (VApp (VApp VExBox q) _) _) _) v =
   case v of
     VLift (Abst lenv body) -> evalExbox lenv body q
+
 evalApp (VApp (VApp VReverse _) _) (Wired (Abst ws (Morphism ins gs outs))) = do
   let gs' = revGates gs
   return $ Wired (abst ws $ Morphism outs gs' ins)
+
 evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
   freshNames ["#ctrl", "#input", "#circ"] $ \(ctrl:inp:circ:[]) -> do
     let ins = input m
@@ -231,8 +245,10 @@ evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
       Gate id ps ins outs (VVar a) flag inv
     helper a (Gate id ps ins outs b flag inv) =
       Gate id ps ins outs (VPair b (VVar a)) flag inv
+
 evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _) _) _) m =
   return $ VComputed m
+
 evalApp (VComputed (Wired (Abst ws1 m1'))) (Wired (Abst ws2 circ2))
   -- evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
  = do
@@ -271,6 +287,7 @@ evalApp (VComputed (Wired (Abst ws1 m1'))) (Wired (Abst ws2 circ2))
 --  circ2 <- refresh m2
 --  circ1' <- refresh (Morphism (VPair b1 e) gs1'' a)
 evalApp a@(Wired _) w = return a
+
 evalApp v w =
   let (h, res) = unwindVal v
    in case h of

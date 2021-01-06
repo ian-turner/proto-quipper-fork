@@ -409,8 +409,8 @@ system_pdf_viewer zoom pdffile = do
              rawSystem "sleep" ["1"] -- required or the file may be deleted too soon
              return ()
            else do
-             rawSystem "acroread" ["/a", "zoom=100", pdffile] `catchError` \e ->
-               rawSystem "evince" [pdffile] `catchError` \e -> handleErr
+             rawSystem  "evince" [pdffile] `catchError` \e ->
+               rawSystem "acroread" ["/a", "zoom=100", pdffile] `catchError` \e -> handleErr
              return ()
   where
     handleErr = do
