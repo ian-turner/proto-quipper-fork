@@ -27,18 +27,15 @@ test = measure $ logicalAnd (init False) (init False)
 cz (x y : Qubit) = let (x, y) = CNot (H x) y in (H x, y)
 
 
-logicalAndInv : ! (Qubit -> Qubit -> Qubit -> Qubit * Qubit)
-logicalAndInv x y xy =
-  let r = measure (H xy)
+logicalAndInv : ! (Qubit * Qubit * Qubit -> Qubit * Qubit)
+logicalAndInv input =
+  let (x, y, xy) = input
+      r = measure (H xy)
   in if r
      then let (y, x) = cz y x in (x, y)
      else (x, y)
 
 logicalAndInv' = unbox $ reverse $ boxCirc $ \ x -> uncurry logicalAnd x
--- logicalAndInv' (input : Qubit * Qubit * Qubit) =
---   let (x, y, z) = input
---       _ = Term0 z
---   in (x, y)
 
 leftBlock : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit)
 leftBlock input =
@@ -54,7 +51,7 @@ rightBlock : ! (Qubit * Qubit * Qubit * Qubit ->  Qubit * Qubit * Qubit)
 rightBlock input =
   let (c, i, t, it) = input
       (it, c) = CNot it c
-      (i, t) = logicalAndInv' (i, t, it)
+      (i, t) = logicalAndInv (i, t, it)
       (i, c) = CNot i c
       (t, i) = CNot t i
    in (c, i, t)
@@ -73,11 +70,9 @@ nested c is ts =
       in (VCons i is'', VCons t ts'', c)
 
 
-boxNested (n : Nat) = box (Qubit * Vec Qubit n * Vec Qubit n) $
-                        \ input -> let (c, is, ts) = input in nested c is ts
--- test2 : Vec Bool 4 * Vec Bool 4 * Bool
--- test2 = measure $ nested (init False) [Init1 (), Init1 (), Init1 (), Init1 ()] [Init1 (), Init0 (), Init0 (), Init0 ()]
+-- boxNested (n : Nat) = box (Qubit * Vec Qubit n * Vec Qubit n) $
+--                         \ input -> let (c, is, ts) = input in nested c is ts
 
-test3 = boxCirc $ \ x -> H (Init0 x)
+test2 : Vec Bool 4 * Vec Bool 4 * Bool
+test2 = measure $ nested (init False) [Init1 (), Init1 (), Init1 (), Init1 ()] [Init1 (), Init0 (), Init0 (), Init0 ()]
 
-h = boxCirc Init0
