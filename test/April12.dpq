@@ -55,8 +55,8 @@ simple DVec a : Nat -> Type where
   DVec a Z = DNil 
   DVec a (S n) = DCons (Vec a n) (DVec a n)
 
-test2 : DVec Nat 3
-test2 = DCons [1,2] $ DCons [1] $ DCons [] DNil
+test2 : DVec Nat three
+test2 = DCons [one, two] $ DCons [one] $ DCons [] DNil
 
 controls : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n -> Qubit ->
                 Qubit * Vec Qubit n * Vec Qubit n

@@ -20,7 +20,7 @@ compose a circ1 circ2 =
 
 
 testH : Circ(Qubit, Qubit)
-testH = ntimes Qubit 3 (box Qubit H)
+testH = ntimes Qubit three (box Qubit H)
 
 -- single qubit rotate
 #Controllable
@@ -118,14 +118,14 @@ modN p v =
 boxSecond' : ! (n : Nat) -> Nat -> Circ(Vec Qubit (S n), Vec Qubit (S n))
 boxSecond' n p = box (Vec Qubit (S n)) $ \ x -> modN p x
 
-test1 : Circ(Vec Qubit 5, Vec Qubit 5)
-test1 = boxSecond' 4 6
+test1 : Circ(Vec Qubit five, Vec Qubit five)
+test1 = boxSecond' four six
 
 boxSecond'' : ! (n m : Nat) -> Nat -> Circ(VecZipper Qubit n m, VecZipper Qubit m n)
 boxSecond'' n m p = box (VecZipper Qubit n m) $ \ x -> secondLayer' m p x
 
 test2 : Circ(VecZipper  Qubit  (S  (S  (S  Z)))  Z,
                 VecZipper Qubit  Z  (S  (S  (S  Z))))
-test2 = boxSecond'' 3 0 6
+test2 = boxSecond'' three Z six
 
 

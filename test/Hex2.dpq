@@ -115,9 +115,9 @@ test_positions (n m : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True)
             new1 = case mod m x_max > Z of
                         True ->
                            do (maskmap3, bitmap3, newmap3) <-
-			            eitherOr (1 <= m)
-                                       (\ pf -> test_backward_focus n m 1 pf)
-                                       (\ pf -> stay_focus' n m 1 pf) 
+			            eitherOr (one <= m)
+                                       (\ pf -> test_backward_focus n m one pf)
+                                       (\ pf -> stay_focus' n m one pf) 
                                        maskmap2 bitmap2 newmap2
                               eitherOr (pred x_max <= n)
                                    (\ pf -> test_forward_focus n m (pred x_max) pf)
@@ -129,9 +129,9 @@ test_positions (n m : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True)
                        case mod m x_max < pred x_max of
                           True ->
                             do (maskmap5, bitmap5, newmap5) <-
-			          eitherOr (1 <= n)
-                                      (\ pf -> test_forward_focus n m 1 pf)
-                                      (\ pf -> stay_focus n m 1 pf) 
+			          eitherOr (one <= n)
+                                      (\ pf -> test_forward_focus n m one pf)
+                                      (\ pf -> stay_focus n m one pf) 
                                       maskmap4 bitmap4 newmap4
                                eitherOr (pred x_max <= m)
                                     (\ pf -> test_backward_focus n m (pred x_max) pf)
@@ -216,7 +216,7 @@ while n c x_max pf bitmap newmap maskmap =
 flood_fill (n : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True)
   (bitmap maskmap : Vec Qubit (S n)) = do
   let newmap = initVec (S n) False
-      counter = S $ div (S n) 4
+      counter = S $ div (S n) four
   -- swapping position of newmap and bitmap->    
   while n counter x_max pf newmap bitmap maskmap
    -- in do r <-  mapM (\ x -> let (a, b) = x
@@ -303,10 +303,10 @@ box_checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
   (pf2 : Eq Bool (x_max <= m) True) = box (Qubit * Vec Qubit (S m)) $ \ x -> uncurry (real_checkwin_red m x_max pf1 pf2) x
 
 -- A thunk of small_board to prevent immediate evaluation->
-small_board (x : Unit) = box_checkwin_red (mul 2 7) 5 refl refl
+small_board (x : Unit) = box_checkwin_red (mul two seven) five refl refl
 
-test_small_board : ! (Bool * Vec Bool (S (mul 2 7)) ->
-                        Bool * Vec Bool (S (mul 2 7)))
+test_small_board : ! (Bool * Vec Bool (S (mul two seven)) ->
+                        Bool * Vec Bool (S (mul two seven)))
 test_small_board x = runCirc (small_board ()) x
 
 a_small_board_blue =
@@ -417,7 +417,7 @@ testPositions =
 --    False, True, True, True, False]
 
 -- main = test_small_board (False, a_small_board_blue)
-large_board (x : Unit) = box_checkwin_red (5 @ 7 - 1) 7 refl refl
+large_board (x : Unit) = box_checkwin_red (five @ seven - one) seven refl refl
 {-
 50567
 
@@ -425,8 +425,9 @@ real	0m18.311s
 user	0m21.785s
 sys	0m3.794s
 -}
-large_board' (x : Unit) = box_checkwin_red (9 @ 7 - 1) 9 refl refl
-main1 (x : Unit) = uncurry (real_checkwin_red 34 7 refl refl) (init (False, nVec 35 True))
+large_board' (x : Unit) = box_checkwin_red (nine @ seven - one) nine refl refl
+
+-- main1 (x : Unit) = uncurry (real_checkwin_red 34 7 refl refl) (init (False, nVec 35 True))
 
 -- main = large_board ()
 {-

@@ -228,9 +228,9 @@ setParent a b isparent n =
 doWeld0 : ! (List Qubit -> List Qubit -> Qubit -> List Bool -> Nat ->
       Triple (List Qubit) (List Qubit) Qubit)
 doWeld0 a b weldctrl f n =
-  let T abefore as aafter = toT $ sf_list_range Z (n - 1) a
-      T bbefore bs bafter = toT $ sf_list_range Z (n - 1) b
-      T fbefore fs fafter = toT $ sf_list_range Z (n - 1) f
+  let T abefore as aafter = toT $ sf_list_range Z (n - one) a
+      T bbefore bs bafter = toT $ sf_list_range Z (n - one) b
+      T fbefore fs fafter = toT $ sf_list_range Z (n - one) f
       Q as bs fs weldctrl = for_each_map3 as bs fs weldctrl ( \ ai bi fi weldctrl ->
         let T bi weldctrl ai = toT $ ToffoliGate True (not fi) bi weldctrl ai 
         in Q ai bi fi weldctrl)
@@ -405,8 +405,8 @@ setChildInTree a b childctrl direction n =
   let T bbefore b0 bafter = sf_list_index Z b
       T b0 childctrl direction = toT $ ToffoliGate True True b0 childctrl direction
       b = appendL bbefore $ Cons b0 bafter
-      T abefore as aafter = toT $ sf_list_range Z (n - 1) a
-      T bbefore bs bafter = toT $ sf_list_range 1 n b
+      T abefore as aafter = toT $ sf_list_range Z (n - one) a
+      T bbefore bs bafter = toT $ sf_list_range one n b
       T as bs childctrl = for_each_map2 as bs childctrl ( \ a b childctrl ->
             let T b childctrl a = toT $ ToffoliGate True True b childctrl a
             in T a b childctrl )
@@ -453,8 +453,8 @@ setChild a b ischild direction f g n =
 oraclefun : ! (Nat -> List Bool -> List Bool -> Nat -> List Qubit -> List Qubit -> Qubit ->
              List Qubit * List Qubit * Qubit)
 oraclefun n f g c a b r =
-  let color = getTwo $ boolreg_of_int_le (S 1) c 
-      T a b r = with_ancilla_reg (replicate 6 False) (\ rr ->
+  let color = getTwo $ boolreg_of_int_le (S one) c 
+      T a b r = with_ancilla_reg (replicate six False) (\ rr ->
     let ST ismatch direction ischild isparent even root = getSix rr
         T a root even = toT $ parseNodeRoot a root even n
         (a, even) = parseNodeEven a even n
@@ -480,8 +480,8 @@ oraclefun n f g c a b r =
 orthodox_oracle : ! (Nat -> List Bool -> List Bool -> Oracle)
 orthodox_oracle n f g =
   let m = S (S n) 
-      k = 4
-      entrance = boolreg_of_int_le (S (S n)) 1
+      k = four
+      entrance = boolreg_of_int_le (S (S n)) one
   in ORACLE n m k entrance (\ x -> oraclefun n f g x)
   
 
@@ -493,17 +493,17 @@ orthodox_oracle n f g =
 -- some arbitrary choice of welding vectors f and g->
 --
 comp : ! (Unit -> List Qubit)
-comp u = qrwbwt (orthodox_oracle 2 (Cons True $ Cons False Nil) (Cons False $ Cons True Nil)) 1
+comp u = qrwbwt (orthodox_oracle two (Cons True $ Cons False Nil) (Cons False $ Cons True Nil)) one
 
-main'' : Circ(Unit, Vec Qubit 4)
+main'' : Circ(Unit, Vec Qubit four)
 main'' =
   box Unit $ \ u ->
    let  -- $ Cons True $ Cons False Nil
        f = Cons True $ Cons False Nil
        g = Cons False $ Cons True Nil -- $ Cons False $ Cons True Nil
-       s = 1
-       n = 2
-       vs = unsafe_to_vec 4 $ qrwbwt (orthodox_oracle n f g) s
+       s = one
+       n = two
+       vs = unsafe_to_vec four $ qrwbwt (orthodox_oracle n f g) s
    in vs
 
 -- main =
@@ -528,5 +528,5 @@ main'' =
 main =
   box Unit (
     \ u -> listToVec (qrwbwt
-                       (orthodox_oracle 2 (Cons True (Cons False Nil))
-                         (Cons False (Cons True Nil))) 1))
+                       (orthodox_oracle two (Cons True (Cons False Nil))
+                         (Cons False (Cons True Nil))) one))

@@ -113,8 +113,8 @@ circ4 l x =
                     l'
         return $ map H l''
 
-box_circ4 : Circ(Vec Qubit 4 * Qubit, Vec Qubit 4 * Qubit)
-box_circ4 = box (Vec Qubit 4 * Qubit) $ \ x -> uncurry circ4 x
+box_circ4 : Circ(Vec Qubit four * Qubit, Vec Qubit four * Qubit)
+box_circ4 = box (Vec Qubit four * Qubit) $ \ x -> uncurry circ4 x
 
 
 
@@ -152,8 +152,8 @@ circ9 : ! forall (n : Nat) -> (Vec Qubit n) -> Qubit -> Vec Qubit n * Qubit
 circ9 l x = 
  runState x $ mapM (\ q -> applyS (\ x -> CNot x q)) l
 
-main : Circ(Vec Qubit 4 * Qubit, Vec Qubit 4 * Qubit)
-main = box (Vec Qubit 4 * Qubit) $ \ x -> uncurry circ9 x
+main : Circ(Vec Qubit four * Qubit, Vec Qubit four * Qubit)
+main = box (Vec Qubit four * Qubit) $ \ x -> uncurry circ9 x
 
 
 

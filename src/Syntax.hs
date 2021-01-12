@@ -268,48 +268,16 @@ instance Disp Exp where
         , nest 5 $ display flag b
         ]
   display flag a@(App t t') =
-    case toNat a of
-      Nothing ->
         fsep [dParen flag (precedence a - 1) t,
               dParen flag (precedence a) t']
-      Just i -> int i
-    where
-      toNat (App (Const id) t') =
-        if getName id == "S"
-          then do
-            n <- toNat t'
-            return $ 1 + n
-          else Nothing
-      toNat (Const id) =
-        if getName id == "Z"
-          then return 0
-          else Nothing
-      toNat (Pos _ e) = toNat e
-      toNat _ = Nothing
   display flag a@(AppType t t') =
     fsep
       [ dParen flag (precedence a - 1) t <> dispAt flag "AppType"
       , dParen flag (precedence a) t'
       ]
   display flag a@(AppP t t') =
-    case toNat a of
-      Nothing ->
-        fsep [dParen flag (precedence a - 1) t,
-              dParen flag (precedence a) t']
-      Just i -> int i
-    where
-      toNat (AppP (Const id) t') =
-        if getName id == "S"
-          then do
-            n <- toNat t'
-            return $ 1 + n
-          else Nothing
-      toNat (Const id) =
-        if getName id == "Z"
-          then return 0
-          else Nothing
-      toNat (Pos _ e) = toNat e
-      toNat _ = Nothing
+    fsep [dParen flag (precedence a - 1) t,
+           dParen flag (precedence a) t']
   display flag a@(AppDep t t') =
     fsep
       [ dParen flag (precedence a - 1) t <> dispAt flag "AppDep"
@@ -569,8 +537,6 @@ instance Disp Value where
   display flag (VLBase id) = display flag id
   display flag (VBase id) = display flag id
   display flag (VConst id)
-    | getName id == "Z" = text "0"
-  display flag (VConst id)
     | getName id == "VNil" = text "[]"
   display flag (VConst id) = display flag id
   display flag (VTensor x y) =
@@ -604,9 +570,8 @@ instance Disp Value where
     brackets (hsep $ punctuate comma $ map (display flag) vs) $$
     braces (display flag env)
     $$ display flag e
+
   display flag a@(VApp t t') =
-    case toNat a of
-      Nothing ->
         case toVec a of
           Nothing ->
             fsep
@@ -615,19 +580,7 @@ instance Disp Value where
           Just vs ->
             brackets $ fsep $ punctuate comma $
               map (\x -> display flag x) vs
-      Just i -> int i
     where
-      toNat (VApp (VConst id) t') =
-        if getName id == "S"
-          then do
-            n <- toNat t'
-            return $ 1 + n
-          else Nothing
-      toNat (VConst id) =
-        if getName id == "Z"
-          then return 0
-          else Nothing
-      toNat _ = Nothing
       toVec (VConst id) =
         if getName id == "VNil"
           then return []

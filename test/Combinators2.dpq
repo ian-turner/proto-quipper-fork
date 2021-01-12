@@ -336,9 +336,9 @@ boolreg_of_int_le m x =
   case m <= Z of
     True -> Nil
     False -> let y = isOdd x
-                 r = divMod x 2
+                 r = divMod x (S (S Z))
                  (res, rem) = r
-             in Cons y $ boolreg_of_int_le (m - 1) res
+             in Cons y $ boolreg_of_int_le (m - one) res
 
 simple Five a b c d e : Type where
   Five a b c d e = F a b c d e

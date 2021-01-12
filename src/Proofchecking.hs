@@ -651,6 +651,7 @@ proofCheck flag a@(Case tm (B brs)) goal = do
               vs
             updateSubst ss
           a -> error $ show a
+
 proofCheck flag a goal = do
   t <- proofInfer flag a
   t1 <- updateWithSubst t
@@ -664,16 +665,18 @@ proofCheck flag a goal = do
 -- | Unification for dependent pattern pattern matching.
 dependentUnif :: (Bool, Maybe Int) -> Exp -> Exp -> TCMonad (UnifResult, Subst)
 dependentUnif (isDpm, index) head t =
-  if not isDpm
-    then if head == t
-           then return (Success, Map.empty)
-           else return (UnifError, Map.empty)
-    else case index of
-           Nothing ->
-             if head == t
-               then return (Success, Map.empty)
-               else return (UnifError, Map.empty)
-           Just i -> return $ runDUnify head t
+  do head' <- normalize head
+     t' <- normalize t
+     if not isDpm
+       then if head' == t'
+            then return (Success, Map.empty)
+            else return (UnifError, Map.empty)
+       else case index of
+              Nothing ->
+                if head' == t'
+                then return (Success, Map.empty)
+                else return (UnifError, Map.empty)
+              Just i -> return $ runDUnify head' t'
 
 -- | Check lambda abstractions against a type. The argument /fl/ is to indicate
 -- whether or not to check usage.

@@ -29,7 +29,7 @@ minus n m = case n of
 
 
 mul : ! (Nat -> Nat -> Nat)
-mul n m = iterN n (\ x -> add m x) 0
+mul n m = iterN n (\ x -> add m x) Z
 
 pred : ! (Nat -> Nat)
 pred n = case n of
@@ -37,7 +37,7 @@ pred n = case n of
             S m -> m
             
 exponential : ! (Nat -> Nat -> Nat)
-exponential e n = iterN n (\ x -> mul e x) 1
+exponential e n = iterN n (\ x -> mul e x) (S Z)
 
 
 less : ! (Nat -> Nat -> Bool)
@@ -51,7 +51,7 @@ less n m = case n of
 
 divMod : !(Nat -> Nat -> Nat * Nat)
 divMod x y = 
-     if less x y then (0, x)
+     if less x y then (Z, x)
        else let u = minus x y
                 (q, r) = divMod u y
             in (S q, r)
@@ -64,14 +64,14 @@ mod x y = let (_, r) = divMod x y in r
 
 log2helper : ! (Nat -> Nat -> Nat)
 log2helper n m =
-  if not $ less (exponential 2 m) n then
+  if not $ less (exponential (S (S Z)) m) n then
    m else log2helper n (S m)
 
 log2 : ! (Nat -> Nat)
 log2 n = log2helper n Z
 
 isOdd : ! (Nat -> Bool)
-isOdd n = let (_, rem) = divMod n 2
+isOdd n = let (_, rem) = divMod n (S (S Z))
           in case rem of
                 Z -> False
                 S _ -> True
@@ -87,4 +87,12 @@ eitherOr x f1 f2 =
     True -> f1 refl 
     False -> f2 refl
 
+one = S Z
+two = S (S Z)
+three = S two
+four = mul (S (S Z)) (S (S Z))
+five = S four
+six = mul (S (S (S Z))) (S (S Z))
+seven = S six
+nine = exponential (S (S (S Z))) (S (S Z))
 

@@ -77,7 +77,7 @@ nAdderRev' (n : Nat) = boxCirc $ \ x ->
 --                                    -- Vec Qubit 4 * Qubit *
 -- 				   --   (Qubit * Vec Qubit 4 * Vec Qubit 4))
 
-nAdderRev_test1 = nAdderRev 100
+nAdderRev_test1 = nAdderRev nine
 
 -- main = nAdderRev_test1
 -- nAdderRev_test2 = nAdderRev nine
@@ -88,8 +88,8 @@ repeat n b =
    Z -> VNil
    S n' -> VCons b (repeat n' b)
    
-adding :  Bool * Vec Bool 100 * Vec Bool 100
-adding = (False, repeat 100 True, repeat 100 False)
+adding :  Bool * Vec Bool nine * Vec Bool nine
+adding = (False, repeat nine True, repeat nine False)
 
 -- (VCons True $ VCons False $ VCons True $ VCons False VNil)
 --                    (VCons False $ VCons True $ VCons False $ VCons True VNil)
@@ -98,7 +98,7 @@ adding = (False, repeat 100 True, repeat 100 False)
 -- Moreover, we don't want to turn type class into
 -- full blown prolog.
 
-main :  (Vec Bool 100 * Bool * (Bool * Vec Bool 100 * Vec Bool 100))
+main :  (Vec Bool nine * Bool * (Bool * Vec Bool nine * Vec Bool nine))
 main = runCirc nAdderRev_test1 adding
 
 -- main = nAdderRev_test1 
@@ -109,8 +109,8 @@ binaryToNat v =
     VNil -> Z
     VCons x xs ->
       case x of
-        True -> S (mul 2 (binaryToNat xs))
-	False -> mul 2 (binaryToNat xs)
+        True -> S (mul two (binaryToNat xs))
+	False -> mul two (binaryToNat xs)
 
 idCirc : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 idCirc n = box (Vec Qubit n) $ \ x -> x

@@ -126,8 +126,8 @@ teleBox n = box (Vec Qubit n) $ \ x -> tele_generic n x
 --            z = map dynlift y
 --         in z
 
-teleBox_t1 : Circ (Vec Qubit 9, Vec Qubit 9)
-teleBox_t1 = teleBox 9
+teleBox_t1 : Circ (Vec Qubit nine, Vec Qubit nine)
+teleBox_t1 = teleBox nine
 
 teleBox' : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 teleBox' n = box (Vec Qubit n) $ \ x -> tele_generic n x
@@ -151,7 +151,7 @@ bellState u =
 
 teleportation =
   let x = [Init1 (), Init0 (), Init0 (), Init0 (), Init0 (), Init1 ()]
-      r = unbox (teleBox 6) x
+      r = unbox (teleBox six) x
       r' = map Meas r
       r'' = map dynlift r'
   in r''

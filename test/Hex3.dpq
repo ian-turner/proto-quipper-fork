@@ -71,7 +71,7 @@ test_positions (n m : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True) =
          act1 =
           case mod n x_max > Z of
              False -> update id
-             True -> do eitherOr (1 <= m) (\ pf -> test_move_focus' n m 1 pf)
+             True -> do eitherOr (one <= m) (\ pf -> test_move_focus' n m one pf)
                            (\ pf -> update id) 
                         eitherOr (pred x_max <= n)
                              (\ pf -> test_move_focus n m (pred x_max) pf)
@@ -79,7 +79,7 @@ test_positions (n m : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True) =
          -- act2 : State (WithGarbage (ZipperMaps n m)) Unit
          act2 = case mod n x_max < pred x_max of
                       False -> update id
-                      True -> do eitherOr (1 <= n) (\ pf -> test_move_focus n m 1 pf)
+                      True -> do eitherOr (one <= n) (\ pf -> test_move_focus n m one pf)
                                           (\ pf -> update id)
                                  eitherOr (pred x_max <= m)
                                           (\ pf -> test_move_focus' n m (pred x_max) pf)
@@ -157,7 +157,7 @@ while m c x_max pf bitmap newmap maskmap =
 flood_fill (m : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True)
   (bitmap maskmap : Vec Qubit (S m)) = do
   let newmap = initVec (S m) False
-      counter = S $ div (S m) 4
+      counter = S $ div (S m) four
   r <-  mapM (\ x -> let (a, b) = x
                          (b1, b2) = copy b
                          (a1, a2) = copy a
@@ -219,12 +219,12 @@ box_checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
   (pf2 : Eq Bool (x_max <= m) True) = box (Qubit * Vec Qubit (S m)) $ \ x -> (uncurry (real_checkwin_red m x_max pf1 pf2)) x
 
 -- A thunk of small_board to prevent immediate evaluation->
-small_board (x : Unit) = box_checkwin_red (mul 2 7) 5 refl refl
+small_board (x : Unit) = box_checkwin_red (mul two seven) five refl refl
 
 
 
-test_small_board : ! (Bool * Vec Bool (S (mul 2 7)) ->
-                        Bool * Vec Bool (S (mul 2 7)))
+test_small_board : ! (Bool * Vec Bool (S (mul two seven)) ->
+                        Bool * Vec Bool (S (mul two seven)))
 test_small_board x = runCirc (small_board ()) x
 
 a_small_board_blue =
@@ -237,10 +237,10 @@ a_small_board_red =
   $ VCons True $ VCons True $ VCons True $ VCons True $ VCons True
   $ VCons True $ VCons True $ VCons True $ VCons True $ VCons True VNil
 
-main1 (x : Unit) = uncurry (real_checkwin_red 34 7 refl refl) (init (False, nVec 35 True))
-main2 (x : Unit) = uncurry (real_checkwin_red 20 7 refl refl) (init (False, nVec 21 True))
+-- main1 (x : Unit) = uncurry (real_checkwin_red 34 7 refl refl) (init (False, nVec 35 True))
+-- main2 (x : Unit) = uncurry (real_checkwin_red 20 7 refl refl) (init (False, nVec 21 True))
 
-main3 (x : Unit) = uncurry (real_checkwin_red 62 7 refl refl) (init (False, nVec 63 True))
+-- main3 (x : Unit) = uncurry (real_checkwin_red 62 7 refl refl) (init (False, nVec 63 True))
 
 
 
@@ -259,7 +259,7 @@ peak cpu 1300%
 
 -}
 
-main4 (x : Unit) = uncurry (real_checkwin_red 120 11 refl refl) (init (False, nVec 121 True))
+-- main4 (x : Unit) = uncurry (real_checkwin_red 120 11 refl refl) (init (False, nVec 121 True))
 {-
 
 mathcluster node17: 24 cores cpu 2.4Ghz, mem 125 G. 
@@ -284,7 +284,7 @@ peak cpu ~1700%
 -- box_checkwin_red (9 @ 7 - 1) 7 refl refl
 
 
-main = box_checkwin_red (3 @ 7 - 1) 7 refl refl
+main = box_checkwin_red (three @ seven - one) seven refl refl
 -- 475119
 -- dpq test/Hex3.dpq -g  1654.73s user 205.41s system 122% cpu 25:15.20 total 
 -- mem 28%, 5m. 

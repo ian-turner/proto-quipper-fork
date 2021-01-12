@@ -34,7 +34,7 @@ oneRotation : ! (n : Nat) -> Circ(Qubit * Vec Qubit n, Qubit * Vec Qubit n)
 oneRotation n =
   box (Qubit * Vec Qubit n) 
     (λ x ->
-       let (q, v) = x in rotate 2 (H q) v)
+       let (q, v) = x in rotate (S (S Z)) (H q) v)
                      
 qft : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
 qft v =
@@ -42,7 +42,7 @@ qft v =
     VNil -> VNil
     VCons q qs ->
       let q' = H q
-          (q'', qs') = rotate 2 q' qs
+          (q'', qs') = rotate (S (S Z)) q' qs
           qs'' = qft qs'
       in VCons q'' qs''
 
@@ -61,8 +61,8 @@ qftTwice n l = qft (qft l)
 qftBox : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n) 
 qftBox n = box (Vec Qubit n) (\ x -> qft x)
 
-qft4 : Circ(Vec Qubit 4, Vec Qubit 4) 
-qft4 = qftBox 4
+qft4 : Circ(Vec Qubit four, Vec Qubit four) 
+qft4 = qftBox four
 
 
 -- qftBox_t1 = qftBox nine
@@ -111,10 +111,10 @@ qft_little_headian_rev_B n = reverse $ qft_little_headian_Box n
 
 
 
-qft4_little : Circ(Vec Qubit 4, Vec Qubit 4) 
-qft4_little = qft_little_headian_Box 4
+qft4_little : Circ(Vec Qubit four, Vec Qubit four) 
+qft4_little = qft_little_headian_Box four
 
-qft4_little_rev : Circ(Vec Qubit 4, Vec Qubit 4)
+qft4_little_rev : Circ(Vec Qubit four, Vec Qubit four)
 qft4_little_rev = reverse qft4_little
 
 qft_both : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n
@@ -130,7 +130,7 @@ qft_both_Box_ctrl n = box (Vec Qubit n * Vec Qubit n) $ \ i ->
 
 -- main : Circ(Vec Qubit 9, Vec Qubit 9)
 -- main = qft_both_Box 9
-main2 = qft_both_Box_ctrl 9
+main2 = qft_both_Box_ctrl nine
 
 
 -- t : ! (Circ(Qubit, Qubit) -> Circ(Qubit, Qubit))

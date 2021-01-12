@@ -553,7 +553,6 @@ atomExp =
      lamAnn <|>
      lam <|>
      idiomExp <|>
-     nat <|>
      vector <|>
      implicitType <|>
      piType <|>
@@ -613,17 +612,6 @@ followedBy m p = do
   p
   return r
 
--- | Parse a natural number literal. Currently, we will convert a number into
--- the algebraic data type @Nat@ in the standard library.
-nat :: Parser Exp
-nat = do
-  i <- naturals
-  return $ toNat i
-  where
-    toNat i
-      | i == 0 = Base "Z"
-    toNat i
-      | otherwise = App (Base "S") $ toNat (i - 1)
 
 -- | Parse the vector bracket notation. Currently, we will convert a vector notation into
 -- the algebraic data type @Vec@ in the standard library.
@@ -912,7 +900,6 @@ appExp =
       wrapPos $
       try unit <|> unitTy <|> set <|> dynliftExp <|> reverseExp <|> try varExp <|>
       try constExp <|>
-      nat <|>
       try vector <|>
       idiomExp <|> do
         tms <- parens (term `sepBy1` comma)

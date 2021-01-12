@@ -336,7 +336,7 @@ cAddNum : ! (l m n : Nat)  -> Qubit -> Vec Qubit (add n l) -> Vec Qubit (add n m
 cAddNum l m n control output input num =
   let (output, orest) = list_split Qubit n l output
       (input, irest) = list_split Qubit n m input
-      (num, nrest) = list_split Bool n 0 (subst (\ x -> Vec Bool x) (addZ' n) num)
+      (num, nrest) = list_split Bool n Z (subst (\ x -> Vec Bool x) (addZ' n) num)
       T control output input = cAddNumHelper output input num control
       output = output ++ orest 
       input = input ++ irest
@@ -375,10 +375,10 @@ doWeld1 n l a b weldctrl g =
   let T a b weldctrl = with_ancilla False (\ addsub ->
        let T as an1 aafter = sf_list_index Qubit (S n) l (a)
            T addsub weldctrl an1 = toT $ ToffoliGate True False addsub weldctrl an1
-           T addsub b as = cAddNum (S (S l)) 1 n addsub (subst (\ x -> Vec Qubit x) (addSS' n l) b)
+           T addsub b as = cAddNum (S (S l)) one n addsub (subst (\ x -> Vec Qubit x) (addSS' n l) b)
                              (subst (\ x -> Vec Qubit x) (addOne n) as) g
            (addsub, weldctrl) = cnotGate True addsub weldctrl
-           T addsub b as = cSubNum (S (S l)) 1 n addsub b as g
+           T addsub b as = cSubNum (S (S l)) one n addsub b as g
            T addsub weldctrl an1 = toT $ ToffoliGate True True addsub weldctrl an1
            a = subst (\ x -> Vec Qubit x) (addSZ n l) $ as ++ VCons an1 aafter
 	   b = subst (\ x -> Vec Qubit x) (addSS n l) b
@@ -428,7 +428,7 @@ setChildInTree n l a b childctrl direction  =
       b = bbefore ++ VCons b0 bafter 
       T abefore as aafter = toT $ sf_list_range Qubit (S (S l)) Z n (subst (\ x -> Vec Qubit x) (addZ2 n l) a)
       T bbefore bs bafter = 
-        toT $ sf_list_range Qubit (S l) 1 n (subst (\ x -> Vec Qubit x) (minor' n l) b)
+        toT $ sf_list_range Qubit (S l) one n (subst (\ x -> Vec Qubit x) (minor' n l) b)
       T as bs childctrl = for_each_map2 as bs childctrl ( \ a b childctrl ->
             let T b childctrl a = toT $ ToffoliGate True True b childctrl a
             in T a b childctrl )
@@ -481,7 +481,7 @@ oraclefun : ! (n l : Nat) -> Vec Bool n -> Vec Bool n ->
              Vec Qubit (S (S (add n l))) * Vec Qubit (S (S (add n l))) * Qubit
 oraclefun n l f g c a b r =
   let color = getTwo $ boolreg_of_int_le (S (S Z)) c 
-      T a b r = with_ancilla_reg (replicate 6 False) (\ rr ->
+      T a b r = with_ancilla_reg (replicate six False) (\ rr ->
     let ST ismatch direction ischild isparent even root = getSix rr
         T a root even = toT $ parseNodeRoot (S l) n (subst (\ x -> Vec Qubit (S x)) (addS' n l) a) root even 
         (a, even) = parseNodeEven (S l) n a even 
@@ -522,19 +522,19 @@ fun x n f g =
 
 orthodoxy : ! (s : Nat) -> (n : Nat) -> Vec Bool n -> Vec Bool n -> Vec Qubit (S (S n))
 orthodoxy s n f g =
-  let entrance = boolreg_of_int_le (S (S n)) 1
-      k = 4
+  let entrance = boolreg_of_int_le (S (S n)) one
+      k = four
       v = S (S n)
       oracle = O n k entrance (\ x -> fun x n f g)
   in qrwbwt s v oracle
   -- qrwbwt s n m k entrance fun
 -- qrwbwt : ! (Nat -> (m : Nat) -> Oracle m -> Vec Qubit m)
 
-main : Circ(Unit, Vec Qubit 6)
+main : Circ(Unit, Vec Qubit six)
 main = -- box Unit $ \ u -> orthodoxy 1 4 (VCons True $ VCons False $ VCons True $ VCons False VNil) (VCons False $ VCons True $ VCons False $ VCons True VNil)
    let f = VCons True $ VCons False $ VCons True $ VCons False VNil
        g = VCons False $ VCons True $ VCons False $ VCons True VNil
-       s = 1
-       n = 4
+       s = one
+       n = four
    in box Unit (\ u -> orthodoxy s n f g)
 

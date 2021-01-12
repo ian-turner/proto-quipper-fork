@@ -24,8 +24,8 @@ qft_adder as bs = case bs of
 adderBox : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n) 
 adderBox n = box (Vec Qubit n * Vec Qubit n) $ \ x -> let (a, b) = x in qft_adder a b 
 
-adderBox_t1 : Circ(Vec Qubit 4 * Vec Qubit 4, Vec Qubit 4 * Vec Qubit 4) 
-adderBox_t1 = adderBox 4
+adderBox_t1 : Circ(Vec Qubit four * Vec Qubit four, Vec Qubit four * Vec Qubit four) 
+adderBox_t1 = adderBox four
 
 -- adderBox_t2 = adderBox nine
 
@@ -50,8 +50,8 @@ qft_adder_inplace n =
 
 -- qft_adder_inplace_t1 = qft_adder_inplace four
 
-main : Circ(Vec Qubit 9  * Vec Qubit 9, Vec Qubit 9  * Vec Qubit 9)
-main = qft_adder_inplace 9
+main : Circ(Vec Qubit nine  * Vec Qubit nine, Vec Qubit nine  * Vec Qubit nine)
+main = qft_adder_inplace nine
 
 
 qft_adder_inplace_ctrl : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n * Vec Qubit n)
@@ -59,4 +59,4 @@ qft_adder_inplace_ctrl n =
   box (Vec Qubit n * Vec Qubit n * Vec Qubit n) $ \ x ->
      (uncurry $ controlled (qft_adder_inplace n)) x
 
-main3 = qft_adder_inplace_ctrl 9
+main3 = qft_adder_inplace_ctrl nine

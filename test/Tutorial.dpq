@@ -7,6 +7,9 @@ data Bool = True | False
 
 data Nat = Z | S Nat
 
+one = S Z
+two = S (S Z)
+three = S two
 -- ----------------------------------------------------------------------
 -- * Objects
 
@@ -182,7 +185,7 @@ oneRotation : ! (n : Nat) -> Circ(Qubit * Vec Qubit n, Qubit * Vec Qubit n)
 oneRotation n =
   box (Qubit * Vec Qubit n) 
     (λ x ->
-       let (q, v) = x in rotate 2 (H q) v)
+       let (q, v) = x in rotate two (H q) v)
                      
 qft : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
 qft v =
@@ -190,7 +193,7 @@ qft v =
     VNil -> VNil
     VCons q qs ->
       let q' = H q
-          (q'', qs') = rotate 2 q' qs
+          (q'', qs') = rotate two q' qs
           qs'' = qft qs'
       in VCons q'' qs''
 
@@ -273,7 +276,7 @@ class Disposable a where
   dispose : a -> WithGarbage Unit
 
 instance Disposable Qubit where
-  dispose q = WG (1, VCons q VNil) ()
+  dispose q = WG (one, VCons q VNil) ()
 
 -- ----------------------------------------------------------------------
 -- * Obtain reversible circuits from WithGarbage
@@ -494,4 +497,4 @@ rev'' f =
       x = reverse f
       h = x
       u = h
-      in 3
+      in three

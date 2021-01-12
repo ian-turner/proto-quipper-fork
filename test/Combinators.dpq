@@ -151,8 +151,8 @@ list_split a n m xs =
 -- test2 : Vec Nat (S Z) * Vec Nat (S Z)
 -- test2 = list_split (S Z) (VCons Z (VCons (S Z) VNil))
 
-list1 : Vec Nat 4
-list1 = (VCons (S Z) (VCons (S (S Z)) (VCons (S (S (S Z))) (VCons 4 VNil))))
+list1 : Vec Nat four
+list1 = (VCons (S Z) (VCons (S (S Z)) (VCons (S (S (S Z))) (VCons four VNil))))
 
 
 -- n is the initial index, m is the subsequence length
@@ -346,7 +346,7 @@ getTwo l = let VCons h1 hs = l
                VNil = hs
             in (h1, h2)
 
-getSix : ! forall a -> Vec a 6 -> Six a a a a a a
+getSix : ! forall a -> Vec a six -> Six a a a a a a
 getSix l = let VCons h1 hs = l
                VCons h2 hs = hs
                VCons h3 hs = hs
