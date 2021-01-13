@@ -45,6 +45,7 @@ dependencies:
 - nominal
 - network
 - syb
+- numbers
 
 library:
   source-dirs: src

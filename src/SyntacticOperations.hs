@@ -284,6 +284,10 @@ getVars b (ForceP t) = getVars b t
 getVars b (Box) = S.empty
 getVars b (ExBox) = S.empty
 getVars b (Lift t) = getVars b t
+getVars b a@(WrapR _) = S.empty
+getVars b (RealOp _) = S.empty
+getVars b (RealNum) = S.empty
+
 getVars b (Case t (B brs)) =
   getVars b t `S.union` S.unions (map helper brs)
   where helper bind = open bind $ \ ps m ->
@@ -524,6 +528,9 @@ erasePos (LetPat m (Abst (PApp id vs) b)) =
   LetPat (erasePos m) (abst (PApp id vs) (erasePos b))
 erasePos (Case e (B br)) = Case (erasePos e) (B (map helper br))
   where helper (Abst p m) = abst p (erasePos m)
+erasePos a@(RealNum) = a
+erasePos a@(WrapR _) = a
+erasePos a@(RealOp _) = a
 erasePos e = error $ "from erasePos " ++ (show $ disp e)
 
 
@@ -880,7 +887,7 @@ noModEq (AppDepInt x1 x2) (AppDepInt y1 y2) =
   (noModEq x1 y1) && (noModEq x2 y2)
 noModEq (AppDepTy x1 x2) (AppDepTy y1 y2) =
   (noModEq x1 y1) && (noModEq x2 y2)
-  
+noModEq RealNum RealNum = True  
 noModEq (Tensor x1 x2) (Tensor y1 y2) =
   (noModEq x1 y1) && (noModEq x2 y2)
 
@@ -1088,7 +1095,11 @@ deMeta vars (Controlled) = Controlled
 deMeta vars (WithComputed) = WithComputed
 deMeta vars (Dynlift) = Dynlift
 deMeta vars (Box) = Box 
-deMeta vars (ExBox) = ExBox 
+deMeta vars (ExBox) = ExBox
+deMeta vars a@(WrapR _) = a
+deMeta vars (RealNum) = RealNum
+deMeta vars a@(RealOp _) = a
+
 deMeta vars (Lift e) = Lift (deMeta vars e) 
 deMeta vars (Force e) = Force (deMeta vars e)
 deMeta vars (ForceP e) = ForceP (deMeta vars e)
@@ -1120,12 +1131,6 @@ deMeta vars (LetPat m bd) = open bd $ \ (PApp id vs) b ->
             (bv, Left (NoBind (Var x)):fv)
           else (x:bv, Right x : fv)
 
-        -- pvar (Left (NoBind (Var x)):xs) =
-        --   let (bv, fv) = pvar xs in
-        --   if x `elem` vars then
-        --     (bv, Left (NoBind (Var x)):fv)
-        --   else (x:bv, Right x : fv)
-          
         pvar ((Left (NoBind x)):xs) =
           let (bv, fv) = pvar xs
               x' = deMeta vars x
@@ -1238,12 +1243,6 @@ deMeta vars a@(Case e (B br)) =
           if x `elem` vars then
             (bv, (Left (NoBind (Var x))):fv)
           else (x:bv, (Right x):fv)
-
-        -- pvar ((Left (NoBind (EigenVar x))):xs) =
-        --   let (bv, fv) = pvar xs in
-        --   if x `elem` vars then
-        --     (bv, (Left (NoBind (Var x))):fv)
-        --   else (x:bv, (Right x):fv)
 
         pvar ((Left (NoBind x)):xs) =
           let (bv, fv) = pvar xs

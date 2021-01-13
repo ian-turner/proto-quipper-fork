@@ -29,7 +29,7 @@ import Text.Parsec.Expr (Assoc(..), Operator(..), buildExpressionParser)
 import Text.Parsec.Indent
 import Text.Parsec.Language
 import qualified Text.Parsec.Token as Token
-
+import Data.Number.CReal
 -- *  Parsing a module
 -- | A parser for Proto-Quiper-D is an ident-parser with a ParserState.
 type Parser a = IndentParser String ParserState a
@@ -553,6 +553,7 @@ atomExp =
      lamAnn <|>
      lam <|>
      idiomExp <|>
+     num <|>
      vector <|>
      implicitType <|>
      piType <|>
@@ -611,6 +612,67 @@ followedBy m p = do
   r <- m
   p
   return r
+
+realType =
+  do reserved "Real"
+     return RealNum
+
+-- | A sign for positive and negative reals. 
+data Sign = Positive | Negative
+
+
+applySign :: Num a => Sign -> a -> a
+applySign Positive =  id
+applySign Negative =  negate
+               
+sign  :: Parser Sign
+sign  =  do { char '-'
+            ; return Negative
+            }
+     <|> return Positive
+
+-- | Parse an unsign number and automatically determine if it is a natural number or a real.
+-- If the number is real, included the length of its decimals.
+naturalOrFloat :: Parser (Either Integer (Integer, CReal))
+naturalOrFloat =
+  do n <- naturals
+     r <- option Nothing $ do{ reservedOp ".";
+                               d <- lexeme (many1 digit);
+                               return $ Just d
+                               }
+     case r of
+       Nothing -> return $ Left n
+       Just i ->
+         let len = genericLength i
+             i' :: Integer
+             i' = read i
+         in
+         return $ Right
+         (len, (fromInteger n :: CReal) +
+               ((fromInteger i' / (fromInteger $ 10 ^ len) :: CReal)))
+
+-- | Parse a sign number as a natural number or real. 
+number :: Parser (Either Integer (Integer, CReal))
+number =  do { s <- sign
+             ; num <- naturalOrFloat
+             ; return (case (num, s) of
+                          (Right (l, x), _) -> Right (l, (applySign s x))
+                          (Left x, Negative) -> Right (0, negate $ fromInteger x)
+                          (Left x, Positive) -> Left x
+                      )
+             }     
+
+-- | A parser from number to internal presentation of numbers.
+num =
+  do i <- try number
+     case i of
+       Left j -> toNat j
+       Right (l, i) -> return $ WrapR l i
+  where toNat i | i == 0 = return $ Base "Z"
+        toNat i | i > 0 =
+          do n <- toNat (i-1)
+             return $ App (Base "S") n
+
 
 
 -- | Parse the vector bracket notation. Currently, we will convert a vector notation into
@@ -889,7 +951,9 @@ appExp =
       try unit <|> try opExp <|> unitTy <|> set <|> boxExp <|> exBoxExp <|>
       unBoxExp <|>
       reverseExp <|>
+      realOp <|> realPi <|>
       controlExp <|>
+      realType <|>
       withComputedExp <|>
       dynliftExp <|>
       try varExp <|>
@@ -898,8 +962,8 @@ appExp =
         return $ foldl (\x y -> Pair x y) (head tms) (tail tms)
     arg =
       wrapPos $
-      try unit <|> unitTy <|> set <|> dynliftExp <|> reverseExp <|> try varExp <|>
-      try constExp <|>
+      try unit <|> unitTy <|> set <|> realPi <|> dynliftExp <|> reverseExp <|> try varExp <|> 
+      try constExp <|> num <|>
       try vector <|>
       idiomExp <|> do
         tms <- parens (term `sepBy1` comma)
@@ -1028,6 +1092,35 @@ doExp = do
       t' <- desugar (n + 1) xs
       let v = "#bindVar" ++ show n
       return $ App (App (Var "bind") t) (Lam [v] (Let [makeBind (Var v) x] t'))
+
+
+-- | A parser for operations on reals.
+realOp :: Parser Exp
+realOp = realSin <|> realCos <|> realExp <|> realLog <|> realSqrt
+         <|> realAdd <|> realCast <|> realDiv <|> realMinus <|> realEq
+         <|> realFloor <|> realRound <|> realCeiling <|> realMul <|> realLt
+  where realSin = reserved "sin" >> (return $ RealOp "sin")
+        realCos = reserved "cos" >> (return $ RealOp "cos")
+        realExp = reserved "exp" >> (return $ RealOp "exp")
+        realFloor = reserved "floor" >> (return $ RealOp "floor")
+        realCeiling = reserved "ceiling" >> (return $ RealOp "ceiling")
+        realRound = reserved "round" >> (return $ RealOp "round")
+        realLog = reserved "log" >> (return $ RealOp "log")
+        realSqrt = reserved "sqrt" >> (return $ RealOp "sqrt")
+        realAdd = reserved "plusReal" >> (return $ RealOp "plusReal")
+        realMinus = reserved "minusReal" >> (return $ RealOp "minusReal")
+        realCast = reserved "cast" >> (return $ RealOp "cast")
+        realDiv = reserved "divReal" >> (return $ RealOp "divReal")
+        realMul = reserved "mulReal" >> (return $ RealOp "mulReal")
+        realEq = reserved "eqReal" >> (return $ RealOp "eqReal")
+        realLt = reserved "ltReal" >> (return $ RealOp "ltReal")
+
+realPi :: Parser Exp
+realPi = reserved "pi" >> (return $ RealOp "pi")
+
+toReal :: Parser Exp
+toReal = reserved "toReal" >> (return $ RealOp "toReal")
+
 
 -- * Lexer
 -- | A Proto-Quipper-D language token definition.
@@ -1176,3 +1269,8 @@ dot = Token.dot tokenizer
 -- | Parse a comma.
 comma :: (Stream s m Char, Monad m) => ParsecT s u m String
 comma = Token.comma tokenizer
+
+lexeme :: (Stream s m Char, Monad m) => ParsecT s u m a -> ParsecT s u m a
+lexeme = Token.lexeme tokenizer
+
+ 

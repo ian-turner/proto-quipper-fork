@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.34.3.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2466cfc1b370b93e1d852511eff4f703206f031fd48c5dd108b2b812710ab09e
+-- hash: e59edb9f2e70e72588c8d8566e39a07567315b992cbcc78ecad68c4f390655fa
 
 name:           dpq
 version:        0.0.1.0
@@ -64,6 +64,7 @@ library
     , multiset
     , network
     , nominal
+    , numbers
     , parsec
     , pretty
     , process
@@ -91,6 +92,7 @@ executable dpq
     , multiset
     , network
     , nominal
+    , numbers
     , parsec
     , pretty
     , process
@@ -118,6 +120,7 @@ executable dpqi
     , multiset
     , network
     , nominal
+    , numbers
     , parsec
     , pretty
     , process
@@ -146,6 +149,7 @@ test-suite dpq-test
     , multiset
     , network
     , nominal
+    , numbers
     , parsec
     , pretty
     , process

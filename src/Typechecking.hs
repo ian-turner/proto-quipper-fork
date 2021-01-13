@@ -68,6 +68,53 @@ typeInfer flag a@(Var x) = do
     else do
       updateCount x
       return (t, a, identityMod)
+
+typeInfer flag RealNum = 
+   return (Arrow (Base (Id "Nat")) Set identityMod, RealNum, identityMod)
+
+typeInfer flag a@(WrapR (MR len x)) =
+  return (AppP RealNum (toNat len), a, identityMod)
+  where  toNat i | i == 0 = Const (Id "Z")
+         toNat i | i > 0 =
+                   let n = toNat (i-1)
+                   in AppP (Const (Id "S")) n
+
+typeInfer flag a@(RealOp x)
+  | x == "sin" || x == "exp" || x == "cos" || x == "log" || x == "sqrt" || x == "floor" || x == "ceiling" || x == "round" =
+  freshNames ["n"] $ \ [n] -> 
+  let arr = Arrow (AppP RealNum (Var n)) (AppP RealNum (Var n)) identityMod
+      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+  in return (ty, a, identityMod)
+
+typeInfer flag a@(RealOp x) | x == "cast" =
+  freshNames ["n", "m"] $ \ [n, m] -> 
+  let arr = Arrow (AppP RealNum (Var m)) (AppP RealNum (Var n)) identityMod
+      ty = PiImp (abst [m, n] arr) (Base (Id "Nat")) identityMod
+  in return (ty, a, identityMod)
+
+typeInfer flag a@(RealOp x) | x == "pi" =
+  freshNames ["n"] $ \ [n] -> 
+  let arr = AppP RealNum (Var n)
+      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+  in return (ty, a, identityMod)
+
+typeInfer flag a@(RealOp x) | x == "plusReal" || x == "minusReal" || x == "divReal" || x == "mulReal" =
+  freshNames ["n"] $ \ [n] -> 
+  let arr = Arrow (AppP RealNum (Var n))
+                  (Arrow (AppP RealNum (Var n))
+                    (AppP RealNum (Var n)) identityMod) identityMod
+      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+  in return (ty, a, identityMod)
+
+
+typeInfer flag a@(RealOp x) | x == "eqReal" || x == "ltReal" =
+  freshNames ["n"] $ \ [n] -> 
+  let arr = Arrow (AppP RealNum (Var n))
+            (Arrow (AppP RealNum (Var n)) (Base (Id "Bool")) identityMod)
+            identityMod
+      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+  in return (ty, a, identityMod)
+
  
 typeInfer flag a@(Const kid) = do
   funPac <- lookupId kid
@@ -1045,6 +1092,7 @@ typeCheck flag a@(Case tm (B brs)) goal mod =
                       return (goal''', abst (PApp kid axs') ann2', mode')
 
 typeCheck flag a@(Const x) ty mod = inferAddAnn flag a ty mod
+typeCheck flag a@(RealOp _) ty mod = inferAddAnn flag a ty mod
 typeCheck flag a@(Var x) ty mod = inferAddAnn flag a ty mod
 typeCheck flag a@(App _ _) ty mod = inferAddAnn flag a ty mod
 typeCheck flag a ty mod

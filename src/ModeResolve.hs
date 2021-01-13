@@ -31,6 +31,7 @@ modeSubst (s1, s2, s3) (M e1 e2 e3) = M e1' e2' e3'
 
 bSubst s a@(BConst _) = a
 
+
 bSubst s (BVar x) =
   case lookup x s of
     Nothing -> BVar x
@@ -135,6 +136,9 @@ bSubstitute s a@(WithComputed) = a
 bSubstitute s a@(ExBox) = a
 bSubstitute s a@(Controlled) = a
 bSubstitute s a@(Reverse) = a
+bSubstitute s a@(RealNum) = a
+bSubstitute s a@(RealOp _) = a
+bSubstitute s a@(WrapR _) = a
 bSubstitute s (Arrow t t' m) =
   let t1' = bSubstitute s t
       t2' = bSubstitute s t'
@@ -401,6 +405,9 @@ simplifyExp a@(Base _) = a
 simplifyExp a@(LBase _) = a      
 simplifyExp a@(Unit) = a
 simplifyExp a@(Set) = a
+simplifyExp a@(RealNum) = a
+simplifyExp a@(WrapR _) = a
+simplifyExp a@(RealOp _) = a
 simplifyExp a@(Sort) = a
 simplifyExp a@(Star) = a
 simplifyExp a@(Const _) = a

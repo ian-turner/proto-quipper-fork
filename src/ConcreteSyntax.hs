@@ -10,6 +10,7 @@ import Prelude hiding ((<>))
 import Syntax (Morphism(..))
 import Text.Parsec.Pos
 import Text.PrettyPrint
+import Data.Number.CReal
 import Utils
 
 -- | The expression data type.
@@ -45,9 +46,12 @@ data Exp
   | Dynlift
   | Case Exp Branches -- ^ Case expression.
   | Wild -- ^ Wildcard.
+  | WrapR Integer CReal -- ^ real numbers
+  | RealNum -- ^ type constructor Real
+  | RealOp String -- ^ built-in real operators.
   | Pos Position Exp -- ^ Position wrapper.
   | WithAnn Exp Exp -- ^ Type annotation: @t : T@.
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq)
 
 --  | Circuit Exp [Gate] Exp
 -- data Gate = Gate Id [Exp] Exp Exp Exp Bool  deriving (Show, Eq)
@@ -61,7 +65,7 @@ data Binding
   | BPair ([String], Exp) -- ^ Multi-tuple binding.
   | BPattern (String, [Exp], Exp) -- ^ Let pattern binding.
   | BAnn (String, Exp, Exp) -- ^ Let annotation, will be translated away.
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq)
 
 -- | Top-level declarations.
 data Decl
@@ -164,10 +168,10 @@ data Command
 -- | A Proto-Quipper-D program is a list of declarations.
 type Program = [Decl]
 
-removePos :: Exp -> Exp
-removePos = everywhere (mkT rm)
-  where rm (Pos _ e) = e
-        rm e = e
+-- removePos :: Exp -> Exp
+-- removePos = everywhere (mkT rm)
+--   where rm (Pos _ e) = e
+--         rm e = e
 
 flattenTensor (Pos _ e) = flattenTensor e
 flattenTensor (Tensor x y) = 

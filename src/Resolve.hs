@@ -350,6 +350,12 @@ resolve d (C.WithAnn m ty) =
 
 resolve d C.Set = return Set
 
+resolve d (C.WrapR i x) = return $ WrapR (MR i x)
+
+resolve d (C.RealOp x) = return $ RealOp x
+
+resolve d (C.RealNum) = return RealNum
+
 -- | Add a constant to the scope.
 addConst :: Position -> String -> (Id -> Exp) -> Scope -> Resolve (Id, Scope)
 addConst p x f scope =

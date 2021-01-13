@@ -1,0 +1,6 @@
+module DCP where
+
+import "lib/Prelude.dpq"
+
+-- a : Real 10
+a = pi : Real 10

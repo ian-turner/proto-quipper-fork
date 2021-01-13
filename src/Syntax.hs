@@ -33,6 +33,7 @@ module Syntax
   , toExp
   , BExp(..)
   , Modality(..)
+  , MyReal(..)
   , identityMod
   ) where
 
@@ -49,7 +50,7 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Set as S
 import Text.PrettyPrint
-
+import Data.Number.CReal
 import Data.List
 import Debug.Trace
 
@@ -128,7 +129,30 @@ data Exp
   | Pos Position Exp -- ^ Position wrapper.
   | Mod (Bind [Variable] Exp)
   -- ^ Top level binding for modality variables.
+  | WrapR MyReal -- ^ Build-in reals. 
+  | RealNum -- ^ Real type.
+  | RealOp String -- ^ Build-in Real operations.
   deriving (Eq, Generic, Nominal, NominalShow, NominalSupport, Show)
+
+data MyReal = MR Integer CReal
+
+instance Eq MyReal where
+  (MR i x) == (MR j y) =
+    showCReal (fromInteger i) x == showCReal (fromInteger j) y
+
+instance Nominal MyReal where
+  pi • p = p
+
+instance NominalSupport MyReal where
+  support p = support ()
+  
+instance NominalShow MyReal where
+  showsPrecSup s d (MR n l) a =
+    showCReal (fromInteger n) l
+
+instance Show MyReal where
+  show (MR n l) = showCReal (fromInteger n) l
+
 
 -- | Branches for case expressions.
 data Branches =
@@ -179,6 +203,9 @@ instance Disp Exp where
   display flag (Base id) = display flag id
   display flag (Pos _ e) = display flag e
   display flag (Mod (Abst vs e)) = display flag e
+  display flag (RealNum) = text "Real"
+  display flag (WrapR (MR len x)) = text $ showCReal (fromInteger len) x
+  display flag (RealOp x) = text x
   display flag (Lam bds) =
     open bds $ \vs b ->
       fsep
@@ -268,16 +295,48 @@ instance Disp Exp where
         , nest 5 $ display flag b
         ]
   display flag a@(App t t') =
+    case toNat a of
+      Nothing ->
         fsep [dParen flag (precedence a - 1) t,
               dParen flag (precedence a) t']
+      Just i -> int i
+    where
+      toNat (App (Const id) t') =
+        if getName id == "S"
+          then do
+            n <- toNat t'
+            return $ 1 + n
+          else Nothing
+      toNat (Const id) =
+        if getName id == "Z"
+          then return 0
+          else Nothing
+      toNat (Pos _ e) = toNat e
+      toNat _ = Nothing
   display flag a@(AppType t t') =
     fsep
       [ dParen flag (precedence a - 1) t <> dispAt flag "AppType"
       , dParen flag (precedence a) t'
       ]
   display flag a@(AppP t t') =
-    fsep [dParen flag (precedence a - 1) t,
-           dParen flag (precedence a) t']
+    case toNat a of
+      Nothing ->
+        fsep [dParen flag (precedence a - 1) t,
+              dParen flag (precedence a) t']
+      Just i -> int i
+    where
+      toNat (AppP (Const id) t') =
+        if getName id == "S"
+          then do
+            n <- toNat t'
+            return $ 1 + n
+          else Nothing
+      toNat (Const id) =
+        if getName id == "Z"
+          then return 0
+          else Nothing
+      toNat (Pos _ e) = toNat e
+      toNat _ = Nothing
   display flag a@(AppDep t t') =
     fsep
       [ dParen flag (precedence a - 1) t <> dispAt flag "AppDep"
@@ -423,6 +482,7 @@ instance Disp Exp where
   precedence (Base _) = 12
   precedence (LBase _) = 12
   precedence (Const _) = 12
+  precedence (RealNum) = 12
   precedence (Circ _ _ _) = 12
   precedence (Unit) = 12
   precedence (Star) = 12
@@ -486,6 +546,8 @@ data Value
   | VControlled -- ^ Value version of 'Controlled'.
   | VWithComputed
   | VDynlift
+  | VWrapR MyReal
+  | VRealOp String
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 
 -- | Local variable environment for evaluation. It contains the
@@ -537,6 +599,8 @@ instance Disp Value where
   display flag (VLBase id) = display flag id
   display flag (VBase id) = display flag id
   display flag (VConst id)
+    | getName id == "Z" = text "0"
+  display flag (VConst id)
     | getName id == "VNil" = text "[]"
   display flag (VConst id) = display flag id
   display flag (VTensor x y) =
@@ -560,7 +624,8 @@ instance Disp Value where
         , text "->"
         , nest 2 $ display flag b
         ]
-
+  display flag (VWrapR (MR len x)) = text $ showCReal (fromInteger len) x
+  display flag (VRealOp x) = text x
   -- text "<fun-value>"
   display flag (VLift (Abst _ m)) =
     text "vlift" <+> display flag m
@@ -572,6 +637,8 @@ instance Disp Value where
     $$ display flag e
 
   display flag a@(VApp t t') =
+    case toNat a of
+      Nothing ->
         case toVec a of
           Nothing ->
             fsep
@@ -580,7 +647,19 @@ instance Disp Value where
           Just vs ->
             brackets $ fsep $ punctuate comma $
               map (\x -> display flag x) vs
+      Just i -> int i
     where
+      toNat (VApp (VConst id) t') =
+        if getName id == "S"
+          then do
+            n <- toNat t'
+            return $ 1 + n
+          else Nothing
+      toNat (VConst id) =
+        if getName id == "Z"
+          then return 0
+          else Nothing
+      toNat _ = Nothing
       toVec (VConst id) =
         if getName id == "VNil"
           then return []
@@ -701,6 +780,8 @@ data EExp
   | ECase EExp EBranches
   | EStar
   | EUnit
+  | EWrapR MyReal
+  | ERealOp String
   deriving (Eq, Generic, Nominal, NominalShow, NominalSupport, Show)
 
 -- | Branches for erased case.
@@ -725,6 +806,9 @@ instance Disp EExp where
   display flag (EUnit) = text "Unit"
   display flag (EStar) = text "()"
   display flag (EBox) = text "box"
+  display flag (EWrapR (MR len x)) = text $ showCReal (fromInteger len) x
+  display flag (ERealOp x) = text x
+
   display flag (EExBox) = text "existsBox"
   display flag (EUnBox) = text "unbox"
   display flag (EReverse) = text "reverse"

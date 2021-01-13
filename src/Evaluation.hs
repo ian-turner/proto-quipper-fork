@@ -111,6 +111,9 @@ eval !lenv EControlled = return VControlled
 eval !lenv EWithComputed = return VWithComputed
 eval !lenv a@(EBox) = return VBox
 eval !lenv a@(EExBox) = return VExBox
+eval !lenv a@(ERealOp x) = return (VRealOp x)
+                  
+eval !lenv a@(EWrapR m) = return (VWrapR m)
 
 -- Note that because QuantumState is an example
 -- of state monad, sequencing is enforced. So each

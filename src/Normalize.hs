@@ -100,6 +100,10 @@ betaNormalize a@(PiImp bd t m) =
     do t1 <- betaNormalize t
        t2 <- betaNormalize t'
        return $ PiImp (abst xs t2) t1 m
+betaNormalize a@(WrapR _) = return a
+betaNormalize a@(RealNum) = return a
+betaNormalize a@(RealOp _) = return a
+
 
 betaNormalize a@(Exists bd t) =
   open bd $ \ xs t' ->
@@ -279,6 +283,11 @@ normalize a@(Const k) =
 normalize a@(LBase k) = return a
 
 normalize a@(Base k) = return a
+
+normalize a@(RealNum) = return a
+normalize a@(WrapR _) = return a
+normalize a@(RealOp _) = return a
+
 
 normalize (ForceP m) =
   do m' <- normalize m 
@@ -500,6 +509,6 @@ normalize a@(LamType _) = return a
 normalize a@(LamTm _) = return a
 normalize (Pos _ e) = normalize e
 normalize (WithType a t) = normalize a
-normalize a = error $ "from normalize: " ++ (show $ disp a)
+normalize a = error $ "from normalize: " ++ (show $ a)
 
 

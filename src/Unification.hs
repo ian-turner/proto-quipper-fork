@@ -14,7 +14,7 @@ import qualified Data.MultiSet as S
 import qualified Data.Map as Map
 import Control.Monad.State
 import Debug.Trace
-
+import Data.Number.CReal
 
 
 -- | Unify two expressions. 
@@ -241,6 +241,15 @@ unify b (Imply (t1:ts1) t2 m1) (Imply (t3:ts3) t4 m2) =
               t4' = substitute sub $ bSubstitute bsub (Imply ts3 t4 m2)
           unify b t2' t4'
        else return UnifError
+
+unify b RealNum RealNum = return Success
+unify b (RealOp x) (RealOp y) =
+  if (x == y) then return Success else return UnifError
+unify b (WrapR (MR l1 x1)) (WrapR (MR l2 x2)) =
+  if l1 == l2 && (showCReal (fromInteger l1) x1) == (showCReal (fromInteger l1) x2)
+  then return Success
+  else return UnifError
+
     
 unify b t t' = return UnifError
 
@@ -382,5 +391,12 @@ dUnify (AppTm t1 t2) (AppTm t3 t4) =
 
 dUnify (Case e1 (B br1)) (Case e2 (B br2)) | br1 == br2 =
   dUnify e1 e2
+dUnify RealNum RealNum = return Success
+dUnify (RealOp x) (RealOp y) =
+  if (x == y) then return Success else return DUnifError
+dUnify (WrapR (MR l1 x1)) (WrapR (MR l2 x2)) =
+  if l1 == l2 && (showCReal (fromInteger l1) x1) == (showCReal (fromInteger l1) x2)
+  then return Success
+  else return DUnifError
 
 dUnify t t' = return DUnifError

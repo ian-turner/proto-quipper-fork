@@ -402,6 +402,54 @@ proofInfer flag a@(Pair t1 t2) = do
   ty1 <- proofInfer flag t1
   ty2 <- proofInfer flag t2
   return $ (Tensor ty1 ty2)
+
+
+proofInfer flag RealNum = 
+   return (Arrow (Base (Id "Nat")) Set identityMod)
+
+proofInfer flag a@(WrapR (MR len x)) =
+  return (AppP RealNum (toNat len))
+  where  toNat i | i == 0 = Const (Id "Z")
+         toNat i | i > 0 =
+                   let n = toNat (i-1)
+                   in AppP (Const (Id "S")) n
+
+proofInfer flag a@(RealOp x)
+  | x == "sin" || x == "exp" || x == "cos" || x == "log" || x == "sqrt" || x == "floor" || x == "ceiling" || x == "round" =
+  freshNames ["n"] $ \ [n] -> 
+  let arr = Arrow (AppP RealNum (Var n)) (AppP RealNum (Var n)) identityMod
+      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+  in return ty
+
+proofInfer flag a@(RealOp x) | x == "cast" =
+  freshNames ["n", "m"] $ \ [n, m] -> 
+  let arr = Arrow (AppP RealNum (Var m)) (AppP RealNum (Var n)) identityMod
+      ty = PiImp (abst [m, n] arr) (Base (Id "Nat")) identityMod
+  in return ty
+
+proofInfer flag a@(RealOp x) | x == "pi" =
+  freshNames ["n"] $ \ [n] -> 
+  let arr = AppP RealNum (Var n)
+      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+  in return ty
+
+proofInfer flag a@(RealOp x) | x == "plusReal" || x == "minusReal" || x == "divReal" || x == "mulReal" =
+  freshNames ["n"] $ \ [n] -> 
+  let arr = Arrow (AppP RealNum (Var n))
+                  (Arrow (AppP RealNum (Var n))
+                    (AppP RealNum (Var n)) identityMod) identityMod
+      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+  in return ty
+
+
+proofInfer flag a@(RealOp x) | x == "eqReal" || x == "ltReal" =
+  freshNames ["n"] $ \ [n] -> 
+  let arr = Arrow (AppP RealNum (Var n))
+            (Arrow (AppP RealNum (Var n)) (Base (Id "Bool")) identityMod)
+            identityMod
+      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+  in return ty
+  
 proofInfer flag (Pos p e) =
   proofInfer flag e `catchError` \e -> throwError $ collapsePos p e
 

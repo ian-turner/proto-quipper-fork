@@ -99,6 +99,8 @@ erasure (LamDep (Abst ys m)) = do
 erasure (LamDepTy (Abst ys m)) = do
   m' <- erasure m
   return $ ELam (abst ys m')
+erasure (WrapR (MR l x)) = return $ EWrapR $ MR l x
+erasure a@(RealOp x) = return (ERealOp x)
 erasure (LamDepInt (Abst ys m)) = do
   m' <- erasure m
   return $ ELam (abst ys m')

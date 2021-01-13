@@ -276,6 +276,7 @@ isParam t@(App x _) =
 
 
 isParam t@(AppP x _) =
+  if erasePos x == RealNum then return True else
   case flatten t of
     Nothing -> return False
     Just (Right id, args) -> do
