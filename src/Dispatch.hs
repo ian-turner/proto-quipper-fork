@@ -69,9 +69,6 @@ dispatch Reload = do
 dispatch (Type e) = do
   e' <- topResolve e 
   (t', e'') <- topTypeInfer e'
-     -- let fvs = getVars AllowEigen t'
-     -- when (not $ S.null fvs) $
-     --   throwError $ CompileErr $ TyAmbiguous Nothing t'
   liftIO $ putStrLn ("it has classifier \n" ++ (show $ disp t'))
   return True
 
@@ -119,7 +116,7 @@ dispatch (Print e file) = do
       res <- evaluation et False
       case res of
         A.VPair n circ
-                   -- liftIO $ print (text "input size:" $$ disp n)
+          -- liftIO $ print (text "input size:" $$ disp n)
          -> do
           liftIO $ printCirc circ file
           return True
@@ -184,9 +181,7 @@ dispatch (ShowCirc Nothing) = do
 dispatch (ShowCirc (Just e)) = do
   e' <- topResolve  e
   (t', e'') <- topTypeInfer e'
-     -- let fvs = getVars AllowEigen t'
   gl <- getCxt
-     -- when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
   ioTop $ putStrLn "generated gates:"
   gs <- evaluation' e'' False
   ioTop $ putStrLn (show $ vcat $ map dispRaw gs)
@@ -204,9 +199,7 @@ dispatch (TopGateCount Nothing (Just e)) = do
   gs <- evaluation' e'' False
   ioTop $ putStrLn ("total top gates: \n" ++ (show (length gs)))
   return True
---     let fvs = getVars AllowEigen t'
---     et <- tcTop $ erasure e''
---     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
+
 dispatch (TopGateCount (Just n) (Just e)) = do
   e' <- topResolve  e
   (t', e'') <- topTypeInfer e'
@@ -215,9 +208,7 @@ dispatch (TopGateCount (Just n) (Just e)) = do
   let rs = [g | g <- gs, (getName $ gateName g) == n]
   ioTop $ putStrLn (n ++ ":\n" ++ (show $ length rs))
   return True
---     let fvs = getVars AllowEigen t'
---     et <- tcTop $ erasure e''
---     when (not $ S.null fvs) $ throwError $ CompileErr $ TyAmbiguous Nothing t'
+
 dispatch (Annotation e) = do
   cid <- topResolve  e
   let (Const id) = cid

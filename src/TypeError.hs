@@ -80,6 +80,7 @@ data TypeError
   | AppendSub (Map Variable Exp) TypeError
   | DpmInferErr Exp
   | ShapeErr
+  | UnBoundMetaVar Variable
   deriving (Show)
 
 -- | A data type for evaluation errors.
@@ -375,6 +376,8 @@ instance Disp TypeError where
   display flag (AppendSub env e) =
     display flag e $$ text "current substitution:" $$ display flag env
   display flag ShapeErr = text "Shape error: " $$ text "can't take the shape"
+  display flag (UnBoundMetaVar x) =
+    text "unbound meta variable" <+> display flag x
   display flag (AddDoc e err) =
     display flag err $$ e
 --  display flag a = error $ "from TypeError display: " ++ show a

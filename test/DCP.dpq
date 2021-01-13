@@ -7,8 +7,12 @@ a = (pi : Real 10) > cast 2.22
 
 f : Real 10
 f = cast 2.2
+-- Using cast with pi will result in an error.
+-- a2 = cast pi : Real 10
 
--- f : ! forall (n : Nat) -> Real n -> Real n
--- f = exp
+g = pi + 2.12345
+
+
+
 
 

@@ -946,3 +946,254 @@ updateModality m = do
   ts <- get
   let s@(s1, s2, s3) = modeSubstitution ts
   return $ modeSubst s m
+
+
+deMeta :: [Variable] -> Exp -> TCMonad Exp
+deMeta vars (Pos p e) = Pos p <$> (deMeta vars e)
+deMeta vars (Unit) = return Unit
+deMeta vars (Set) = return Set
+deMeta vars Star = return Star
+deMeta vars Sort = return Sort
+deMeta vars a@(Var x) = return a
+deMeta vars a@(MetaVar x) =
+  if x `elem` vars then return $ Var x
+  else throwError $ UnBoundMetaVar x
+deMeta vars a@(Base x) = return a
+deMeta vars a@(LBase x) = return a
+deMeta vars a@(Const x) = return a
+
+deMeta vars (App e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in App <$> e1' <*> e2'
+
+deMeta vars (AppP e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in AppP <$> e1' <*> e2'
+
+deMeta vars (WithType e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in WithType <$> e1' <*> e2'
+
+deMeta vars (AppType e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in AppType <$> e1' <*> e2'  
+
+deMeta vars (AppTm e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in AppTm <$> e1' <*> e2'  
+
+deMeta vars (AppDep e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in AppDep <$> e1' <*> e2'  
+
+deMeta vars (AppDepInt e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in AppDepInt <$> e1' <*> e2'  
+
+deMeta vars (AppDepTy e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in AppDepTy <$> e1' <*> e2'  
+
+deMeta vars (AppDict e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in AppDict <$> e1' <*> e2'  
+
+deMeta vars (Tensor e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in Tensor <$> e1' <*> e2'
+  
+deMeta vars (Pair e1 e2) = 
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in  Pair <$> e1' <*> e2'
+
+deMeta vars (Arrow e1 e2 m) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in Arrow <$> e1' <*> e2' <*> return m
+
+deMeta vars (ArrowP e1 e2) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in ArrowP <$> e1' <*> e2'
+
+deMeta vars (Imply e1 e2 m) =
+  let e1' = mapM (deMeta vars) e1
+      e2' = deMeta vars e2
+  in Imply <$> e1' <*> e2' <*> return m
+
+deMeta vars (Bang e m) = Bang <$> (deMeta vars e) <*> return m
+deMeta vars (UnBox) = return UnBox
+deMeta vars (Reverse) = return Reverse
+deMeta vars (Controlled) = return Controlled
+deMeta vars (WithComputed) = return WithComputed
+deMeta vars (Dynlift) = return Dynlift
+deMeta vars (Box) = return Box 
+deMeta vars (ExBox) = return ExBox
+deMeta vars a@(WrapR _) = return a
+deMeta vars (RealNum) = return RealNum
+deMeta vars a@(RealOp _) = return a
+
+deMeta vars (Lift e) = Lift <$> (deMeta vars e) 
+deMeta vars (Force e) = Force <$> (deMeta vars e)
+deMeta vars (ForceP e) = ForceP <$> (deMeta vars e)
+
+deMeta vars (Circ e1 e2 m) =
+  let e1' = (deMeta vars e1)
+      e2' = (deMeta vars e2)
+  in Circ <$> e1' <*> e2' <*> return m
+
+deMeta vars (LetPair m bd) = open bd $ \ xs b ->
+  do m' <- (deMeta vars m)
+     b' <- (deMeta (xs ++ vars) b)
+     return $ LetPair m' (abst xs b') 
+
+deMeta vars (LetPat m bd) = open bd $ \ (PApp id vs) b ->
+  do m' <- deMeta vars m
+     (bvs, vs') <- pvar vs
+     b' <- deMeta (bvs ++ vars) b 
+     return $ LetPat m' (abst (PApp id vs') b')
+ where  pvar ([]) = return ([], [])
+
+        pvar (Right x : xs) =
+          do (bv, fv) <- pvar xs
+             return (x:bv, Right x : fv)
+
+        pvar (Left (NoBind (MetaVar x)):xs) =
+          do (bv, fv) <- pvar xs 
+             if x `elem` vars then
+               return (bv, Left (NoBind (Var x)):fv)
+               else return (x:bv, Right x : fv)
+
+        pvar ((Left (NoBind x)):xs) =
+          do (bv, fv) <- pvar xs
+             x' <- deMeta vars x
+             return (bv, Left (NoBind x'):fv)
+   
+deMeta vars (Let m bd) = open bd $ \ p b ->
+  do m' <- (deMeta vars m)
+     b' <- (deMeta (p:vars) b)
+     return $ Let m' (abst p b') 
+
+deMeta vars (LamTm bd) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      return $ LamTm $ abst xs m'
+
+deMeta vars (LamDep bd) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      return $ LamDep (abst xs m') 
+
+deMeta vars (LamDepTy bd) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      return $ LamDepTy (abst xs m') 
+
+deMeta vars (LamDepInt bd) =
+  open bd $ \ xs m ->
+  do m' <- deMeta (xs ++ vars) m
+     return $ LamDepInt (abst xs m') 
+
+deMeta vars (Lam bd) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      return $ Lam (abst xs m') 
+
+deMeta vars (LamAnn ty bd) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      ty' <- deMeta vars ty
+      return $ LamAnn ty' (abst xs m') 
+
+deMeta vars (LamAnnP ty bd) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      ty' <- deMeta vars ty
+      return $ LamAnnP ty' (abst xs m') 
+
+deMeta vars (LamP bd) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      return $ LamP (abst xs m') 
+
+deMeta vars (LamType bd) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      return $ LamType $ abst xs m'
+
+deMeta vars (LamDict bd) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      return $ LamDict $ abst xs m'
+
+deMeta vars (Pi bd ty mod) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      ty' <- deMeta vars ty
+      return $ Pi (abst xs m') ty' mod
+
+deMeta vars (PiImp bd ty mod) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      ty' <- deMeta vars ty
+      return $ PiImp (abst xs m') ty' mod
+
+deMeta vars (PiInt bd ty) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      ty' <- deMeta vars ty
+      return $ PiInt (abst xs m') ty'
+
+deMeta vars (Exists bd ty) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs:vars) m
+      ty' <- deMeta vars ty
+      return $ Exists (abst xs m') ty'
+
+deMeta vars (Forall bd ty) =
+  open bd $ \ xs m ->
+   do m' <- deMeta (xs ++ vars) m
+      ty' <- deMeta vars ty
+      return $ Forall (abst xs m') ty'
+
+      
+deMeta vars a@(Case e (B br)) =
+  do e' <- deMeta vars e
+     br' <- mapM helper br
+     return $ Case e' (B br')
+  where helper b = open b $ \ (PApp id vs) b ->
+          do (bvs, vs') <- pvar vs
+             b' <- (deMeta (bvs ++vars) b)
+             return $ abst (PApp id vs') b'
+
+        pvar ([]) = return ([], [])
+
+        pvar ((Right x):xs) =
+          do (bv, fv) <- pvar xs
+             return (x:bv, (Right x):fv)
+
+        pvar ((Left (NoBind (MetaVar x))):xs) =
+          do (bv, fv) <- pvar xs
+             if x `elem` vars then
+               return (bv, (Left (NoBind (Var x))):fv)
+               else return (x:bv, (Right x):fv)
+
+        pvar ((Left (NoBind x)):xs) =
+          do (bv, fv) <- pvar xs
+             x' <- deMeta vars x
+             return (bv, (Left (NoBind x')):fv)
+
+deMeta vars (Mod (Abst vs b)) =
+  (deMeta vars b) >>= \ y -> return $  Mod (abst vs y)
+deMeta vars a = error $ "from deMeta" ++ (show $ disp a)

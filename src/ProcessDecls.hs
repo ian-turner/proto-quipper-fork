@@ -186,9 +186,9 @@ process (Defn pos f Nothing def isClifford) = do
       exp'' <- resolveGoals exp'
       r <- updateWithSubst exp''
       ty'' <- resolveGoals ty' >>= updateWithSubst
-             -- let ty''' = unEigen ty''
       ty2 <- updateWithModeSubst ty''
-      return (abstractMode $ booleanVarElim ty2, deMeta [] r)
+      r' <- deMeta [] r `catchError` \ e -> throwError $ withPosition r e 
+      return (abstractMode $ booleanVarElim ty2, r')
      
 process (Defn pos f (Just tt) def isClifford) = do
   (_, tt') <-
@@ -537,14 +537,15 @@ elaborateInstance pos f' ty mths = do
       setCheckBound True
       exp'' <- updateWithSubst exp'
       r <- resolveGoals exp''
-      return $ deMeta [] r
+      deMeta [] r `catchError` \ e -> throwError $ withPosition r e 
     -- a version of typeChecking that uses unEigenBound instead of unEigen
     typeChecking'' vars b exp ty mod = do
       (ty', exp') <- typeCheck b exp ty mod
       exp'' <- resolveGoals exp'
       r <- updateWithSubst exp''
       ty'' <- resolveGoals ty' >>= updateWithSubst
-      return (ty'', deMeta [] r)
+      r' <- deMeta [] r `catchError` \ e -> throwError $ withPosition r e 
+      return (ty'', r')
 
                  
 -- | Determine the classifier for a data type declaration.
@@ -695,7 +696,8 @@ typeChecking b exp ty mod = do
   r <- updateWithSubst exp'' >>= updateWithModeSubst
   ty'' <- resolveGoals ty' >>= updateWithSubst
   ty2 <- updateWithModeSubst ty''
-  return (abstractMode $ booleanVarElim ty2, deMeta [] r)
+  r' <- deMeta [] r `catchError` \ e -> throwError $ withPosition r e 
+  return (abstractMode $ booleanVarElim ty2, r')
 
 -- | Check an annotated expression against a type. It is a wrapper on 'proofCheck' function.
 proofChecking :: Bool -> Exp -> Exp -> TCMonad ()
