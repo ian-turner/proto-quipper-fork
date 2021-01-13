@@ -116,7 +116,11 @@ process (Instance pos f ty mths) = do
         CompileErr $
         ErrPos pos $
         ErrDoc $ text "Parameter class instance is not user-definable."
-    Just (Right d', args) -> elaborateInstance pos f ty mths
+    Just (Right d', args) ->
+      elaborateInstance pos f ty mths `catchError`
+      \ e -> case e of
+              CompileErr e' -> throwError $ CompileErr (ErrPos pos e')
+              _ -> throwError e
 
 process (Def pos f' ty' def' isClifford) = do
   tcTop $ checkVacuous pos ty'
@@ -447,7 +451,8 @@ checkOverlap h = do
 -- | Construct an instance function. The argument /f'/ is
 -- the name of the instance function and /ty/ is its type. The
 -- arguments /mths/ are the method definitions.
---elaborateInstance :: Position -> Id -> Exp -> [(Position, Id, Exp)] -> TCMonad ()
+
+elaborateInstance :: Position -> Id -> Exp -> [(Position, Id, Exp)] -> Top ()
 elaborateInstance pos f' ty mths = do
   annTy <- tcTop $ typeChecking' True ty Set identityMod
   let (env, ty') = removePrefixes False annTy

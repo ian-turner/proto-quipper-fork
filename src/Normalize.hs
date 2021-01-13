@@ -469,7 +469,6 @@ normalize (Imply (e1:es) e2 m) =
        Imply es' e2' m' ->
          return (Imply (e1':es') e2' m')
 
-     
 normalize (Bang e m) =
   do e' <- normalize e 
      return (Bang e' m)

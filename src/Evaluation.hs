@@ -33,6 +33,7 @@ import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Tuple
 import Debug.Trace
+import Data.Number.CReal
 
 -- * The Eval monad and eval function.
 -- | The evaluation monad.
@@ -203,6 +204,85 @@ evalApp VUnBox v =
   case v of
     (Wired _) -> return $ VApp VUnBox v
     _ -> return VUnBox
+
+evalApp (VRealOp x) n | x == "pi" =
+  case toInt n of
+    Nothing -> error "from pi n"
+    Just n' -> return $ VWrapR $ MR n' pi
+    
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "sin" =
+  return $ VWrapR $ MR l (sin r)
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "ceiling" =
+  let r' :: Integer
+      r' = read (showCReal (fromInteger l) r)
+  in return $ VWrapR $ MR l (fromInteger (ceiling r))
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "round" =
+  let r' :: Integer
+      r' = read (showCReal (fromInteger l) r)
+  in return $ VWrapR $ MR l (fromInteger (round r))
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "floor" =
+  let r' :: Integer
+      r' = read (showCReal (fromInteger l) r)
+  in return $ VWrapR $ MR l (fromInteger (floor r))
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "exp" =
+  return $ VWrapR $ MR l (exp r)
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "cos" =
+  return $ VWrapR $ MR l (cos r)
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "log" = do
+  when (r < 0) $ error "logging a negative"
+    --throwError $ Arith LogNeg
+  return $ VWrapR $ MR l (log r)
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "sqrt" = do
+  when (r < 0) $ error "squaring a negative"
+    -- throwError $ Arith SqrtNeg
+  return $ VWrapR $ MR l (sqrt r)
+
+evalApp (VApp (VApp (VRealOp x) _) n) (VWrapR (MR l r)) | x == "cast" =
+  case toInt n of
+    Nothing -> error "from evalVApp: toInt"
+    Just l' -> return $ VWrapR $ MR l' r
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "plusReal" =
+  if l' == l then return $ VWrapR $ MR l' (r' + r)
+  else error "length mismatch from evalVApp: plusReal"
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "minusReal" =
+  if l' == l then return $ VWrapR $ MR l' (r' - r)
+  else error "length mismatch from evalVApp: minusReal"
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "divReal" =
+  if l' == l then
+    do when (r == 0) $ error "divided by zero"
+         -- throwError $ Arith DivByZero
+       return $ VWrapR $ MR l' (r' / r)
+  else error "length mismatch from evalVApp: divReal"
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "mulReal" =
+  if l' == l then return $ VWrapR $ MR l' (r' * r)
+  else error "length mismatch from evalVApp: mulReal"
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "eqReal" =
+  if l' == l then
+    if showCReal (fromInteger l') r' == showCReal (fromInteger l') r then
+      return $ VConst (Id "True")
+    else return $ VConst (Id "False")
+  else error "length mismatch from evalVApp: eqReal"
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "ltReal" =
+  if l' == l then
+    let r1 = (read $ showCReal (fromInteger l') r') :: CReal
+        r2 = (read $ showCReal (fromInteger l') r) :: CReal in
+    if r1 > r2 then
+      return $ VConst (Id "True")
+    else return $ VConst (Id "False")
+  else error "length mismatch from evalApp: ltReal"
 
 evalApp (VForce VDynlift) (VLabel v) = do
   b <- dynamicLift v
@@ -492,3 +572,15 @@ size (VTensor e1 e2) = size e1 + size e2
 size (VPair e1 e2) = size e1 + size e2
 size a =
   error $ "applying size function to an ill-formed template:" ++ (show $ disp a)
+
+-- | Convert applicative natural number into a built-in number.  
+toInt (VApp (VConst id) t') =
+  if getName id == "S" then
+    do n <- toInt t'
+       return $ 1+ n
+  else Nothing
+toInt (VConst id) = 
+  if getName id == "Z" then
+    return 0
+  else Nothing
+toInt _ = Nothing

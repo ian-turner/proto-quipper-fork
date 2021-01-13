@@ -272,6 +272,7 @@ proofInfer flag a@(AppType t1 t2) = do
             then return m''
             else return $ Forall (abst (tail xs) m'') kd
     b -> error $ "from proofInfer:" ++ show b
+
 proofInfer flag a@(AppTm t1 t2) = do
   t' <- proofInfer flag t1
   case erasePos t' of
@@ -282,7 +283,7 @@ proofInfer flag a@(AppTm t1 t2) = do
         if null (tail xs)
           then return m'
           else return $ Forall (abst (tail xs) m') kd
-
+    c -> error $ "from proofInfer AppTm" ++ show c
 proofInfer flag Reverse =
   freshNames ["a", "b"] $ \[a, b] ->
     let va = Var a
@@ -418,7 +419,7 @@ proofInfer flag a@(RealOp x)
   | x == "sin" || x == "exp" || x == "cos" || x == "log" || x == "sqrt" || x == "floor" || x == "ceiling" || x == "round" =
   freshNames ["n"] $ \ [n] -> 
   let arr = Arrow (AppP RealNum (Var n)) (AppP RealNum (Var n)) identityMod
-      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+      ty = Forall (abst [n] arr) (Base (Id "Nat")) 
   in return ty
 
 proofInfer flag a@(RealOp x) | x == "cast" =
@@ -438,7 +439,7 @@ proofInfer flag a@(RealOp x) | x == "plusReal" || x == "minusReal" || x == "divR
   let arr = Arrow (AppP RealNum (Var n))
                   (Arrow (AppP RealNum (Var n))
                     (AppP RealNum (Var n)) identityMod) identityMod
-      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+      ty = Forall (abst [n] arr) (Base (Id "Nat")) 
   in return ty
 
 
@@ -447,7 +448,7 @@ proofInfer flag a@(RealOp x) | x == "eqReal" || x == "ltReal" =
   let arr = Arrow (AppP RealNum (Var n))
             (Arrow (AppP RealNum (Var n)) (Base (Id "Bool")) identityMod)
             identityMod
-      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+      ty = Forall (abst [n] arr) (Base (Id "Nat")) 
   in return ty
   
 proofInfer flag (Pos p e) =

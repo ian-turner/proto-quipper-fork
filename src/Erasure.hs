@@ -93,9 +93,11 @@ erasure a@(LamDict (Abst xs m)) = do
   m' <- erasure m
   return $ ELam (abst xs m')
 erasure (WithType ann t) = erasure ann
+
 erasure (LamDep (Abst ys m)) = do
   m' <- erasure m
   return $ ELam (abst ys m')
+
 erasure (LamDepTy (Abst ys m)) = do
   m' <- erasure m
   return $ ELam (abst ys m')
@@ -104,8 +106,15 @@ erasure a@(RealOp x) = return (ERealOp x)
 erasure (LamDepInt (Abst ys m)) = do
   m' <- erasure m
   return $ ELam (abst ys m')
-erasure (LamTm bd) = open bd $ \xs m -> erasure m
-erasure (LamType bd) = open bd $ \xs m -> erasure m
+erasure (LamTm bd) =
+  open bd $ \xs m ->
+  do mapM (checkExp m) xs
+     erasure m
+erasure (LamType bd) =
+  open bd $ \xs m ->
+    do mapM (checkExp m) xs
+       erasure m
+
 erasure (Lift t) = do
   t' <- erasure t
   return (ELift t')
@@ -217,6 +226,7 @@ erasure l@(Case e (B br)) = do
     helper2 a [] _ _ = return []
     helper2 a b _ _ =
       error $ "from helper2 flag-erasure-case" ++ (show $ disp a)
+erasure (MetaVar _) = error "unexpected meta variable during erasure"
 erasure a = error $ "from erasure: " ++ (show $ disp a)
 
 -- | Check if any irrelavant variables in the list is used explicitly in an expression.
@@ -226,42 +236,6 @@ checkExplicit (Left a:xs) ann = checkExplicit xs ann
 checkExplicit (Right x:xs) ann = do
   when (isExplicit x ann) $ throwError $ ImplicitCase x ann
   checkExplicit xs ann
--- | Count the number of occurrences for a list of variables. It is only
--- an over-approximation, as there is no way to predict the real uses due to
--- the way closure interacts with recursion and case branching.
--- countVar :: [Variable] -> EExp -> [Int]
--- countVar xs e =
---   map (helper e) xs
---   where helper :: EExp -> Variable -> Int
---         helper (EVar y) x | x == y = 1
---                           | otherwise = 0
---         helper (EConst _) x = 0
---         helper (EBase _) x = 0
---         helper (ELBase _) x = 0
---         helper EUnBox x = 0
---         helper EReverse x = 0
---         helper EControlled x = 0
---         helper EWithComputed x = 0
---         helper EDynlift x = 0
---         helper EBox x = 0
---         helper EExBox x = 0
---         helper EStar x = 0
---         helper EUnit x = 0
---         helper (EApp t1 t2) x = helper t1 x + helper t2 x
---         helper (EPair t1 t2) x = helper t1 x + helper t2 x
---         helper (ETensor t1 t2) x = helper t1 x + helper t2 x
---         helper (EArrow t1 t2) x = helper t1 x + helper t2 x
---         helper (ELam _ (Abst _ e)) x = (helper e x)
---         helper (ELift _ e) x = (helper e x)
---         helper (EForce e) x = helper e x
---         helper (ELet e (Abst _ e2)) x =
---           helper e x + helper e2 x
---         helper (ELetPair e (Abst _ e2)) x =
---           helper e x + helper e2 x
---         helper (ELetPat e (Abst _ e2)) x =
---           helper e x + helper e2 x
---         helper (ECase e (EB brs)) x =
---           helper e x + helper2 brs x
---         helper2 :: [Bind EPattern EExp] -> Variable -> Int
---         helper2 brs x =
---           maximum $ map (\ b -> open b $ \ _ m -> helper m x) brs
+
+checkExp ann'' x =
+  when (isExplicit x ann'') $ throwError $ ImplicitVarErr x ann''

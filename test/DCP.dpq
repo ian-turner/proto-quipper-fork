@@ -2,5 +2,13 @@ module DCP where
 
 import "lib/Prelude.dpq"
 
--- a : Real 10
-a = pi : Real 10
+a : Bool
+a = (pi : Real 10) > cast 2.22
+
+f : Real 10
+f = cast 2.2
+
+-- f : ! forall (n : Nat) -> Real n -> Real n
+-- f = exp
+
+

@@ -743,18 +743,30 @@ instanceType :: Parser Exp
 instanceType = do
   r <-
     option
-      []
-      (do reserved "forall"
-          vs <- many1 ((ann >>= \x -> return x) <|> (impAnn >>= \x -> return x))
-          reservedOp "->"
-          return vs)
+      [] forallPrefix
+      -- (many1 (forallPrefix <|> impPiPrefix))
   t <- try impType <|> appExp
   return $ makeType r t
   where
+    forallPrefix =
+      do reserved "forall"
+         vs <- many1 ((ann >>= \x -> return x) <|> (impAnn >>= \x -> return x))
+         reservedOp "->"
+         return vs
+    impPiPrefix =
+      followedBy (braces $ do
+                     vs <- many1 var
+                     reservedOp ":"
+                     ty <- typeExp
+                     return [Left (vs, ty)])
+      (reservedOp "->")
     makeType [] t = t
     makeType ((xs, ty):res) t =
       let t' = makeType res t
        in Forall [(xs, ty)] t'
+    -- makeType (Left (xs, ty):res) t =
+    --   let t' = makeType res t
+    --    in PiImp xs ty t'
 
 -- | Parse an type class constraint type.
 impType :: Parser Exp

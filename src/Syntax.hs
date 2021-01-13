@@ -483,6 +483,8 @@ instance Disp Exp where
   precedence (LBase _) = 12
   precedence (Const _) = 12
   precedence (RealNum) = 12
+  precedence (WrapR _) = 12
+  precedence (RealOp _) = 12
   precedence (Circ _ _ _) = 12
   precedence (Unit) = 12
   precedence (Star) = 12

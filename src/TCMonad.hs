@@ -765,6 +765,8 @@ isValue a@(AppDepInt t t') = checkApp a
 isValue a@(AppDict t t') = checkApp a
 isValue a@(AppType t t') = isValue t
 isValue a@(AppTm t t') = isValue t
+isValue (RealOp _) = return True
+isValue (WrapR _) = return True
 isValue _ = return False
 
 -- | Check if an application is a value.

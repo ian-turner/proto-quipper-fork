@@ -117,6 +117,7 @@ runMatch e1 e2 = runState (match (erasePos e1) (erasePos e2)) []
 -- accumulating substitution.
 match :: Exp -> Exp -> State [(Variable, Exp)] Bool
 match Unit Unit = return True
+match RealNum RealNum = return True
 match (Base x) (Base y)
   | x == y = return True
   | otherwise = return False

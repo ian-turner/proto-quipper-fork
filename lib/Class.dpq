@@ -49,6 +49,16 @@ instance Num Nat where
   (>=) x y = not (x < y)
   (<=) x y = x < y || x == y
 
+instance forall (n : Nat) -> Num (Real n) where
+  (+) = plusReal
+  (-) = minusReal
+  (/) = divReal
+  (@) = mulReal
+  (>) = ltReal 
+  (<) x y = not (x > y) && not (eqReal x y)
+  (>=) x y = x > y || eqReal x y
+  (<=) x y = not (x > y)
+
 class QuantumOp a where
   unary : (Simple a) => !(Qubit -> Qubit) -> a -> a
   #Boxable, #Reversible

@@ -21,7 +21,7 @@ import SyntacticOperations
 
 
 import Nominal
-
+import qualified Data.MultiSet as S
 import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Exception hiding (TypeError)
@@ -182,6 +182,9 @@ topTypeInfer :: A.Exp -> Top (A.Exp, A.Exp)
 topTypeInfer def = tcTop $
   do (ty, tm, _) <- typeInfer (isKind def) def
      ty' <- updateWithSubst ty
+     let fvs = getVars All ty'
+     when (not $ S.null fvs) $
+       throwError $ TyAmbiguous Nothing ty'
      tm' <- updateWithSubst tm
      (ann1, rt) <- elimConstraint def tm' ty'
      -- let ann' = unEigen ann1

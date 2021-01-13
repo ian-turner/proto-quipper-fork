@@ -612,6 +612,7 @@ isExplicit s (AppP t tm) =
 
 isExplicit s (AppType t tm) =
   (isExplicit s t)
+
 isExplicit s (AppTm t tm) =
    (isExplicit s t)
 
@@ -711,7 +712,9 @@ isExplicit s Set = False
 isExplicit s (Base _) = False
 isExplicit s (LBase _) = False
 isExplicit s (Const _) = False
-
+isExplicit s (RealOp _) = False
+isExplicit s (WrapR _) = False
+isExplicit s (RealNum) = False
 isExplicit s a = error $ "from isExplicit:" ++ (show $ disp a)
 
 

@@ -83,7 +83,7 @@ typeInfer flag a@(RealOp x)
   | x == "sin" || x == "exp" || x == "cos" || x == "log" || x == "sqrt" || x == "floor" || x == "ceiling" || x == "round" =
   freshNames ["n"] $ \ [n] -> 
   let arr = Arrow (AppP RealNum (Var n)) (AppP RealNum (Var n)) identityMod
-      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+      ty = Forall (abst [n] arr) (Base (Id "Nat")) 
   in return (ty, a, identityMod)
 
 typeInfer flag a@(RealOp x) | x == "cast" =
@@ -103,7 +103,7 @@ typeInfer flag a@(RealOp x) | x == "plusReal" || x == "minusReal" || x == "divRe
   let arr = Arrow (AppP RealNum (Var n))
                   (Arrow (AppP RealNum (Var n))
                     (AppP RealNum (Var n)) identityMod) identityMod
-      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+      ty = Forall (abst [n] arr) (Base (Id "Nat")) 
   in return (ty, a, identityMod)
 
 
@@ -112,7 +112,7 @@ typeInfer flag a@(RealOp x) | x == "eqReal" || x == "ltReal" =
   let arr = Arrow (AppP RealNum (Var n))
             (Arrow (AppP RealNum (Var n)) (Base (Id "Bool")) identityMod)
             identityMod
-      ty = PiImp (abst [n] arr) (Base (Id "Nat")) identityMod
+      ty = Forall (abst [n] arr) (Base (Id "Nat")) 
   in return (ty, a, identityMod)
 
  
