@@ -12,6 +12,7 @@ f = cast 2.2
 
 g = pi + 2.12345
 
+g2 = realToNat (pi : Real 10)
 
 
 

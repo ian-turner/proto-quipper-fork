@@ -135,11 +135,16 @@ runCirc : ! forall a b a' b' ->
 runCirc circ a =
   measure $ (unbox circ) (init a)
 
+natToReal : ! {n : Nat} -> Nat -> Real n
+natToReal n m =
+  case m of
+     Z -> cast 0.0
+     S m' -> cast 1.0 + natToReal m'
 
--- idV : ! (Nat -> Nat)
--- idV l = idV l
+-- convert a real to nat by rounding. 
+realToNat : ! {n : Nat} -> Real n -> Nat
+realToNat n r =
+  if r < cast 0.0 then 0
+  else if cast 0.0 <= r && r < cast 1.0 then 0
+       else 1 + realToNat (r - cast 1.0)
 
--- kill : ! forall a -> (Parameter a) => a -> Unit
--- kill x = ()
-
--- main = kill (idV 1)

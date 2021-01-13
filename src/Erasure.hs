@@ -226,7 +226,7 @@ erasure l@(Case e (B br)) = do
     helper2 a [] _ _ = return []
     helper2 a b _ _ =
       error $ "from helper2 flag-erasure-case" ++ (show $ disp a)
-erasure (MetaVar _) = error "unexpected meta variable during erasure"
+erasure (MetaVar x) = throwError $ UnBoundMetaVar x
 erasure a = error $ "from erasure: " ++ (show $ disp a)
 
 -- | Check if any irrelavant variables in the list is used explicitly in an expression.
