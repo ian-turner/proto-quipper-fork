@@ -69,7 +69,7 @@ data Binding
 
 -- | Top-level declarations.
 data Decl
-  = GateDecl Position String [Exp] Exp (Bool, Bool, Bool) (Maybe String)
+  = GateDecl Position String [([String], Exp)] [Exp] Exp (Bool, Bool, Bool) (Maybe String)
   -- ^ Gate declaration, ['Exp'] are the parameters for the gate,
   -- 'Exp' is  a type expression specifying the input and
   -- output of the gate. 'Maybe String'

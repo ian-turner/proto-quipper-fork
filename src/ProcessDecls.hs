@@ -311,7 +311,15 @@ process (Object pos id) = do
       instPS = Id $ "instAt" ++ hashPos pos ++ "SimpParam"
   elaborateInstance pos instId (App s (LBase id)) []
 
-process (GateDecl pos id params t inv flag) = do
+process (GateDecl pos id par t inv flag) = do
+  let (quans, params) =
+        case par of
+          Nothing -> ([], [])
+          Just x ->
+            let (ps, x') = removePrefixes False x 
+                ps' = [ (x, ty) | (Just x, ty) <- ps]
+                x'' = flattenTensor x' 
+            in (ps', x'')
   tcTop $ mapM_ checkParam params
   let (bds, h) = flattenArrows t
       t' = erasePos t
@@ -319,7 +327,7 @@ process (GateDecl pos id params t inv flag) = do
       params' = map erasePos params
   tcTop $ mapM_ checkStrictSimple (h : bds')
   when (null bds) $ throwError $ CompileErr (GateErr pos id)
-  let ty = Bang (foldr (\ x y -> Arrow x y identityMod) t params) identityMod 
+  let ty = Bang (foldr (\ (x, ty) y -> Forall (abst [x] y) ty) (foldr (\ x y -> Arrow x y identityMod) t params) quans) identityMod 
   (_, tk) <- tcTop $ typeChecking True ty Set identityMod
   let tk' = erasePos tk
   case inv of
@@ -334,7 +342,7 @@ process (GateDecl pos id params t inv flag) = do
                          identification = DefinedGate gate}
           tcTop $ addNewId id fp
           let t_inv = erasePos t''
-              t_inv' = Bang (foldr (\ x y -> Arrow x y identityMod) t_inv params) identityMod 
+              t_inv' = Bang (foldr (\ (x, ty) y -> Forall (abst [x] y) ty) (foldr (\ x y -> Arrow x y identityMod) t_inv params) quans) identityMod 
           gate' <- makeGate id' params' t_inv flag (Just id)
           let fp' = Info {classifier = t_inv', identification = DefinedGate gate'}
           tcTop $ addNewId id' fp'

@@ -19,7 +19,7 @@ import qualified Data.Map.Strict as Map
 import Data.List as List
 import Data.Set (Set)
 import qualified Data.Set as S
-
+import Data.Number.CReal
 
 
 
@@ -544,6 +544,15 @@ render_gate fs (Gate name [] (VLabel w) VStar VStar _ _) x ys maxh
       t = render_term fs "" x y
   in (return (), t)
 
+render_gate fs (Gate name [VWrapR (MR l r)] input outs ctrl _ _) x ys maxh =
+  let ymap w = ys `mapLookup` w
+      ws1 = getWires input
+      cs = getWires ctrl
+      ctrls = map positive cs
+      s2 = render_controlwire x ys (ws1++cs) ctrls
+      t2 = render_multi_gate fs x ys (getName name ++ "("++ showCReal (fromInteger l) r ++")") ws1
+      t3 = render_controldots fs x ys ctrls
+  in (s2, t2 >> t3)
 
 render_gate fs (Gate name params (VPair (VLabel w) (VLabel c)) output ctrl _ _) x ys maxh
   | "C_" `isPrefixOf` (getName name) =

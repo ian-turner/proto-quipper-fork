@@ -743,7 +743,7 @@ data Decl
   | Def Position Id Exp Exp Bool
             -- ^ Function declaration. 'Id': name, 'Exp': type, 'Exp': definition.
              
-  | GateDecl Position Id [Exp] Exp (Maybe (Id, Exp)) Bool
+  | GateDecl Position Id (Maybe Exp) Exp (Maybe (Id, Exp)) Bool
 
   | CircuitDecl Position Id Exp Morphism
             -- ^ Gate declaration. 'Id': name, ['Exp']: parameters, 'Exp': input/output.

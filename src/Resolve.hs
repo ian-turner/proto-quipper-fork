@@ -370,30 +370,41 @@ addConst p x f scope =
 
 -- | Resolve a concrete declaration into an abstract declaration.
 resolveDecl :: Scope -> C.Decl -> Resolve (Decl, Scope)
-resolveDecl scope (C.GateDecl p gn params t (a, b, c) inv) =
+resolveDecl scope (C.GateDecl p gn qs params t (a, b, c) inv) =
   do (id, scope') <- addConst p gn Const scope 
      let lscope' = toLScope scope'
          mod = M (BConst a) (BConst b) (BConst c)
-     params' <- mapM (resolve lscope') params
-     e1 <- resolve lscope' t
-     let e = booleanVarElim $ changeMode e1 mod
-     let (bds, h) = C.flattenArrows t
-         (he:tl) = map snd bds
-         hs = C.flattenTensor h
-         h' = foldl C.Tensor he tl
-         t' = foldr C.Arrow h' hs
-     e2 <- resolve lscope' t'
-     let e' = booleanVarElim $changeMode e2 mod
-     case inv of
-       Nothing ->  
-         return (GateDecl p id params' e Nothing b, scope') 
-       Just g' -> 
-         do (id', scope'') <- addConst p g' Const scope' `catchError`
+     tys <- mapM (\ (x, t) -> resolve lscope' t) qs
+     let vs = concat $ map fst qs
+     lscopeVars lscope' vs $ \ d xs -> 
+       do params' <- mapM (resolve d) params
+          e1 <- resolve lscope' t
+          let e = booleanVarElim $ changeMode e1 mod
+          let (bds, h) = C.flattenArrows t
+              (he:tl) = map snd bds
+              hs = C.flattenTensor h
+              h' = foldl C.Tensor he tl
+              t' = foldr C.Arrow h' hs
+          e2 <- resolve lscope' t'
+          let e' = booleanVarElim $ changeMode e2 mod
+          let qs' = zip xs tys
+          let par =
+                if null params' then Nothing
+                else Just $ foldr (\ (x, ty) z ->
+                                     Forall (abst [x] z) ty)
+                             (foldl Tensor (head params') (tail params')) qs'
+
+          case inv of
+            Nothing ->
+              return (GateDecl p id par e Nothing b, scope') 
+            Just g' -> 
+              do (id', scope'') <- addConst p g' Const scope'
+                   `catchError`
                                \ err ->
                                  if g' == gn
                                  then return (id, scope')
                                  else throwError err
-            return (GateDecl p id params' e (Just (id', e')) b, scope'')
+                 return (GateDecl p id par e (Just (id', e')) b, scope'')
                     
               
 resolveDecl scope (C.Object p x) =

@@ -247,6 +247,7 @@ isParam (Base id) = do
     DataType Param _ _ -> return True
     DataType _ _ _ -> return False
 isParam t@(App x _) =
+  if erasePos x == RealNum then return True else  
   case flatten t of
     Nothing -> return False
     Just (Right id, args) -> do

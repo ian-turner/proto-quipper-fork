@@ -53,7 +53,8 @@ gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
 
 gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
 
-
+#Controllable
+gate Rot (n : Nat) -> (Real n) : Qubit -> Qubit  : Rot_Inv
 -- Rotatation gate, its parameter must be a monomoprhic type
 #Controllable
 gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv

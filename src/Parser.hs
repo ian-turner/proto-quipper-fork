@@ -407,7 +407,12 @@ gateDecl = do
   reserved "gate"
   p <- getPosition
   g <- const
-  args <- many (const >>= \a -> return $ Pos (P p) (Base a))
+  qs <- option [] $ try $ 
+             do ans <- (many1 ann)
+                reservedOp "->"
+                return ans
+  args <- many ((const >>= \ a -> return $ Pos (P p) (Base a) ) <|> parens appExp)
+  -- args <- many (const >>= \a -> return $ Pos (P p) (Base a))
   reservedOp ":"
   ty <- simpleType
   inv <-
@@ -416,7 +421,7 @@ gateDecl = do
       g' <- const
       return $ Just g'
   let m = (True, isCtrl, isJust inv)
-  return $ GateDecl (P p) g args ty m inv
+  return $ GateDecl (P p) g qs args ty m inv
 
 -- | Parse a data type declaration. We allow data type without any constructor,
 -- in that case, one should not use '='. The syntax is similar to Haskell 98
