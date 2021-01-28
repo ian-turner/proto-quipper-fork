@@ -148,3 +148,10 @@ realToNat n r =
   else if cast 0.0 <= r && r < cast 1.0 then 0
        else 1 + realToNat (r - cast 1.0)
 
+repeat : ! forall a -> (Parameter a) => a -> (n : Nat) -> Vec a n
+repeat a n =
+  case n of
+    Z -> VNil
+    S n' -> VCons a (repeat a n')
+
+

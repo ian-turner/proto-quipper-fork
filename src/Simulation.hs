@@ -87,11 +87,11 @@ interaction (RW_Read l k) h map ls =
              r <- hGetLine h
              case read r of
                Reply str | str == "0" ->
-                 let g = Gate (Id "Dynlift") [] (VLabel l) (VConst (Id "False")) VStar False Nothing
+                 let g = Gate (Id "Dynlift") [] (VLabel l) (VConst (Id "FalseX")) VStar False Nothing
                      res = interaction (k False) h map (l':ls)
                  in fmap (\ (x, y) -> (x, g:y)) res
                Reply str | str == "1" ->
-                 let g = Gate (Id "Dynlift") [] (VLabel l) (VConst (Id "False")) VStar True Nothing
+                 let g = Gate (Id "Dynlift") [] (VLabel l) (VConst (Id "TrueX")) VStar True Nothing
                      res = interaction (k True) h map (l':ls)
                  in fmap (\ (x, y) -> (x, g:y)) res
                  

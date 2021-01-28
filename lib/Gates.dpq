@@ -7,6 +7,8 @@ import "lib/Nat.dpq"
 -- All gates must have at least one input.
 -- {boxable, controllable, reversible}
 -- for gate {controllable, reversible}
+
+-- #Controllable
 gate Init0 : Unit -> Qubit : Term0 
 
 -- reversible.  
@@ -15,7 +17,7 @@ gate Init0 : Unit -> Qubit : Term0
 -- irreversible
 -- gate Init0 : Unit -> Qubit
 
-
+-- #Controllable
 gate W : Qubit -> Qubit -> Qubit * Qubit : W_Inv 
 
 gate Init1 : Unit -> Qubit : Term1
@@ -55,6 +57,10 @@ gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
 
 #Controllable
 gate Rot (n : Nat) -> (Real n) : Qubit -> Qubit  : Rot_Inv
+
+
+-- gate Random Nat Nat : Qubit -> Qubit
+
 -- Rotatation gate, its parameter must be a monomoprhic type
 #Controllable
 gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv

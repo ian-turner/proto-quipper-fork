@@ -53,10 +53,10 @@ initialParserState =
     , expOpTable = IM.fromAscList (zip [0 ..] initialOpTable)
     }
 
--- | Initial operator table. The precedence is in descending order
+-- | Initial operator table. The precedence is in descending order.
 -- (See <https://hackage.haskell.org/package/parsec-3.1.14.0/docs/Text-Parsec-Expr.html Text.Parsec.Expr> for
 -- further information). Currently, we have the following build-in operators:
--- * (precedence 7), -> (precedence 10), : (precedence 16).
+-- ! (precedence 5), * (precedence 7), -> (precedence 10), : (precedence 16).
 initialOpTable :: [[Operator String ParserState (IndentT Identity) Exp]]
 initialOpTable =
   [ []
@@ -96,7 +96,7 @@ initialOpTable =
 -- | Parse a Proto-Quipper-D module from a file name /srcName/ and file
 -- handler /cnts/.
 parseModule ::
-     String
+  String
   -> String
   -> ParserState
   -> Either P.ParseError ([Decl], ParserState)
@@ -155,7 +155,7 @@ reload = do
   eof
   return Reload
 
--- | Parse print pdf to file command.
+-- | Parse the type command
 typing :: Parser Command
 typing = do
   try (reserved ":type") <|> reserved ":t"
@@ -163,7 +163,7 @@ typing = do
   eof
   return $ Type t
 
--- | Parse reload command.
+-- | Parse the print-pdf-to-file command.
 printing :: Parser Command
 printing = do
   reserved ":p"
@@ -211,7 +211,7 @@ eval = do
   eof
   return $ Eval t
 
--- | Parse a gate count command.
+-- | Parse the gate count command.
 gateC = do
   reserved ":g"
   name <- option Nothing $ (stringLiteral >>= \x -> return $ Just x)
@@ -219,6 +219,7 @@ gateC = do
   eof
   return $ GateCount name t
 
+-- | Parse the gate-count-on-expression command.
 topGateC = do
   reserved ":tg"
   name <- option Nothing $ (stringLiteral >>= \x -> return $ Just x)
@@ -226,6 +227,7 @@ topGateC = do
   eof
   return $ TopGateCount name t
 
+-- | Parse a show current circuit command.
 showCirc = do
   reserved ":s"
   r <- option Nothing $ (term >>= \x -> return $ Just x)
@@ -365,8 +367,7 @@ simpleType = do
 
 -- | Parse the controllable flag, return a boolean.
 isControl = do
-  reservedOp "#"
-  reserved "Controllable"
+  reserved "#Controllable"
   return True
 
 data Mod
@@ -378,26 +379,22 @@ data Mod
 
 -- | Parse the controllable flag
 controllable = do
-  reservedOp "#"
-  reserved "Controllable"
+  reserved "#Controllable"
   return Controllable
 
 -- | Parse the no-modal flag
 noModal = do
-  reservedOp "#"
-  reserved "NoModal"
+  reserved "#NoModal"
   return NoModal
 
 -- | Parse the boxable flag
 boxable = do
-  reservedOp "#"
-  reserved "Boxable"
+  reserved "#Boxable"
   return Boxable
 
 -- | Parse the reversible flag
 reversible = do
-  reservedOp "#"
-  reserved "Reversible"
+  reserved "#Reversible"
   return Reversible
 
 -- | Parse a gate declaration.
@@ -412,7 +409,6 @@ gateDecl = do
                 reservedOp "->"
                 return ans
   args <- many ((const >>= \ a -> return $ Pos (P p) (Base a) ) <|> parens appExp)
-  -- args <- many (const >>= \a -> return $ Pos (P p) (Base a))
   reservedOp ":"
   ty <- simpleType
   inv <-
@@ -484,8 +480,7 @@ simpleDecl = do
         singlePat
 
 clifford = do
-  reservedOp "#"
-  reserved "Clifford"
+  reserved "#Clifford"
   return True
 
 -- | Parse a function declaration with top-level type annotation.
@@ -749,7 +744,6 @@ instanceType = do
   r <-
     option
       [] forallPrefix
-      -- (many1 (forallPrefix <|> impPiPrefix))
   t <- try impType <|> appExp
   return $ makeType r t
   where

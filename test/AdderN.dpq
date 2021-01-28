@@ -82,14 +82,14 @@ nAdderRev_test1 = nAdderRev nine
 -- main = nAdderRev_test1
 -- nAdderRev_test2 = nAdderRev nine
 
-repeat : !(n : Nat) -> Bool -> Vec Bool n
-repeat n b =
-  case n of
-   Z -> VNil
-   S n' -> VCons b (repeat n' b)
+-- repeat : !(n : Nat) -> Bool -> Vec Bool n
+-- repeat n b =
+--   case n of
+--    Z -> VNil
+--    S n' -> VCons b (repeat n' b)
    
 adding :  Bool * Vec Bool nine * Vec Bool nine
-adding = (False, repeat nine True, repeat nine False)
+adding = (False, repeat True nine, repeat False nine)
 
 -- (VCons True $ VCons False $ VCons True $ VCons False VNil)
 --                    (VCons False $ VCons True $ VCons False $ VCons True VNil)

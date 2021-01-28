@@ -7,7 +7,7 @@ data Bool = True | False
 
 object Qubit
 
-object Bit
+object Bit {- liftTo bool -}
 
 
 
