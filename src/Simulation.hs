@@ -9,7 +9,7 @@ import Utils
 import qualified Control.Exception as E
 import Network.Socket
 import System.IO
-
+import Data.Number.CReal
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import Control.Monad
@@ -153,6 +153,15 @@ interaction (RW_Write g@(Gate name [] VStar (VLabel w) VStar _ _) c) h map (v:vs
              let res = interaction c h map' vs
              fmap (\ (x, y) -> (x, g:y)) res
              
+interaction (RW_Write g@(Gate name [VWrapR (MR len r)] (VLabel v) (VLabel w) VStar _ _) c) h map ls
+          | getName name == "Rot" =
+          do let (VLabel v') = renameTemp (VLabel v) map
+                 map' = map `Map.union` Map.fromList [(w, v')]
+                 gn = toGateName (getName name)
+             hPutStrLn h (gn ++ " "++ showCReal (fromInteger len) r ++ " " ++ labelToNum v')
+             let res = interaction c h map' ls
+             fmap (\ (x, y) -> (x, g:y)) res
+
 
 interaction (RW_Write g@(Gate name [] (VLabel v) (VLabel w) VStar _ _) c) h map ls =
           do let (VLabel v') = renameTemp (VLabel v) map

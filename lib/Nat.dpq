@@ -96,3 +96,28 @@ six = mul (S (S (S Z))) (S (S Z))
 seven = S six
 nine = exponential (S (S (S Z))) (S (S Z))
 
+
+ind : ! (p : Nat -> Type) -> (n : Nat) -> p Z -> !((x : Nat) -> p x -> p (S x)) -> p n
+ind p n base f =
+  case n of
+    Z -> base
+    S n' -> f n' (ind p n' base (\ x -> f x))
+
+
+
+-- loopWithIndexInc : ! forall a -> Nat -> a -> !(Nat -> a -> a) -> a
+-- loopWithIndexInc n base f = loopWithIndexDec n base (\ i a -> f (minus n (S i)) a)
+
+
+-- loopWithIndexDec : ! forall a -> Nat -> a -> !(Nat -> a -> a) -> a
+-- loopWithIndexDec n base f =
+--   case n of
+--     Z -> base
+--     S n' -> f n' (loopWithIndexDec n' base f)
+
+-- loopWithIndexInc : ! forall a -> Nat -> a -> !(Nat -> a -> a) -> a
+-- loopWithIndexInc n base f = loopWithIndexDec n base (\ i a -> f (minus n (S i)) a)
+
+
+
+
