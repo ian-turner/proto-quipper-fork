@@ -393,6 +393,8 @@ updateCount x = do
 shape a
   | isKind a = return a
 shape Unit = return Unit
+shape a@(RealOp _) = return a
+shape a@(WrapR _) = return a
 shape (LBase x)
   | getName x == "Qubit" = return Unit
 shape a@(LBase x)
