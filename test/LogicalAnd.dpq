@@ -2,16 +2,20 @@ module LogicalAnd where
 
 import "lib/Prelude.dpq"
 
+
+t_gate : ! (Qubit -> Qubit)
+t_gate x = Rot (pi / 4.0000000000) x
+
 logicalAnd : ! (Qubit -> Qubit -> Qubit * Qubit * Qubit)
 logicalAnd x y =
-    let t = TGate (H (Init0 ()))
+    let t = t_gate (H (Init0 ()))
         (t, x) = CNot t x
         (t, y) = CNot t y
         (y, t) = CNot y t 
         (x, t) = CNot x t
         x = TGate_Inv x
         y = TGate_Inv y
-        t = TGate t
+        t = t_gate t
         (x, t) = CNot x t
         (y, t) = CNot y t
         t = SGate (H t)
@@ -79,7 +83,9 @@ nested c is ts =
 test2 : Vec Bool 4 * Vec Bool 4 * Bool
 test2 = measure $ nested (init False) [ Init1 (), Init1 (), Init1 (), Init1 ()] [Init1 (), Init0 (), Init0 (), Init0 ()]
 --                                      1 1 1 1 + 1 0 0 0 
-
+test4 : Vec Bool 4 * Vec Bool 4 * Bool
+test4 = measure $ nested (init False) [ Init1 (), Init1 (), Init0 (), Init1 ()] [Init1 (), Init0 (), Init0 (), Init0 ()]
+--                                       1101 + 1000                         
 vecToTuple4 : ! forall a -> Vec a 4 -> a * a * a * a
 vecToTuple4 l =
     let VCons a1 as1 = l

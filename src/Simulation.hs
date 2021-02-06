@@ -211,6 +211,7 @@ toGateName "TGate" = "T"
 toGateName "TGate_Inv" = "T*"
 toGateName "SGate_Inv" = "S*"
 toGateName "Discard" = "D"
+toGateName "Rot" = "ROT"
 toGateName a = E.throw $ userError $ "unsupported gate: " ++ a
 
 runTCPClient :: HostName -> ServiceName -> (Socket -> IO a) -> IO a
