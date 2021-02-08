@@ -162,7 +162,7 @@ interaction (RW_Write g@(Gate name [VWrapR (MR len r)] (VLabel v) (VLabel w) VSt
              let res = interaction c h map' ls
              fmap (\ (x, y) -> (x, g:y)) res
 
-
+-- single gate 
 interaction (RW_Write g@(Gate name [] (VLabel v) (VLabel w) VStar _ _) c) h map ls =
           do let (VLabel v') = renameTemp (VLabel v) map
                  map' = map `Map.union` Map.fromList [(w, v')]
@@ -204,6 +204,7 @@ toGateName "Toffoli" = "TOF"
 toGateName "QNot" = "X"
 toGateName "H" = "H"
 toGateName "ZGate" = "Z"
+toGateName "YGate" = "Y"
 toGateName "C_X" = "X"
 toGateName "C_Z" = "Z"
 toGateName "SGate" = "S"

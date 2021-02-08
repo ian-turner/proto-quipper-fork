@@ -4,7 +4,7 @@ import "lib/Prelude.dpq"
 
 
 t_gate : ! (Qubit -> Qubit)
-t_gate x = Rot (pi / 4.0000000000) x
+t_gate x = Rot (pi / 4.00000) x
 
 logicalAnd : ! (Qubit -> Qubit -> Qubit * Qubit * Qubit)
 logicalAnd x y =
@@ -85,7 +85,7 @@ test2 = measure $ nested (init False) [ Init1 (), Init1 (), Init1 (), Init1 ()] 
 --                                      1 1 1 1 + 1 0 0 0 
 test4 : Vec Bool 4 * Vec Bool 4 * Bool
 test4 = measure $ nested (init False) [ Init1 (), Init1 (), Init0 (), Init1 ()] [Init1 (), Init0 (), Init0 (), Init0 ()]
---                                       1101 + 1000                         
+--                                       1101 + 1000    = 0 0 1 1                     
 vecToTuple4 : ! forall a -> Vec a 4 -> a * a * a * a
 vecToTuple4 l =
     let VCons a1 as1 = l

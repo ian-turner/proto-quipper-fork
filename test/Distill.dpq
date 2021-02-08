@@ -1,0 +1,88 @@
+module Distill where
+import "lib/Prelude.dpq"
+
+
+cz (x y : Qubit) = let (x, y) = CNot (H x) y in (H x, y)
+
+-- Controlled Y, ignoring the global phase i.
+cy (x y : Qubit) =
+  let (x, y) = cz x y
+      (x, y) = CNot x y
+  in (x, y)
+
+
+fiveQubits : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit)
+fiveQubits input =
+  let (a1, a2, a3, a4, a5) = input
+      (a1, a5) = cz a1 a5
+      (a2, a5) = cz a2 a5
+      (a3, a5) = cz a3 a5
+      (a2, a4) = cz a2 a4
+      (a3, a4) = cz a3 a4
+      (a5, a4) = cy a5 a4
+      (a1, a3) = cz a1 a3
+      (a4, a3) = cz a4 a3
+      (a5, a3) = cy a5 a3
+      (a1, a2) = cz a1 a2
+      (a5, a2) = cy a5 a2
+      (a3, a1) = cz a3 a1
+      (a5, a1) = CNot a5 a1
+    in (H a1, H a2, H a3, H a4, ZGate a5)
+
+
+-- Preparing initial mixed state.
+prepMixedState : ! (Unit -> Qubit)
+prepMixedState u = Init0 ()
+  -- let x1 = Init0 ()
+  --     x2 = Init0 ()
+  --     (x1, x2) = CNot x1 x2
+  --     a = measure (H x2) : Bool
+  --  in x1
+
+-- One round distillation
+round1Distill : ! (Unit -> Qubit)
+round1Distill u =
+  let input = (prepMixedState (), prepMixedState (), prepMixedState (), prepMixedState (), prepMixedState ())
+      (a1, a2, a3, a4, a5) = fiveQubits input
+      a1' = measure a1
+      a2' = measure a2
+      a3' = measure a3
+      a4' = measure a4
+  in if a1' || a2' || a3' || a4' then
+     let a = measure a5 : Bool in round1Distill u
+     else a5
+
+-- One iteration of distillation
+distill : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Maybe Qubit)
+distill input =
+  let 
+      (a1, a2, a3, a4, a5) = fiveQubits input
+      a1' = measure a1
+      a2' = measure a2
+      a3' = measure a3
+      a4' = measure a4
+  in if a1' || a2' || a3' || a4' then
+     let a = measure a5 : Bool in Nothing
+     else Just a5
+
+-- n round distillation.  
+distillation : ! (Nat -> Qubit)
+distillation n =
+  case n of
+    Z -> (prepMixedState ())
+    S n' -> -- distillation n' 
+--      let q1 = distillation n' 
+          -- q2 = distillation n'
+          -- q3 = distillation n'
+          -- q4 = distillation n'
+          -- q5 = distillation n'
+--      in q1
+      -- distill (q1, q2, q3, q4, q5)
+      -- in
+      case distill (distillation n', distillation n', distillation n', distillation n', distillation n') of
+            Nothing -> distillation n
+            Just q -> q
+
+
+             
+      
