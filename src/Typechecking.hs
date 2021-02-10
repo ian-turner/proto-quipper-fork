@@ -785,9 +785,9 @@ typeCheck flag a@(Let m bd) goal mod =
   do (t', ann, mode) <- typeInfer flag m
      open bd $ \ x t ->
        do mode1@(M alpha beta gamma) <- updateModality mode
-          let msubs = modeResolve Equal alpha (BConst True)
-          case msubs of
-            [] -> 
+          -- let msubs = modeResolve Equal alpha (BConst True)
+          -- case msubs of
+          if not (alpha == BConst True) then
               do mode2 <- newMode ["#alpha", "#beta", "#gamma"]
                  addVar x t'
                  (goal', ann2) <- typeCheck flag t goal mode2
@@ -807,8 +807,9 @@ typeCheck flag a@(Let m bd) goal mod =
                  removeVar x
                  let res = Let ann (abst x ann2')
                  return (goal', res)
-            s':_ -> 
-              do updateModeSubst (s', [], [])
+--            s':_ ->
+            else 
+              do -- updateModeSubst (s', [], [])
                  m'' <- shape ann `catchError`
                         \ e -> throwError $
                                AddDoc (text "for the expression" $$
@@ -1008,7 +1009,8 @@ typeCheck flag a@(Case tm (B brs)) goal mod =
      mod' <- updateModality mod
      let mode'' = foldr modalAnd mode1' ms
      let s = modeResolution GEq mode'' mod' 
-     when (s == Nothing) $ throwError $
+     when (s == Nothing) $ 
+       throwError $
         ModalityErr mode'' mod' a
      let Just s'@(s1, s2, s3) = s
      updateModeSubst s'     

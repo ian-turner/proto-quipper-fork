@@ -31,13 +31,10 @@ fiveQubits input =
 
 
 -- Preparing initial mixed state.
+-- I am not sure how to prepare the mix state.
+-- So it is a dummy state for now. 
 prepMixedState : ! (Unit -> Qubit)
 prepMixedState u = Init0 ()
-  -- let x1 = Init0 ()
-  --     x2 = Init0 ()
-  --     (x1, x2) = CNot x1 x2
-  --     a = measure (H x2) : Bool
-  --  in x1
 
 -- One round distillation
 round1Distill : ! (Unit -> Qubit)
@@ -65,23 +62,21 @@ distill input =
      let a = measure a5 : Bool in Nothing
      else Just a5
 
--- n round distillation.  
+-- n round distillation.  The higher n is, the higher the expense and the higher the precision it will be. 
 distillation : ! (Nat -> Qubit)
 distillation n =
   case n of
-    Z -> (prepMixedState ())
-    S n' -> -- distillation n' 
---      let q1 = distillation n' 
-          -- q2 = distillation n'
-          -- q3 = distillation n'
-          -- q4 = distillation n'
-          -- q5 = distillation n'
---      in q1
-      -- distill (q1, q2, q3, q4, q5)
-      -- in
-      case distill (distillation n', distillation n', distillation n', distillation n', distillation n') of
-            Nothing -> distillation n
-            Just q -> q
+    Z -> prepMixedState ()
+    S n' -> 
+     let q1 = distillation n' 
+         q2 = distillation n'
+         q3 = distillation n'
+         q4 = distillation n'
+         q5 = distillation n'
+     in
+     case distill (q1, q2, q3, q4, q5) of
+       Nothing -> distillation n
+       Just q -> q
 
 
              

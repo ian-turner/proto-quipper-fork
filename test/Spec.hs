@@ -35,6 +35,9 @@ main = do
        dispatch (Load True $ p </> "test/HexVerbose.dpq")
        dispatch (Load True $ p </> "test/Hex2.dpq")
        dispatch (Load True $ p </> "test/Hex3.dpq")
+       dispatch (Load True $ p </> "test/Distill.dpq")
+       dispatch (Load True $ p </> "test/LogicalAnd.dpq")
+       dispatch (Load True $ p </> "test/Reals.dpq")
        return ()
   return ()
    where error_handler e = 
