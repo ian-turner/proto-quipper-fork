@@ -30,15 +30,16 @@ import Text.Parsec.Indent
 import Text.Parsec.Language
 import qualified Text.Parsec.Token as Token
 import Data.Number.CReal
+
 -- *  Parsing a module
 -- | A parser for Proto-Quiper-D is an ident-parser with a ParserState.
 type Parser a = IndentParser String ParserState a
 
 -- | A parser state contains an expression parser together with
--- an operator table. The expression parser is built by combining
--- operator table with the atomic expression parser. The operator table
--- is updated when encountering an operator declaration,
--- in this case the expression parser will be rebuilt as well.
+-- an operator table. The initial expression parser is built by combining
+-- the initial operator table with the atomic expression parser. The operator table
+-- will be updated when encountering an operator fixity declaration,
+-- in which case the expression parser will be rebuilt as well.
 data ParserState =
   ParserState
     { expParser :: IndentParser String ParserState Exp
@@ -54,9 +55,10 @@ initialParserState =
     }
 
 -- | Initial operator table. The precedence is in descending order.
--- (See <https://hackage.haskell.org/package/parsec-3.1.14.0/docs/Text-Parsec-Expr.html Text.Parsec.Expr> for
+-- (See Text.Parsec.Expr in the parsec package for
 -- further information). Currently, we have the following build-in operators:
--- ! (precedence 5), * (precedence 7), -> (precedence 10), : (precedence 16).
+-- ! and quoted operators (precedence 5), * (precedence 7), -> (precedence 10), : (precedence 16).
+-- The quoted operators are things like `xor`, `and`.  
 initialOpTable :: [[Operator String ParserState (IndentT Identity) Exp]]
 initialOpTable =
   [ []
@@ -102,6 +104,7 @@ parseModule ::
   -> Either P.ParseError ([Decl], ParserState)
 parseModule srcName cnts st = runIndent $ runParserT decls st srcName cnts
 
+-- | Parse an expression.
 parseExp :: String -> ParserState -> Either P.ParseError Exp
 parseExp exp st = runIndent $ runParserT term st "" exp
 
@@ -137,21 +140,21 @@ command = do
 -- | Parse quit command.
 quit :: Parser Command
 quit = do
-  reserved ":q"
+  try (reserved ":quit") <|> reserved ":q"
   eof
   return Quit
 
 -- | Parse help command.
 help :: Parser Command
 help = do
-  reserved ":h"
+  try (reserved ":help") <|> reserved ":h"
   eof
   return Help
 
 -- | Parse reload command.
 reload :: Parser Command
 reload = do
-  reserved ":r"
+  try (reserved ":reload") <|> reserved ":r"
   eof
   return Reload
 
@@ -166,7 +169,7 @@ typing = do
 -- | Parse the print-pdf-to-file command.
 printing :: Parser Command
 printing = do
-  reserved ":p"
+  try (reserved ":print") <|> reserved ":p"
   t <- term
   path <- stringLiteral
   eof
@@ -175,7 +178,7 @@ printing = do
 -- | Parse the display command.
 displaying :: Parser Command
 displaying = do
-  reserved ":d"
+  try (reserved ":display") <|> reserved ":d"
   t <- term
   eof
   return $ Display t
@@ -183,7 +186,7 @@ displaying = do
 -- | Parse the displaying existential circuit command.
 displayEx :: Parser Command
 displayEx = do
-  reserved ":e"
+  try (reserved ":existsDisplay") <|> reserved ":e"
   t <- term
   eof
   return $ DisplayEx t
@@ -191,7 +194,7 @@ displayEx = do
 -- | Parse the show annotation command.
 annotation :: Parser Command
 annotation = do
-  reserved ":a"
+  try (reserved ":annotation") <|> reserved ":a"
   t <- try varExp <|> parens opExp
   eof
   return $ Annotation t
@@ -199,7 +202,7 @@ annotation = do
 -- | Parse the load command.
 load :: Parser Command
 load = do
-  reserved ":l"
+  try (reserved ":load") <|> reserved ":l"
   path <- stringLiteral
   eof
   return $ Load True path
@@ -213,7 +216,7 @@ eval = do
 
 -- | Parse the gate count command.
 gateC = do
-  reserved ":g"
+  try (reserved ":gateCount") <|> reserved ":g"
   name <- option Nothing $ (stringLiteral >>= \x -> return $ Just x)
   t <- term
   eof
@@ -221,15 +224,15 @@ gateC = do
 
 -- | Parse the gate-count-on-expression command.
 topGateC = do
-  reserved ":tg"
+  try (reserved ":topGateCount") <|> reserved ":tg"
   name <- option Nothing $ (stringLiteral >>= \x -> return $ Just x)
   t <- option Nothing $ (term >>= \x -> return $ Just x)
   eof
   return $ TopGateCount name t
 
--- | Parse a show current circuit command.
+-- | Parse a show state command.
 showCirc = do
-  reserved ":s"
+  try (reserved ":show") <|> reserved ":s"
   r <- option Nothing $ (term >>= \x -> return $ Just x)
   eof
   return $ ShowCirc r
@@ -262,9 +265,9 @@ operatorDecl = do
   op <- operator
   p <- getPosition
   st <- getState
-  let table' = IM.insertWith (++) level [toOp op r App Base] $ expOpTable st
-      prog' = buildExpressionParser (map snd (IM.toAscList table')) atomExp
-  putState $ ParserState prog' table'
+  let table = IM.insertWith (++) level [toOp op r App Base] $ expOpTable st
+      prog = buildExpressionParser (map snd (IM.toAscList table)) atomExp
+  putState $ ParserState prog table
   return (OperatorDecl (P p) op level r)
   where
     toOp op "infix" app var =
@@ -276,15 +279,19 @@ operatorDecl = do
     toOp op "infixl" app var =
       Infix (reservedOp op >> return (\x y -> app (app (var op) x) y)) AssocLeft
 
+
+-- | Parse a head /h/ and many /p/, they can be across many lines,
+-- but they must be properly indented.
+manyLines :: Parser ([a] -> b) -> Parser a -> Parser b
+manyLines h p = withPos $ h <*/> p
+
 -- | Parse an importation declaration.
 importDecl :: Parser Decl
-importDecl = impGlobal
-  where
-    impGlobal = do
-      reserved "import"
-      p <- getPosition
-      mod <- stringLiteral
-      return $ ImportGlobal (P p) mod
+importDecl = do
+  reserved "import"
+  p <- getPosition
+  mod <- stringLiteral
+  return $ ImportGlobal (P p) mod
 
 -- | Parse a type class declaration. We allow phatom class, i.e. class without
 -- any method, in that case, one should not use the keyword "where".
@@ -306,22 +313,18 @@ classDecl = do
   where
     method = do
       fs <-
-        sepBy
-          (try controllable <|> try reversible <|> try noModal <|> boxable)
-          comma
+        sepBy (try noControl <|> try noReverse <|> try noModal <|> noBox) comma
       let fs' = nub fs
       pos <- getPosition
       n <- parens operator <|> var
       reservedOp ":"
       t <- typeExp
       let m =
-            if null fs'
-              then (True, True, True)
-              else if NoModal `elem` fs'
-                     then (False, False, False)
-                     else ( Boxable `elem` fs'
-                          , Controllable `elem` fs'
-                          , Reversible `elem` fs')
+            if NoModal `elem` fs'
+              then (False, False, False)
+              else ( not (NoBox `elem` fs')
+                   , not (NoControl `elem` fs')
+                   , not (NoReverse `elem` fs'))
       return (P pos, n, t, m)
 
 -- | Parse an instance declaration. For the instance of the phantom class,
@@ -365,42 +368,41 @@ simpleType = do
   let res = foldr Arrow h bds
   return res
 
--- | Parse the controllable flag, return a boolean.
-isControl = do
-  reserved "#Controllable"
-  return True
 
-data Mod
-  = Boxable
-  | Controllable
-  | Reversible
+-- | Flags for indicating non-modalities
+data NonMod
+  = NoBox
+  | NoControl
+  | NoReverse
   | NoModal
   deriving (Eq)
 
--- | Parse the controllable flag
-controllable = do
-  reserved "#Controllable"
-  return Controllable
+-- | Parse the #NoControl flag
+noControl = do
+  reserved "#NoControl"
+  return NoControl
 
--- | Parse the no-modal flag
+-- | Parse the #NoModal flag
 noModal = do
   reserved "#NoModal"
   return NoModal
 
--- | Parse the boxable flag
-boxable = do
-  reserved "#Boxable"
-  return Boxable
+-- | Parse the #NoBox flag
+noBox = do
+  reserved "#NoBox"
+  return NoBox
 
--- | Parse the reversible flag
-reversible = do
-  reserved "#Reversible"
-  return Reversible
+-- | Parse the #NoReverse flag
+noReverse = do
+  reserved "#NoReverse"
+  return NoReverse
 
 -- | Parse a gate declaration.
 gateDecl :: Parser Decl
 gateDecl = do
-  isCtrl <- option False isControl
+  isCtrl <- option True (do{
+    reserved "#NoControl";
+    return False})     
   reserved "gate"
   p <- getPosition
   g <- const
@@ -561,10 +563,6 @@ atomExp =
      existsType <|>
      appExp <?> "expression")
 
--- | Parse a head /h/ and many /p/, they can be across many lines,
--- but they must be properly indented.
-manyLines :: Parser ([a] -> b) -> Parser a -> Parser b
-manyLines h p = withPos $ h <*/> p
 
 -- | An expression parser for pattern application.
 patApp :: Parser Exp

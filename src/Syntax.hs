@@ -876,10 +876,10 @@ instance Disp BExp where
   display flag (BAnd e1 e2) = display flag e1 <> text "&" <> display flag e2
 
 instance Disp Modality where
-  display flag (M x y z) =
+  display flag (M x y z) = 
     braces $
     display flag x <> comma <+> display flag y <> comma <+> display flag z
-    -- <+> dispControllable y <> comma <+> dispReversible z
+
 
 dispBoxable (BConst True) = text "Boxable"
 dispBoxable (BConst False) = text "NonBoxable"

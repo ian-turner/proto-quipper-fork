@@ -8,7 +8,7 @@ import "lib/Nat.dpq"
 -- {boxable, controllable, reversible}
 -- for gate {controllable, reversible}
 
--- #Controllable
+#NoControl
 gate Init0 : Unit -> Qubit : Term0 
 
 -- reversible.  
@@ -17,9 +17,9 @@ gate Init0 : Unit -> Qubit : Term0
 -- irreversible
 -- gate Init0 : Unit -> Qubit
 
--- #Controllable
 gate W : Qubit -> Qubit -> Qubit * Qubit : W_Inv 
 
+#NoControl
 gate Init1 : Unit -> Qubit : Term1
 
 -- gate {1,0,1} Term0 : Qubit -> Unit
@@ -29,22 +29,21 @@ gate WGate : Qubit -> Qubit -> Qubit * Qubit : WGateInverse
 -- gate WGate : Qubit -> Qubit -> Qubit * Qubit : WGate
 
 -- gate {1,1,1} WGateInverse : Qubit -> Qubit -> Qubit * Qubit
-#Controllable
 gate H : Qubit -> Qubit : H
 
-#Controllable
+
 gate TGate : Qubit -> Qubit : TGate_Inv
 
-#Controllable
+
 gate SGate : Qubit -> Qubit : SGate_Inv
 
-#Controllable
+
 gate ZGate : Qubit -> Qubit : ZGate
 
 
 
 -- The second qubit is the control bit
-#Controllable
+
 gate CNot : Qubit -> Qubit -> Qubit * Qubit : CNot
 
 -- convention: to support circuit printing,
@@ -55,23 +54,23 @@ gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
 
 gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
 
-#Controllable
 gate Rot (n : Nat) -> (Real n) : Qubit -> Qubit  : Rot_Inv
 
-#Controllable
 gate Diag (n : Nat) -> (Real n) (Real n) : Qubit -> Qubit  : Diag_Inv
 
 
 -- gate Random Nat Nat : Qubit -> Qubit
 
 -- Rotatation gate, its parameter must be a monomoprhic type
-#Controllable
+
 gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv
 
+#NoControl
 gate Discard : Bit -> Unit
 
 
 -- Measurement gate
+#NoControl
 gate Meas : Qubit -> Bit
 
 
@@ -79,7 +78,7 @@ gate Meas : Qubit -> Bit
 -- A Toffoli gate specialized to one positive and one negative
 -- control-> The second argument is the positive control and the third
 -- argument is the negative one.
-#Controllable
+
 gate ToffoliGate_10 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate_10
 
 
@@ -87,7 +86,7 @@ gate ToffoliGate_10 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : Toffoli
 -- control-> The second argument is the negative control and the third
 -- argument is the positive one.
 
-#Controllable
+
 gate ToffoliGate_01 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate_01
 
 -- A Toffoli gate with signed controls-> A sign of 'True' means the
@@ -96,10 +95,10 @@ gate ToffoliGate_01 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : Toffoli
 -- The first parameter controls the second qubit, the second parameter
 -- controls the third qubit
 
-#Controllable
+
 gate ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate
 
-#Controllable
+
 gate Toffoli : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : Toffoli
 
 
@@ -108,10 +107,10 @@ gate Toffoli : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : Toffoli
 -- gate {1,1,1} CNotGate Bool : Qubit -> Qubit -> Qubit * Qubit
 
 -- A not gate
-#Controllable
+
 gate QNot : Qubit -> Qubit : QNot
 
-#Controllable
+
 gate ControlledExpGate Bool : Qubit -> Qubit -> Qubit * Qubit : ControlledExpGate_Inv
 
 -- A wrapper on ControlledExpGate

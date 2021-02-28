@@ -56,6 +56,7 @@ dispatch Help = do
       ":e <expr>               display an existential circuit in a previewer\n" ++
       ":p <expr> \"filename\"    print a circuit to a file\n" ++
       ":r                      reload the most recent file, clear circuit state\n" ++
+      ":s                      show the current circuit state\n" ++
       ":q                      exit interpreter\n" ++
       ":h                      show this list of commands\n" ++
       ":g [gate-name] <expr>   gate count of a boxed circuit\n" ++
