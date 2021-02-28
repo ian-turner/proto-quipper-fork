@@ -58,6 +58,9 @@ gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
 #Controllable
 gate Rot (n : Nat) -> (Real n) : Qubit -> Qubit  : Rot_Inv
 
+#Controllable
+gate Diag (n : Nat) -> (Real n) (Real n) : Qubit -> Qubit  : Diag_Inv
+
 
 -- gate Random Nat Nat : Qubit -> Qubit
 

@@ -10,7 +10,7 @@ cy (x y : Qubit) =
       (x, y) = CNot x y
   in (x, y)
 
-
+-- The five qubit error correcting code. 
 fiveQubits : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit)
 fiveQubits input =
   let (a1, a2, a3, a4, a5) = input
@@ -30,11 +30,11 @@ fiveQubits input =
     in (H a1, H a2, H a3, H a4, ZGate a5)
 
 
--- Preparing initial mixed state.
+-- Preparing the initial mixed state.
 -- I am not sure how to prepare the mix state.
 -- So it is a dummy state for now. 
 prepMixedState : ! (Unit -> Qubit)
-prepMixedState u = Init0 ()
+prepMixedState u = Diag (cos 0.47765831) (sin 0.47765831) (TGate (H (Init0 ())))
 
 -- One round distillation
 round1Distill : ! (Unit -> Qubit)
