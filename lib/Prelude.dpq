@@ -79,7 +79,7 @@ withBasisChange a b circ1 circ2 =
 
 -- Warning: noted the result type is not directly related to input.
 class Initialize b a where
-  #Boxable, #Reversible
+  #NoControl
   init : b -> a
 
 

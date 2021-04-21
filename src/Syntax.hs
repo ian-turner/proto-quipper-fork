@@ -58,9 +58,8 @@ import Debug.Trace
 -- The core syntax contains many
 -- forms of annotations for proof checking.
 data Exp
-  = Var Variable 
-  -- ^ Bound variables. 
-  | MetaVar Variable -- ^ Meta variables. 
+  = Var Variable  -- ^ Bound variables. 
+  | MetaVar Variable -- ^ Meta variables (for unification). 
   | Const Id -- ^ Data constructors or functions.
   | LBase Id -- ^ Simple data type type-constructors.
   | Base Id -- ^ (Non-simple) Data type type-constructors.
@@ -68,54 +67,54 @@ data Exp
   -- ^ Lambda abstraction for linear arrow type.
   | LamP (Bind [Variable] Exp)
   -- ^ Parameter lambda abstraction for parameter arrow type.
-  | Arrow Exp Exp Modality -- ^ Linear arrow type.
+  | Arrow Exp Exp Modality -- ^ Linear arrow type, with modality.
   | ArrowP Exp Exp -- ^ Parameter arrow type.
   | App Exp Exp -- ^ Function application.
   | AppP Exp Exp -- ^ Parameter application.
   | AppDict Exp Exp -- ^ Dictionary application.
-  | Imply [Exp] Exp Modality -- ^ Constraint types.
+  | Imply [Exp] Exp Modality -- ^ Constraint types, since they are
+  -- essentially arrow types, we have to indicate the modality.
   | LamDict (Bind [Variable] Exp) -- ^ Dictionary abstraction.
   | Tensor Exp Exp -- ^ Tensor product.
   | Pair Exp Exp
-  -- ^ Pair constructor, also works for constructing existential pair.
-  | Let Exp (Bind Variable Exp) -- ^ Single let expression.
+  -- ^ Pair constructor, also for constructing existential pair.
+  | Let Exp (Bind Variable Exp) -- ^ Let expression.
   | LetPair Exp (Bind [Variable] Exp)
-  -- ^ Let pair matching and existential pair matching.
+  -- ^ Let pair and existential pair elimination.
   | LetPat Exp (Bind Pattern Exp) -- ^ Let pattern matching.
-  | Exists (Bind Variable Exp) Exp -- ^ Existential pair type.
+  | Exists (Bind Variable Exp) Exp -- ^ Existential types.
   | Case Exp Branches -- ^ Case expression.
-    -- Lift and force
-  | Bang Exp Modality -- ^ Linear exponential type.
-  | Force Exp -- ^ Force.
+  | Bang Exp Modality -- ^ Linear exponential types, with modalities.
+  | Force Exp -- ^ !-type elimination.
   | ForceP Exp -- ^ The parameter version of Force.
-  | Lift Exp -- ^ Lift.
-    -- Circuit operations
-  | Box -- ^ Circuit boxing.
-  | ExBox -- ^ Existential circuit boxing.
-  | UnBox -- ^ Circuit unboxing.
-  | Reverse -- ^ Obtain the adjoint of a circuit.
-  | Controlled -- ^ Obtain the controlled version of a circuit.
-  | WithComputed
-  | Circ Exp Exp Modality -- ^ The circuit type.
-  | Dynlift
-  | Star -- ^ Unique inhabitant of unit type.
+  | Lift Exp  -- ^ !-type introduction.
+
+  | Box -- ^ Circuit boxing operator.
+  | ExBox -- ^ Existential circuit boxing operator.
+  | UnBox -- ^ Circuit unboxing operator.
+  | Reverse -- ^ Operator for taking the adjoint of a circuit.
+  | Controlled -- ^ Operator for obtaining the controlled version of a circuit.
+  | WithComputed -- ^ Operator for circuit conjugation. 
+  | Circ Exp Exp Modality -- ^ The circuit type, with modalities.
+  | Dynlift -- ^ Operator for dynamic lifting. 
+  | Star -- ^ The unique inhabitant of unit type.
   | Unit -- ^ The unit type.
   | Set -- ^ The kind for all types.
   | Sort -- ^ The sort for all kinds.
-    -- Dependent types
-  | Pi (Bind [Variable] Exp) Exp Modality -- ^ Linear dependent types.
+
+  | Pi (Bind [Variable] Exp) Exp Modality -- ^ Linear dependent types, with modalities. 
   | PiInt (Bind [Variable] Exp) Exp -- ^ Intuitionistic dependent types.
-  | PiImp (Bind [Variable] Exp) Exp Modality -- ^ Implicit dependent types.
+  | PiImp (Bind [Variable] Exp) Exp Modality -- ^ Implicit dependent types, with modalities.
   | LamDep (Bind [Variable] Exp)
-  -- ^ Linear dependent lambda abstraction (abstracting term).
+  -- ^ Dependent lambda abstraction. 
   | LamDepInt (Bind [Variable] Exp)
-  -- ^ Intuitionistic dependent lambda abstraction (abstracting term).
-  | AppDep Exp Exp -- ^ Linear dependent application (term application).
+  -- ^ Dependent lambda abstraction for parameter term. 
+  | AppDep Exp Exp -- ^ Dependent application. 
   | AppDepInt Exp Exp
-  -- ^ Intuitionistic dependent application (term application).
+  -- ^ Dependent application for parameter term. 
   | LamDepTy (Bind [Variable] Exp)
-  -- ^ Dependent lambda abstraction (abstracting type).
-  | AppDepTy Exp Exp -- ^ Dependent application (type application).
+  -- ^ Dependent lambda type abstraction.
+  | AppDepTy Exp Exp -- ^ Dependent type application. 
   | LamAnn Exp (Bind [Variable] Exp)
     -- ^ Annotated lambda abstraction.
   | LamAnnP Exp (Bind [Variable] Exp) -- ^ Shape of 'LamAnn'.
@@ -134,6 +133,8 @@ data Exp
   | RealOp String -- ^ Build-in Real operations.
   deriving (Eq, Generic, Nominal, NominalShow, NominalSupport, Show)
 
+-- | A real number in DPQ is a constructive real
+-- with an integer indicating the precision.  
 data MyReal = MR Integer CReal
 
 instance Eq MyReal where

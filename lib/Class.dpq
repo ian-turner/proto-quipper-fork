@@ -61,7 +61,7 @@ instance forall (n : Nat) -> Num (Real n) where
 
 class QuantumOp a where
   unary : (Simple a) => !(Qubit -> Qubit) -> a -> a
-  #Boxable, #Reversible
+  #NoControl
   copy  : (Simple a) => a -> a * a
   cnots : (Simple a) => a -> a -> a * a
 

@@ -36,15 +36,15 @@ instance forall a (n : Nat) -> (Disposable a) => Disposable (Vec a n) where
 
 
 class BooleanLogic a where
-  #Boxable, #Reversible
+  #NoControl
   band  : a -> a -> WithGarbage a
-  #Boxable, #Reversible
+  #NoControl
   bor  :  a -> a -> WithGarbage a
-  #Boxable, #Reversible
+  #NoControl
   bxor  : a -> a -> WithGarbage a
-  #Boxable, #Reversible
+  #NoControl
   bnot  : a -> WithGarbage a
-  #Boxable, #Reversible
+  #NoControl
   bif  : Qubit -> a -> a -> WithGarbage a
 
 instance BooleanLogic Qubit where
