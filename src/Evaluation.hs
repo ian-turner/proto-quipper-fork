@@ -3,7 +3,7 @@
 {-# LANGUAGE BangPatterns #-}
 
 -- | This module implements a closure-based call-by-value evaluation.
--- It still has memory problem when generating super-large circuits.
+-- It can run into memory problem when generating super-large circuits (e.g., 1 millions gates).
 module Evaluation
   ( eval
   , initES
@@ -36,28 +36,35 @@ import Debug.Trace
 import Data.Number.CReal
 
 -- * The Eval monad and eval function.
--- | The evaluation monad.
+
+-- | The evaluation monad combines the ReadWrite monad
+-- and carried an EvalState.
 type Eval a = StateT EvalState ReadWrite a
 
--- | Evaluator state, it contains an underlying circuit and
+-- | The evaluator state, it contains an underlying circuit and
 -- a global context.
 data EvalState =
   ES
     { evalEnv :: Context -- ^ The global evaluation context.
-    , labels :: [Label] -- ^ labels generated during evaluation 
+    , labels :: [Label] -- ^ A list of labels that are generated during evaluation 
     }
 
+-- | Initialize an EvalState from a global context.
+initES :: Context -> EvalState
 initES gl = ES {evalEnv = gl, labels = []}
 
+-- | Lifting a label to a boolean. 
 dynamicLift :: Label -> Eval Bool
 dynamicLift l = lift $ dynliftRW l
 
+-- | Append a list of gates to the underlying ReadWrite state. 
 addGates :: [Gate] -> Eval ()
 addGates gs = lift $ mapM_ gateRW gs
 
--- | Evaluate an expression to
--- a value in the value domain. The eval function also takes an environment
--- as argument and form a closure when evaluating a lambda abstraction or a lifted term.
+-- | Evaluate an expression to a value in the value domain.
+-- The eval function also takes an environment
+-- as argument and form closures when evaluating lambda abstractions
+-- or lifted terms.
 eval :: LEnv -> EExp -> Eval Value
 -- eval !lenv t | trace ("eval:" ++ show (dispRaw t)) $ False  = undefined
 eval !lenv (EVar x) = return $ lookupLEnv x lenv

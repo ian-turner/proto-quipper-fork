@@ -160,15 +160,15 @@ data Branches =
   B [Bind Pattern Exp]
   deriving (Eq, Generic, Show, NominalSupport, NominalShow, Nominal)
 
--- | Pattern can a bind term variable or a type variable
--- , or have an instantiation ('Left')
+-- | Pattern can a bind term variable or a type variable,
+-- or have an instantiation ('Left')
 -- that is bound at a higher-level.
 data Pattern =
   PApp Id [Either (NoBind Exp) Variable]
   deriving (Eq, Generic, NominalShow, NominalSupport, Nominal,
             Bindable, Show)
 
--- | Boolean expression.
+-- | Boolean expression. We only need conjunction for modeling modalities. 
 data BExp
   = BConst Bool
   | BVar Variable
@@ -184,7 +184,8 @@ identityMod :: Modality
 identityMod = M (BConst True) (BConst True) (BConst True)
 
 instance Disp Pattern where
-  display flag (PApp id vs) = display flag id <+> hsep (map helper vs)
+  display flag (PApp id vs) =
+    display flag id <+> hsep (map helper vs)
     where
       helper (Left (NoBind x)) = parens $ display flag x
       helper (Right x) = display flag x
@@ -519,15 +520,15 @@ instance Disp (Either (NoBind Exp) Variable) where
 -- | The value domain, for evaluation purpose.
 data Value
   = VLabel Label -- ^ Labels.
-  | VVar Variable -- ^ For the parameters and generic control in a gate.
+  | VVar Variable -- ^ Variables, for the parameters substitution and generic control in a gate.
   | VConst Id -- ^ Constructors.
-  | VTensor Value Value -- ^ Runtime tensor product for generating fresh labels.
+  | VTensor Value Value -- ^ Runtime tensor product types, for generating fresh labels.
   | VUnit -- ^ Runtime unit type for generating unit value.
   | VLBase Id -- ^ Runtime simple types.
   | VBase Id -- ^ Runtime non-simple type.
   | VLam (Bind LEnv (Bind [Variable] EExp))
-    -- ^ Lambda forms a closure. ['Variable']
-    -- is the list of variables that are referred by this closure.
+    -- ^ Lambda forms a closure. ['Variable'] is the list of variables that are referred by this closure.
+    
   | VPair Value Value -- ^ Pair of values.
   | VStar -- ^ Unit value.
   | VLift (Bind LEnv EExp) -- ^ Lift forms a closure. ['Variable']
