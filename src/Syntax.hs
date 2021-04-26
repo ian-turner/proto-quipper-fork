@@ -517,6 +517,9 @@ instance Disp (Either (NoBind Exp) Variable) where
   display flag (Left (NoBind e)) = parens $ display flag e
   display flag (Right x) = display flag x
 
+-- | Local variable environment for evaluation. 
+type LEnv = Map Variable Value
+
 -- | The value domain, for evaluation purpose.
 data Value
   = VLabel Label -- ^ Labels.
@@ -554,9 +557,6 @@ data Value
   | VRealOp String
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 
--- | Local variable environment for evaluation. It contains the
--- approximate number of uses of for each variable.
-type LEnv = Map Variable Value
 
 instance Bindable (Map Variable Value) where
   binding loc = do

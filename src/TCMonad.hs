@@ -38,25 +38,23 @@ data Info =
     , identification :: Identification
     }
 
--- | Definition and other related information about a
--- top-level identifier.
+-- | Identification for top-level identifiers. 
 data Identification
-  = DataConstr Id
-  -- ^ Data constructor, 'Id' is its type constructor.
-  | DefinedGate Value -- ^ Gate value.
+  = DataConstr Id  -- ^ Data constructor, 'Id' is its type constructor.
+  | DefinedGate Value -- ^ Gate, and its representation .
   | DefinedFunction (Maybe (Exp, Value, Maybe Exp))
-  -- ^ Defined function. Exp: annotation, Value: function value,
+  -- ^ Defined function. Exp : its annotated version, Value: function value,
   -- and Maybe Exp: an expression of a basic value.
   | DefinedMethod Exp Value
-  -- ^ Method annotation and its value.
+  -- ^ Method, its annotated version and value.
   | DefinedInstFunction Exp Value
-  -- ^ Annotated instance function and its value.
+  -- ^ Instance function, its annotated version and value.
   | DataType DataClassifier [Id] (Maybe EExp)
-  -- ^ A data type, its classifier and its
-  -- constructors. If it is simple type, then its runtime
-  -- template function.
+  -- ^ A data type, its classifier and 
+  -- constructors. If it is a simple type, then its corresponding runtime
+  -- function.
   | DictionaryType Id [Id]
-  -- ^ Dictionary constructor and its methods id.
+  -- ^ Dictionary type-constructor and all of its method ids.
   deriving (Show)
 
 -- | Data type classifier.
