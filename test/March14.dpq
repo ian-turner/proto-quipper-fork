@@ -23,7 +23,7 @@ testH : Circ(Qubit, Qubit)
 testH = ntimes Qubit three (box Qubit H)
 
 -- single qubit rotate
-#Controllable
+
 gate Rotate Nat : Qubit -> Qubit : Rotate_Inv
 
 firstLayer : ! forall (n : Nat) -> Vec Nat n -> Vec Qubit n -> Vec Qubit n

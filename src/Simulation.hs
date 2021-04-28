@@ -158,7 +158,7 @@ interaction (RW_Write g@(Gate name [VWrapR (MR len r)] (VLabel v) (VLabel w) VSt
           do let (VLabel v') = renameTemp (VLabel v) map
                  map' = map `Map.union` Map.fromList [(w, v')]
                  gn = toGateName (getName name)
-             hPutStrLn h (gn ++ " "++ showCReal (fromInteger len) r ++ " " ++ labelToNum v')
+             hPutStrLn h (gn ++ " "++ showCReal len r ++ " " ++ labelToNum v')
              let res = interaction c h map' ls
              fmap (\ (x, y) -> (x, g:y)) res
 
@@ -167,7 +167,7 @@ interaction (RW_Write g@(Gate name [VWrapR (MR len r), VWrapR (MR len' r')] (VLa
           do let (VLabel v') = renameTemp (VLabel v) map
                  map' = map `Map.union` Map.fromList [(w, v')]
                  gn = toGateName (getName name)
-             hPutStrLn h (gn ++ " "++ showCReal (fromInteger len) r ++ " " ++ showCReal (fromInteger len') r' ++ " " ++ labelToNum v')
+             hPutStrLn h (gn ++ " "++ showCReal len r ++ " " ++ showCReal len' r' ++ " " ++ labelToNum v')
              let res = interaction c h map' ls
              fmap (\ (x, y) -> (x, g:y)) res
 

@@ -46,7 +46,7 @@ data Exp
   | Dynlift
   | Case Exp Branches -- ^ Case expression.
   | Wild -- ^ Wildcard.
-  | WrapR Integer CReal -- ^ real numbers
+  | WrapR Int CReal -- ^ real numbers
   | RealNum -- ^ type constructor Real
   | RealOp String -- ^ built-in real operators.
   | Pos Position Exp -- ^ Position wrapper.

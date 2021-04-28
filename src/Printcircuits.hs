@@ -550,7 +550,7 @@ render_gate fs (Gate name [VWrapR (MR l r)] input outs ctrl _ _) x ys maxh =
       cs = getWires ctrl
       ctrls = map positive cs
       s2 = render_controlwire x ys (ws1++cs) ctrls
-      t2 = render_multi_gate fs x ys (getName name ++ "("++ showCReal (fromInteger l) r ++")") ws1
+      t2 = render_multi_gate fs x ys (getName name ++ "("++ showCReal l r ++")") ws1
       t3 = render_controldots fs x ys ctrls
   in (s2, t2 >> t3)
 

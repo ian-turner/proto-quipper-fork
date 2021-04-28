@@ -246,7 +246,7 @@ unify b RealNum RealNum = return Success
 unify b (RealOp x) (RealOp y) =
   if (x == y) then return Success else return UnifError
 unify b (WrapR (MR l1 x1)) (WrapR (MR l2 x2)) =
-  if l1 == l2 && (showCReal (fromInteger l1) x1) == (showCReal (fromInteger l1) x2)
+  if l1 == l2 && (showCReal l1 x1) == (showCReal l1 x2)
   then return Success
   else return UnifError
 
@@ -395,7 +395,7 @@ dUnify RealNum RealNum = return Success
 dUnify (RealOp x) (RealOp y) =
   if (x == y) then return Success else return DUnifError
 dUnify (WrapR (MR l1 x1)) (WrapR (MR l2 x2)) =
-  if l1 == l2 && (showCReal (fromInteger l1) x1) == (showCReal (fromInteger l1) x2)
+  if l1 == l2 && (showCReal l1 x1) == (showCReal l1 x2)
   then return Success
   else return DUnifError
 

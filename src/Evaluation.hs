@@ -144,7 +144,8 @@ eval !lenv (ELetPair m (Abst xs n)) = do
       let lenv' = foldl (\a (x, y) -> addDefinition x y a) lenv
                   (zip xs vs)
       in eval lenv' n
-
+    Nothing -> error "unpair error, from eval ELetPair."
+    
 eval !lenv (ELetPat m (Abst (EPApp kid vs) n)) = do
   m' <- eval lenv m
   case vflatten m' of
@@ -179,27 +180,23 @@ eval !lenv a = error $ "from eval: " ++ (show $ disp a)
 
 -- * Helper functions for eval.
 -- | Look up a value from the local environment.
--- It also implements a nonstop GC. Compared to stop-the-world-gc,
--- The CONS is that if the garbage is not access
--- anymore, there is no way to collect them. The
--- PROS is that it runs faster than stop-the-world-gc and it does not
--- stop anything.
 lookupLEnv :: Variable -> LEnv -> Value
 lookupLEnv x lenv =
   case Map.lookup x lenv of
-    Nothing -> error $ "from lookupLEnv:" ++ show x
+    Nothing -> error $ "undefined variable from lookupLEnv:" ++ show x
     Just v -> v
 
 -- | Add a value to the environment.
 addDefinition x m lenv = Map.insert x m lenv
 
--- | A helper function for evaluating various of applications.
+-- | Evaluate various of applications.
 evalApp :: Value -> Value -> Eval Value
 evalApp VUnBox v =
   case v of
     (Wired _) -> return $ VApp VUnBox v
     _ -> return VUnBox
 
+-- Note that (VRealOp pi) is a function.
 evalApp (VRealOp x) n | x == "pi" =
   case toInt n of
     Nothing -> error "from pi n"
@@ -209,19 +206,13 @@ evalApp (VRealOp x) (VWrapR (MR l r)) | x == "sin" =
   return $ VWrapR $ MR l (sin r)
 
 evalApp (VRealOp x) (VWrapR (MR l r)) | x == "ceiling" =
-  let r' :: Integer
-      r' = read (showCReal (fromInteger l) r)
-  in return $ VWrapR $ MR l (fromInteger (ceiling r))
+  return $ VWrapR $ MR l (fromIntegral (ceiling r :: Integer))
 
 evalApp (VRealOp x) (VWrapR (MR l r)) | x == "round" =
-  let r' :: Integer
-      r' = read (showCReal (fromInteger l) r)
-  in return $ VWrapR $ MR l (fromInteger (round r))
+  return $ VWrapR $ MR l (fromIntegral (round r :: Integer))
 
 evalApp (VRealOp x) (VWrapR (MR l r)) | x == "floor" =
-  let r' :: Integer
-      r' = read (showCReal (fromInteger l) r)
-  in return $ VWrapR $ MR l (fromInteger (floor r))
+  return $ VWrapR $ MR l (fromIntegral (floor r :: Integer))
 
 evalApp (VRealOp x) (VWrapR (MR l r)) | x == "exp" =
   return $ VWrapR $ MR l (exp r)
@@ -230,13 +221,11 @@ evalApp (VRealOp x) (VWrapR (MR l r)) | x == "cos" =
   return $ VWrapR $ MR l (cos r)
 
 evalApp (VRealOp x) (VWrapR (MR l r)) | x == "log" = do
-  when (r < 0) $ error "logging a negative"
-    --throwError $ Arith LogNeg
+  when (r < 0) $ error "applying log a negative real"
   return $ VWrapR $ MR l (log r)
 
 evalApp (VRealOp x) (VWrapR (MR l r)) | x == "sqrt" = do
-  when (r < 0) $ error "squaring a negative"
-    -- throwError $ Arith SqrtNeg
+  when (r < 0) $ error "squaring a negative real"
   return $ VWrapR $ MR l (sqrt r)
 
 evalApp (VApp (VApp (VRealOp x) _) n) (VWrapR (MR l r)) | x == "cast" =
@@ -246,38 +235,37 @@ evalApp (VApp (VApp (VRealOp x) _) n) (VWrapR (MR l r)) | x == "cast" =
 
 evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "plusReal" =
   if l' == l then return $ VWrapR $ MR l' (r' + r)
-  else error "length mismatch from evalVApp: plusReal"
+  else error "length mismatch from plusReal, when evaluating evalVApp."
 
 evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "minusReal" =
   if l' == l then return $ VWrapR $ MR l' (r' - r)
-  else error "length mismatch from evalVApp: minusReal"
+  else error "length mismatch from minusReal, when evalutating evalVApp."
 
 evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "divReal" =
   if l' == l then
     do when (r == 0) $ error "divided by zero"
-         -- throwError $ Arith DivByZero
        return $ VWrapR $ MR l' (r' / r)
   else error "length mismatch from evalVApp: divReal"
 
 evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "mulReal" =
   if l' == l then return $ VWrapR $ MR l' (r' * r)
-  else error "length mismatch from evalVApp: mulReal"
+  else error "length mismatch from mulReal, when evaluating evalVApp."
 
 evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "eqReal" =
   if l' == l then
-    if showCReal (fromInteger l') r' == showCReal (fromInteger l') r then
+    if showCReal l' r' == showCReal l' r then
       return $ VConst (Id "True")
     else return $ VConst (Id "False")
-  else error "length mismatch from evalVApp: eqReal"
+  else error "length mismatch from eqReal, when evaluating evalVApp."
 
 evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "ltReal" =
   if l' == l then
-    let r1 = (read $ showCReal (fromInteger l') r') :: CReal
-        r2 = (read $ showCReal (fromInteger l') r) :: CReal in
+    let r1 = (read $ showCReal l' r') :: CReal
+        r2 = (read $ showCReal l' r) :: CReal in
     if r1 > r2 then
       return $ VConst (Id "True")
     else return $ VConst (Id "False")
-  else error "length mismatch from evalApp: ltReal"
+  else error "length mismatch from ltReal, when evaluating evalApp."
 
 evalApp (VForce VDynlift) (VLabel v) = do
   b <- dynamicLift v
@@ -568,14 +556,17 @@ size (VPair e1 e2) = size e1 + size e2
 size a =
   error $ "applying size function to an ill-formed template:" ++ (show $ disp a)
 
--- | Convert applicative natural number into a built-in number.  
+-- | Convert applicative natural number into the haskell int type.
+toInt :: Value -> Maybe Int
 toInt (VApp (VConst id) t') =
   if getName id == "S" then
     do n <- toInt t'
        return $ 1+ n
   else Nothing
+
 toInt (VConst id) = 
   if getName id == "Z" then
     return 0
   else Nothing
+
 toInt _ = Nothing

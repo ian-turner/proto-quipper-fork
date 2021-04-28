@@ -135,11 +135,11 @@ data Exp
 
 -- | A real number in DPQ is a constructive real
 -- with an integer indicating the precision.  
-data MyReal = MR Integer CReal
+data MyReal = MR Int CReal
 
 instance Eq MyReal where
   (MR i x) == (MR j y) =
-    showCReal (fromInteger i) x == showCReal (fromInteger j) y
+    showCReal i x == showCReal j y
 
 instance Nominal MyReal where
   pi • p = p
@@ -149,10 +149,10 @@ instance NominalSupport MyReal where
   
 instance NominalShow MyReal where
   showsPrecSup s d (MR n l) a =
-    showCReal (fromInteger n) l
+    showCReal n l
 
 instance Show MyReal where
-  show (MR n l) = showCReal (fromInteger n) l
+  show (MR n l) = showCReal n l
 
 
 -- | Branches for case expressions.
@@ -206,7 +206,7 @@ instance Disp Exp where
   display flag (Pos _ e) = display flag e
   display flag (Mod (Abst vs e)) = display flag e
   display flag (RealNum) = text "Real"
-  display flag (WrapR (MR len x)) = text $ showCReal (fromInteger len) x
+  display flag (WrapR (MR len x)) = text $ showCReal len x
   display flag (RealOp x) = text x
   display flag (Lam bds) =
     open bds $ \vs b ->
@@ -628,7 +628,7 @@ instance Disp Value where
         , text "->"
         , nest 2 $ display flag b
         ]
-  display flag (VWrapR (MR len x)) = text $ showCReal (fromInteger len) x
+  display flag (VWrapR (MR len x)) = text $ showCReal len x
   display flag (VRealOp x) = text x
   -- text "<fun-value>"
   display flag (VLift (Abst _ m)) =
@@ -810,7 +810,7 @@ instance Disp EExp where
   display flag (EUnit) = text "Unit"
   display flag (EStar) = text "()"
   display flag (EBox) = text "box"
-  display flag (EWrapR (MR len x)) = text $ showCReal (fromInteger len) x
+  display flag (EWrapR (MR len x)) = text $ showCReal len x
   display flag (ERealOp x) = text x
 
   display flag (EExBox) = text "existsBox"

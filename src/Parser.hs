@@ -631,7 +631,7 @@ sign  =  do { char '-'
 
 -- | Parse an unsign number and automatically determine if it is a natural number or a real.
 -- If the number is real, included the length of its decimals.
-naturalOrFloat :: Parser (Either Integer (Integer, CReal))
+naturalOrFloat :: Parser (Either Integer (Int, CReal))
 naturalOrFloat =
   do n <- naturals
      r <- option Nothing $ do{ reservedOp ".";
@@ -650,7 +650,7 @@ naturalOrFloat =
                ((fromInteger i' / (fromInteger $ 10 ^ len) :: CReal)))
 
 -- | Parse a sign number as a natural number or real. 
-number :: Parser (Either Integer (Integer, CReal))
+number :: Parser (Either Integer (Int, CReal))
 number =  do { s <- sign
              ; num <- naturalOrFloat
              ; return (case (num, s) of
