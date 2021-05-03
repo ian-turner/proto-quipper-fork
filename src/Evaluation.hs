@@ -187,6 +187,7 @@ lookupLEnv x lenv =
     Just v -> v
 
 -- | Add a value to the environment.
+addDefinition :: Variable -> Value -> LEnv -> LEnv
 addDefinition x m lenv = Map.insert x m lenv
 
 -- | Evaluate various of applications.
@@ -276,29 +277,66 @@ evalApp (VForce VDynlift) (VLabel v) = do
 -- append gates
 evalApp (VForce (VApp VUnBox (Wired (Abst wires morph)))) w = do
   let binding = makeBinding (input morph) w
-      res = wires -- \\ getWires (input morph)
   st <- get
-  let st' = st{labels = labels st ++ res}
+  let st' = st{labels = labels st ++ wires}
   put st'
-  appendMorph binding morph
+  let morph' = rename morph binding
+      gs = gates morph'
+      outs = output morph'
+  addGates gs
+  return outs
 
 evalApp (VApp (VApp (VApp VBox q) _) _) v =
   case v of
     VLift (Abst lenv m) -> evalBox lenv (Right m) q
     VApp VUnBox w -> return w
     m@(VLiftCirc _) -> evalBox Map.empty (Left m) q
-    a -> error $ "evalApp VBox:" ++ (show $ disp a)
+    a -> error $ "unexpected value" ++ (show $ disp a) ++ " , from evalApp VBox."
+  where
+    evalBox :: LEnv -> Either Value EExp -> Value -> Eval Value
+    evalBox lenv body uv = freshLabels (size uv) $ \vs -> do
+      st <- get
+      b <-
+        case body of
+             Right body' -> eval lenv body'
+             Left v -> return v
+      let uv' = toVal uv vs
+          bgs = boxGates $ runStateT (evalApp b uv') st
+          gs = fst bgs
+          res = fst $ snd bgs
+          st' = snd $ snd bgs
+          vs' = labels st'
+          newMorph = Morphism uv' gs res
+          morph' = Wired (abst (vs ++ vs') newMorph)
+      return morph'
 
-evalApp (VApp (VApp (VApp (VApp VExBox q) _) _) _) v =
+evalApp (VApp (VApp (VApp (VApp VExBox uv) _) _) _) v =
   case v of
-    VLift (Abst lenv body) -> evalExbox lenv body q
+    VLift (Abst lenv body) ->
+      freshLabels (size uv) $ \vs -> do
+        st <- get
+        b <- eval lenv body
+        let uv' = toVal uv vs
+            bgs = boxGates $ runStateT (evalApp b uv') st
+            gs = fst bgs
+            res = fst $ snd bgs
+            n = fstVPair res
+            res' = sndVPair res
+            st' = snd $ snd bgs
+            vs' = labels st'
+            newMorph = Morphism uv' gs res'
+            morph' = Wired (abst (vs ++ vs') newMorph)
+        return (VPair n morph')
+  where
+    fstVPair (VPair a _) = a
+    sndVPair (VPair _ b) = b
 
 evalApp (VApp (VApp VReverse _) _) (Wired (Abst ws (Morphism ins gs outs))) = do
   let gs' = revGates gs
   return $ Wired (abst ws $ Morphism outs gs' ins)
 
 evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
-  freshNames ["#ctrl", "#input", "#circ"] $ \(ctrl:inp:circ:[]) -> do
+  freshNames ["#ctrl", "#input", "#circ"] $ \([ctrl, inp, circ]) -> do
     let ins = input m
         gs = gates m
         outs = output m
@@ -376,8 +414,7 @@ evalApp v w =
                 VLam (Abst lenv''' bd) -> handleBody lenv''' ws bd
                 _ -> return $ foldl (\x y -> VApp x y) e' ws
         _ -> return $ VApp v w
-        -- Handle beta reduction
-  where
+  where -- Handle beta reduction
     handleBody lenv args bd =
       open bd $ \vs m ->
         let lvs = length vs
@@ -440,62 +477,11 @@ evalApp v w =
        in VApp a' b'
     applyValSubst c lc = error $ "from applyValSubst" ++ (show $ disp c)
 
--- | Evaluate a box term.
--- evalBox :: Either Value EExp -> Value -> Eval Value
-evalBox lenv body uv =
-  freshLabels (size uv) $ \vs -> do
-    st <- get
-    b <-
-      case body of
-        Right body' -> eval lenv body'
-        Left v -> return v
-    let uv' = toVal uv vs
-        bgs = boxGates $ runStateT (evalApp b uv') st
-        gs = fst bgs
-        res = fst $ snd bgs
-        st' = snd $ snd bgs
-        vs' = labels st'
-        newMorph = Morphism uv' gs res
-        morph' = Wired (abst (vs ++ vs') newMorph)
-    return morph'
 
--- | Evaluate an existsBox term. Note that
--- it is tempting to combine 'evalExbox' and 'evalBox' into one function,
--- but this will introduce bug, because we do not distinguish existential
--- pair and the usual tensor pair at runtime, the evaluator may confuse
--- the tensor pair with existential pair, thus making the wrong decision.
--- So we define 'evalExbox' and 'evalBox' separately to enforce the assumptions.
--- evalExbox :: EExp -> Value -> Eval Value
-evalExbox lenv body uv =
-  freshLabels (size uv) $ \vs -> do
-    st <- get
-    b <- eval lenv body
-    let uv' = toVal uv vs
-        d = Morphism uv' [] uv'
-        bgs = boxGates $ runStateT (evalApp b uv') st
-        gs = fst bgs
-        res = fst $ snd bgs
-        n = fstVPair res
-        res' = sndVPair res
-        st' = snd $ snd bgs
-        vs' = labels st'
-        newMorph = Morphism uv' gs res'
-        morph' = Wired (abst (vs ++ vs') newMorph)
-    return (VPair n morph')
-  where
-    fstVPair (VPair a _) = a
-    sndVPair (VPair _ b) = b
 
 -- | Append a circuit to the underline circuit state according to a binding.
 -- For efficiency reason we try prepend instead of append, so 'evalBox' and 'evalExbox'
 -- have to reverse the list of gates as part of the post-processing.
-appendMorph :: Binding -> Morphism -> Eval Value
-appendMorph binding f = do
-  let f' = rename f binding
-      gs = gates f'
-      outs = output f'
-  addGates gs
-  return outs
 
 -- | A binding is a map of labels.
 type Binding = Map Label Label
@@ -518,7 +504,7 @@ revGates xs = map invertGateName $ reverse xs
     invertGateName (Gate id params ins outs ctrls flag Nothing) =
       error $ "non-invertable gate:" ++ getName id
 
--- | Rename /uv/ using fresh labels draw from /vs/.
+-- | Obtain a fresh value of type /uv/ using fresh labels draw from /vs/.
 toVal :: Value -> [Label] -> Value
 toVal uv vs = evalState (templateToVal uv) vs
 
