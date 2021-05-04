@@ -54,6 +54,10 @@ gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
 
 gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
 
+gate CY : Qubit -> Qubit -> Qubit * Qubit : CY
+
+gate CZ : Qubit -> Qubit -> Qubit * Qubit : CZ
+
 gate Rot (n : Nat) -> (Real n) : Qubit -> Qubit  : Rot_Inv
 
 gate Diag (n : Nat) -> (Real n) (Real n) : Qubit -> Qubit  : Diag_Inv

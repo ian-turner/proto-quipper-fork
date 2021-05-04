@@ -450,20 +450,20 @@ render_gate fs (Gate name [] VStar (VLabel w) VStar _ _) x ys maxh
   in (return (), t)
 
 render_gate fs (Gate name [] (VPair (VLabel w) (VLabel c)) output VStar _ _) x ys maxh
-  | "C_" `isPrefixOf` (getName name) =
+  | "C" `isPrefixOf` (getName name) =
   let
       c' = positive c
       s2 = render_controlwire x ys ([w]++[c]) [c']
-      t2 = render_multi_gate fs x ys (getName name) [w]
+      t2 = render_multi_gate fs x ys (tail $ getName name) [w]
       t3 = render_controldots fs x ys [c']
   in (s2, t2 >> t3)
 
 render_gate fs (Gate name [v] (VPair (VLabel w) (VLabel c)) output VStar _ _) x ys maxh
-  | "C_" `isPrefixOf` (getName name) && isBool v =
+  | "C" `isPrefixOf` (getName name) && isBool v =
   let
       c' = if toBool v then positive c else negative c
       s2 = render_controlwire x ys ([w]++[c]) [c']
-      t2 = render_multi_gate fs x ys (getName name) [w]
+      t2 = render_multi_gate fs x ys (tail $ getName name) [w]
       t3 = render_controldots fs x ys [c']
   in (s2, t2 >> t3)
 
@@ -555,13 +555,13 @@ render_gate fs (Gate name [VWrapR (MR l r)] input outs ctrl _ _) x ys maxh =
   in (s2, t2 >> t3)
 
 render_gate fs (Gate name params (VPair (VLabel w) (VLabel c)) output ctrl _ _) x ys maxh
-  | "C_" `isPrefixOf` (getName name) =
+  | "C" `isPrefixOf` (getName name) =
   let
       c' = positive c
       cs = getWires ctrl
       ctrls = map positive cs
       s2 = render_controlwire x ys ([w]++[c]) (c':ctrls)
-      t2 = render_multi_gate fs x ys (getName name) [w]
+      t2 = render_multi_gate fs x ys (tail $ getName name) [w]
       t3 = render_controldots fs x ys (c':ctrls)
   in (s2, t2 >> t3)
 

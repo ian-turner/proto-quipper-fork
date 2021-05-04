@@ -208,6 +208,8 @@ interaction (RW_Write g res) h map ls =
 
                                                    
 toGateName "CNot" = "CNOT"
+toGateName "CY" = "CY"
+toGateName "CZ" = "CZ"
 toGateName "Meas" = "M"
 toGateName "Toffoli" = "TOF"
 toGateName "QNot" = "X"
