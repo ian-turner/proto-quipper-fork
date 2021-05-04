@@ -225,7 +225,8 @@ toGateName "SGate_Inv" = "S*"
 toGateName "Discard" = "D"
 toGateName "Rot" = "ROT"
 toGateName "Diag" = "DIAG"
-toGateName a = E.throw $ userError $ "unsupported gate: " ++ a
+toGateName a = 
+   E.throw $ userError $ "unsupported gate: " ++ a
 
 runTCPClient :: HostName -> ServiceName -> (Socket -> IO a) -> IO a
 runTCPClient host port client = withSocketsDo $ do

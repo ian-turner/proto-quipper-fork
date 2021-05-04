@@ -14,20 +14,51 @@ cy (x y : Qubit) =
 fiveQubits : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit)
 fiveQubits input =
   let (a1, a2, a3, a4, a5) = input
-      (a1, a5) = cz a1 a5
-      (a2, a5) = cz a2 a5
-      (a3, a5) = cz a3 a5
-      (a2, a4) = cz a2 a4
-      (a3, a4) = cz a3 a4
-      (a5, a4) = cy a5 a4
-      (a1, a3) = cz a1 a3
-      (a4, a3) = cz a4 a3
-      (a5, a3) = cy a5 a3
-      (a1, a2) = cz a1 a2
-      (a5, a2) = cy a5 a2
-      (a3, a1) = cz a3 a1
+      (a1, a5) = CZ a1 a5
+      (a2, a5) = CZ a2 a5
+      (a3, a5) = CZ a3 a5
+      (a2, a4) = CZ a2 a4
+      (a3, a4) = CZ a3 a4
+      (a5, a4) = CY a5 a4
+      (a1, a3) = CZ a1 a3
+      (a4, a3) = CZ a4 a3
+      (a5, a3) = CY a5 a3
+      (a1, a2) = CZ a1 a2
+      (a5, a2) = CY a5 a2
+      (a3, a1) = CZ a3 a1
       (a5, a1) = CNot a5 a1
     in (H a1, H a2, H a3, H a4, ZGate a5)
+
+
+cnotFromCZ : !(Qubit * Qubit -> Qubit * Qubit)
+cnotFromCZ x =
+  let (x, y) = x
+      (x, y)= CZ (H x) y
+  in (H x, y)
+
+testCZ : Bool * Bool
+testCZ =
+  measure $ cnotFromCZ (Init1 (), Init0 ())
+
+testCZ2 : Bool * Bool
+testCZ2 =
+  measure $ CZ (Init1 ()) (Init1 ())
+
+idFromCY : !(Qubit * Qubit -> Qubit * Qubit)
+idFromCY x =
+  let (x , y) = x
+      (x,  y) = CY x y
+      (x,  y) = CY x y 
+  in (x, y)
+
+testCY1 : Bool * Bool
+testCY1 =
+  measure $ idFromCY (Init0 (), Init0 ())
+
+testCY2 : Bool * Bool
+testCY2 =
+  measure $ CY (Init1 ()) (Init0 ())
+
 
 
 -- Preparing the initial mixed state.
