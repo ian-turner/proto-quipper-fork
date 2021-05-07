@@ -356,26 +356,25 @@ evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
 evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _) _) _) m =
   return $ VComputed m
 
-evalApp (VComputed (Wired (Abst ws1 m1'))) (Wired (Abst ws2 circ2))
-  -- evalApp (VComputed (VCircuit m1)) (VCircuit m2) = do
- = do
-  let gs1 = gates m1'
-      a = input m1'
-      b1 = fstVPair $ output m1'
-      e = sndVPair $ output m1'
-  let b2 = fstVPair $ input circ2
-  let gs1' = map negateCtrl gs1
+-- Congugate the circ1 : Circ(a, b*e) to circ2 : Circ(b * c, b * d),
+-- return a circuit of type Circ(a*c, a*d). The resulting circuit
+-- can be controlled via circ2 (not circ1). 
+evalApp (VComputed (Wired (Abst ws1 circ1))) (Wired (Abst ws2 circ2)) = 
+  let gs1 = gates circ1
+      a = input circ1
+      b1 = fstVPair $ output circ1
+      e = sndVPair $ output circ1
+      gs1' = map disableCtrl gs1
       gs1'' = revGates gs1'
-      circ1' = (Morphism (VPair b1 e) gs1'' a)
-      -- (Morphism (VPair b1' _) _ _) = circ1'
-  let b1' = b1
+      circ1' = Morphism (VPair b1 e) gs1'' a
+      b2 = fstVPair $ input circ2
       binding = makeBinding b2 b1
       circ2' = rename circ2 binding
       gs2 = gates circ2'
       c = sndVPair $ input circ2'
       b3 = fstVPair $ output circ2'
       d = sndVPair $ output circ2'
-      binding2 = makeBinding b1' b3
+      binding2 = makeBinding b1 b3
       circ3 = rename circ1' binding2
       gs1''' = gates circ3
       a' = output circ3
@@ -384,20 +383,17 @@ evalApp (VComputed (Wired (Abst ws1 m1'))) (Wired (Abst ws2 circ2))
         abst
           (ws1 ++ ws2)
           (Morphism (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d))
-        -- VCircuit (Morphism (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d))
-  return res
+  in return res
   where
-    negateCtrl (Gate e1 e2 e3 e4 e5 b inv) = Gate e1 e2 e3 e4 e5 False inv
+    disableCtrl (Gate e1 e2 e3 e4 e5 b inv) = Gate e1 e2 e3 e4 e5 False inv
     fstVPair (VPair a _) = a
     sndVPair (VPair _ b) = b
---  m1' <- refresh m1
---  circ2 <- refresh m2
---  circ1' <- refresh (Morphism (VPair b1 e) gs1'' a)
+
 evalApp a@(Wired _) w = return a
 
 evalApp v w =
   let (h, res) = unwindVal v
-   in case h of
+  in case h of
         VLam (Abst lenv bd) -> handleBody lenv (res ++ [w]) bd
         VLiftCirc (Abst vs (Abst lenv e)) -> do
           let args = res ++ [w]
@@ -475,13 +471,8 @@ evalApp v w =
       let a' = applyValSubst a lc
           b' = applyValSubst b lc
        in VApp a' b'
-    applyValSubst c lc = error $ "from applyValSubst" ++ (show $ disp c)
+    applyValSubst c lc = error $ "from applyValSubst:" ++ (show $ disp c)
 
-
-
--- | Append a circuit to the underline circuit state according to a binding.
--- For efficiency reason we try prepend instead of append, so 'evalBox' and 'evalExbox'
--- have to reverse the list of gates as part of the post-processing.
 
 -- | A binding is a map of labels.
 type Binding = Map Label Label
@@ -493,23 +484,23 @@ makeBinding w v =
       vs = getWires v
    in Map.fromList (zip ws vs)
 
--- | Reverse a list of gate in theory, in reality it only
--- changes the name of a gate to its adjoint, the gates are
--- already stored in reverse order due to the way we implement 'appendMorph'.
+-- | Reverse a list of gates. 
+-- It also changes the name of a gate to its adjoint. 
 revGates :: [Gate] -> [Gate]
 revGates xs = map invertGateName $ reverse xs
   where
     invertGateName (Gate id params ins outs ctrls flag (Just g)) =
       Gate g params outs ins ctrls flag (Just id)
     invertGateName (Gate id params ins outs ctrls flag Nothing) =
-      error $ "non-invertable gate:" ++ getName id
+      error $ "non-invertable gate: " ++ getName id
 
 -- | Obtain a fresh value of type /uv/ using fresh labels draw from /vs/.
 toVal :: Value -> [Label] -> Value
 toVal uv vs = evalState (templateToVal uv) vs
 
 -- | Obtain a fresh template inhabitant of a simple type, with wirenames
--- drawn from the state. The input is a simple data type.
+-- drawn from the state. The input is a simple data type, the output is a
+-- simple data value.
 templateToVal :: Value -> State [Label] Value
 templateToVal (VLBase _) = do
   x <- get

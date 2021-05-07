@@ -30,6 +30,21 @@ fiveQubits input =
     in (H a1, H a2, H a3, H a4, ZGate a5)
 
 
+-- Another five qubit error correcting code. 
+fiveQubits' : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit)
+fiveQubits' input = 
+  let (a1, a2, a3, a4, a5) = input
+      (a1, a4) = CZ a1 a4
+      (a3, a4) = CZ a3 a4
+      (a5, a4) = CY a5 a4
+      (a1, a3) = CZ a1 a3
+      (a2, a3) = CZ a2 a3
+      (a5, a3) = CNot a5 a3
+      (a5, a2) = CNot a5 a2
+      (a5, a1) = CY a5 a1
+   in (H (ZGate a1), H a2, H a3, H (ZGate a4), YGate (H (ZGate a5)))
+
+
 cnotFromCZ : !(Qubit * Qubit -> Qubit * Qubit)
 cnotFromCZ x =
   let (x, y) = x
@@ -65,7 +80,7 @@ testCY2 =
 -- I am not sure how to prepare the mix state.
 -- So it is a dummy state for now. 
 prepMixedState : ! (Unit -> Qubit)
-prepMixedState u = Diag (cos 0.47765831) (sin 0.47765831) (TGate (H (Init0 ())))
+prepMixedState u = Diag (cos 0.47766) (sin 0.47766) (TGate (H (Init0 ())))
 
 -- One round distillation
 round1Distill : ! (Unit -> Qubit)
@@ -84,7 +99,7 @@ round1Distill u =
 distill : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Maybe Qubit)
 distill input =
   let 
-      (a1, a2, a3, a4, a5) = fiveQubits input
+      (a1, a2, a3, a4, a5) = fiveQubits' input
       a1' = measure a1
       a2' = measure a2
       a3' = measure a3

@@ -39,6 +39,7 @@ gate SGate : Qubit -> Qubit : SGate_Inv
 
 
 gate ZGate : Qubit -> Qubit : ZGate
+gate YGate : Qubit -> Qubit : YGate
 
 
 
