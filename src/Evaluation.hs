@@ -99,7 +99,7 @@ eval !lenv (EForce m) = do
   m' <- eval lenv m
   case m' of
     VLift (Abst lenv e) -> eval lenv e
-    VDynlift -> return $ VForce VDynlift
+    -- VDynlift -> return $ VForce VDynlift
     w@(VLiftCirc _) -> return w
     v@(VApp VUnBox _) -> return $ VForce v
     a -> error $ "from eval(EForce):" ++ (show $ disp a)
@@ -268,7 +268,7 @@ evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "ltReal"
     else return $ VConst (Id "False")
   else error "length mismatch from ltReal, when evaluating evalApp."
 
-evalApp (VForce VDynlift) (VLabel v) = do
+evalApp (VDynlift) (VLabel v) = do
   b <- dynamicLift v
   if b
     then return $ VConst (Id "True")

@@ -34,26 +34,28 @@ import Prelude hiding((<>))
 
 -- | Check an expression against a type under a modality assumption,
 -- retun the elaborated term and type.
--- When the flag is true, it means
+-- When the boolean flag is true, it means
 -- it is during kinding or sorting.
 -- Otherwise it is during type checking.
 -- For simplicity, we do not allow the use 
--- of lambda, box, unbox, reverse, runCirc, existsBox in types.
+-- of lambda, box, unbox, reverse, dynlift, runCirc, existsBox in types.
 
 
 typeCheck :: Bool -> Exp -> Exp -> Modality -> TCMonad (Exp, Exp)
 
--- | Infer a type for a term, return a type, elaborated term and
--- current modality.
+-- | Infer a type, a modality from a term. 
 typeInfer :: Bool -> Exp -> TCMonad (Exp, Exp, Modality)
 
 typeInfer flag (Pos p e) = do
   (ty, ann, m) <- typeInfer flag e `catchError`
                   \e -> throwError $ addErrPos p e
   return (ty, (Pos p ann), m)
+
 typeInfer flag Set = return (Sort, Set, identityMod)
+
 typeInfer flag a@(Base kid) =
   lookupId kid >>= \x -> return (classifier x, a, identityMod)
+
 typeInfer flag a@(LBase kid) =
   lookupId kid >>= \x -> return (classifier x, a, identityMod)
 
@@ -106,7 +108,6 @@ typeInfer flag a@(RealOp x) | x == "plusReal" || x == "minusReal" || x == "divRe
       ty = Forall (abst [n] arr) (Base (Id "Nat")) 
   in return (ty, a, identityMod)
 
-
 typeInfer flag a@(RealOp x) | x == "eqReal" || x == "ltReal" =
   freshNames ["n"] $ \ [n] -> 
   let arr = Arrow (AppP RealNum (Var n))
@@ -114,7 +115,6 @@ typeInfer flag a@(RealOp x) | x == "eqReal" || x == "ltReal" =
             identityMod
       ty = Forall (abst [n] arr) (Base (Id "Nat")) 
   in return (ty, a, identityMod)
-
  
 typeInfer flag a@(Const kid) = do
   funPac <- lookupId kid
@@ -183,10 +183,8 @@ typeInfer True Dynlift =
 
 typeInfer False Dynlift =
   let ty =
-        Bang
-          (Arrow (LBase (Id "Bit")) (Base (Id "Bool"))
-            (M (BConst False) (BConst False) (BConst False)))
-          identityMod
+          Arrow (LBase (Id "Bit")) (Base (Id "Bool"))
+            (M (BConst False) (BConst False) (BConst False))
    in return (ty, Dynlift, identityMod)
 
 typeInfer False a@(WithComputed) =

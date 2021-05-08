@@ -295,11 +295,8 @@ proofInfer flag Reverse =
      in return ty
 
 proofInfer flag Dynlift =
-  let ty =
-        Bang
-          (Arrow (LBase (Id "Bit")) (Base (Id "Bool")) identityMod)
-          (M (BConst False) (BConst False) (BConst False))
-   in return ty
+  let ty = Arrow (LBase (Id "Bit")) (Base (Id "Bool")) identityMod
+  in return ty
 
 proofInfer flag a@(WithComputed) =
   freshNames ["a", "b", "c", "d", "e", "x", "y"] $ \xs@[a, b, c, d, e, x, y] ->

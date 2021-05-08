@@ -153,7 +153,7 @@ teleportation =
   let x = [Init1 (), Init0 (), Init0 (), Init0 (), Init0 (), Init1 ()]
       r = unbox (teleBox six) x
       r' = map Meas r
-      r'' = map dynlift r'
+      r'' = map (\ x -> dynlift x) r'
   in r''
 
 -- test2 = let x = teleportation in box Qubit (\ x -> let y = dynlift (Meas (H (Init0 ()))) in x)

@@ -5,7 +5,7 @@ import "lib/Prelude.dpq"
 cz (x y : Qubit) = let (x, y) = CNot (H x) y in (H x, y)
 
 -- Controlled Y, ignoring the global phase i.
-cy (x y : Qubit) =
+cxz (x y : Qubit) =
   let (x, y) = cz x y
       (x, y) = CNot x y
   in (x, y)
@@ -36,12 +36,12 @@ fiveQubits' input =
   let (a1, a2, a3, a4, a5) = input
       (a1, a4) = CZ a1 a4
       (a3, a4) = CZ a3 a4
-      (a5, a4) = CY a5 a4
+      (a5, a4) = cxz a5 a4
       (a1, a3) = CZ a1 a3
       (a2, a3) = CZ a2 a3
       (a5, a3) = CNot a5 a3
       (a5, a2) = CNot a5 a2
-      (a5, a1) = CY a5 a1
+      (a5, a1) = cxz a5 a1
    in (H (ZGate a1), H a2, H a3, H (ZGate a4), YGate (H (ZGate a5)))
 
 
@@ -80,7 +80,8 @@ testCY2 =
 -- I am not sure how to prepare the mix state.
 -- So it is a dummy state for now. 
 prepMixedState : ! (Unit -> Qubit)
-prepMixedState u = Diag (cos 0.47766) (sin 0.47766) (TGate (H (Init0 ())))
+prepMixedState u =
+  Diag ((sqrt 2.00000) @ (cos 0.47766)) ((sqrt 2.00000) @ (sin 0.47766)) (TGate (H (Init0 ())))
 
 -- One round distillation
 round1Distill : ! (Unit -> Qubit)
@@ -123,6 +124,24 @@ distillation n =
      case distill (q1, q2, q3, q4, q5) of
        Nothing -> distillation n
        Just q -> q
+
+
+distillation' : ! (Nat -> Maybe Qubit)
+distillation' n =
+  case n of
+    Z -> Just (prepMixedState ())
+    S n' -> 
+     let q1 = distillation n' 
+         q2 = distillation n'
+         q3 = distillation n'
+         q4 = distillation n'
+         q5 = distillation n'
+     in
+     distill (q1, q2, q3, q4, q5) 
+     -- case of
+     --   Nothing -> Nothing
+     --   -- distillation n
+     --   Just q -> q
 
 
              
