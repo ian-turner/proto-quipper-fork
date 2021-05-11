@@ -266,18 +266,18 @@ typeInfer False a@(LamAnn ty (Abst xs m)) = do
       else typeCheck True ty Set identityMod
   mapM_ (\x -> addVar x (erasePos tyAnn1)) xs
   p <- isParam tyAnn1
-  (ty', ann, mode') <- typeInfer False m
+  (ty', ann, mode) <- typeInfer False m
+  mode' <- updateModality mode
   foldM (helper p tyAnn1) (ty', ann, mode') xs
   where
     helper p tyAnn1 (ty', ann, mode') x = do
-      when (not p) $ checkUsage x m >> return ()
+      when (not p) $ checkUsage x m 
       removeVar x
       let resTy =
             if x `S.member` getVars All ty'
               then Pi (abst [x] ty') tyAnn1 mode'
               else Arrow tyAnn1 ty' mode'
       return (resTy, LamAnn tyAnn1 (abst [x] ann), identityMod)
-
 
 typeInfer flag (WithType a t) = 
   do (_, tAnn1) <- typeCheck True t Set identityMod
@@ -1275,8 +1275,7 @@ handleTypeApp ann t' t1 t2 =
     Arrow k1 k2 _ -> do
       (_, ann2) <- typeCheck True t2 k1 identityMod
       return (k2, AppP ann ann2, identityMod)
-    Pi b ty mod ->
-      open b $ \vs b' -> do
+    Pi (Abst vs b') ty mod -> do
         (_, ann2) <- typeCheck True t2 ty identityMod
         let t2' = erasePos ann2
         b'' <- betaNormalize (apply [(head vs, t2')] b')
@@ -1313,29 +1312,25 @@ handleTermApp flag ann pos t' t1 t2 mode1 = do
       mode3 <- newMode ["a", "b", "c"]
       (_, ann2) <- typeCheck flag t2 ty1 mode3
       mode3' <- updateModality mode3
-      let res =
+      mode2' <- updateModality mode2
+      let newMode = modalAnd (modalAnd mode1' mode2') mode3'
+          res =
             if flag
               then AppP a1' ann2
               else App a1' ann2
-      mode2' <- updateModality mode2                   
-      let newMode = modalAnd (modalAnd mode1' mode2') mode3'
       return (ty2, res, newMode)
     ArrowP ty1 ty2 -> do
       (_, ann2) <- typeCheck True t2 ty1 identityMod
       let res = AppP a1' ann2
       return (ty2, res, identityMod)
-    b@(Pi bind ty mode2) ->
-      open bind $ \xs m -> do
-                -- typecheck or kind check t2
-                -- since t2 may travels to m, we
-                -- normalize [[t2]/x]m
+    b@(Pi (Abst xs m) ty mode2) -> do
         let flag' = isKind ty
         mode3 <- newMode2 ["a", "b"]
         (_, kann) <- typeCheck flag' t2 ty mode3
         let t2' = erasePos kann
         t2'' <-
           if not flag'
-            then shape t2'  `catchError`
+            then shape t2' `catchError`
                  \ e -> throwError $ AddDoc
                         (text "for the expression" $$ (nest 2 $ disp t2')) e
             else return t2'

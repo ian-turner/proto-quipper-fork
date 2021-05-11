@@ -841,6 +841,8 @@ freshMode s =
   freshNames (take 3 s) $
   \ [x, y, z] -> M (BVar x) (BVar y) (BVar z)
 
+-- | Generate a fresh modality with boxing
+-- modality set to 1. 
 freshMode2 :: [String] -> Modality
 freshMode2 s =
   freshNames (take 2 s) $

@@ -725,11 +725,14 @@ newNames ns = do
   put ts {clock = j}
   return ns'
 
+-- | Generate a fresh modality
 newMode :: [String] -> TCMonad Modality
 newMode ns =
   do ns' <- newNames ns
      return $ freshMode ns'
 
+-- | Generate a fresh modality, but
+-- with boxing modality set to 1
 newMode2 :: [String] -> TCMonad Modality
 newMode2 ns =
   do ns' <- newNames ns
