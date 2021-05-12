@@ -157,6 +157,7 @@ t_dagger (input : Qubit) = SGate (ZGate (t_gate_from_a input))
 
 
 
+-- Repeat the distillation until the measurement result is desirable.
 oneBlockCode (u : Unit) =
   let a1 = plusState ()
       a2 = plusState ()
@@ -202,4 +203,79 @@ oneBlockCode (u : Unit) =
               _ = measure output2 : Bool
           in oneBlockCode ()
      else (output1, output2)      
-      
+
+t_gate (input a : Qubit) =
+  let (a, input) = CNot a input
+  in if measure a then SGate input else input
+
+t_gate_inv (input a : Qubit) = SGate (ZGate (t_gate input a))
+
+
+oneBlock (input : Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit) =
+  let (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14)= input 
+      a1 = plusState ()
+      a2 = plusState ()
+      a3 = plusState ()
+      a4 = zeroState ()
+      a5 = zeroState ()       
+      a6 = zeroState ()       
+      a7 = zeroState ()
+      output1 = plusState ()
+      output2 = plusState ()
+      (a4, a2) = CNot a4 a2
+      (a5, a3) = CNot a5 a3
+      (a6, a1) = CNot a6 a1
+      (a7, a1) = CNot a7 a1
+      (a6, output1) = CNot a6 output1
+      a6 = t_gate a6 s13
+      (a5, a6) = CNot a5 a6
+      (a7, output2) = CNot a7 output2
+      (a6, a4) = CNot a6 a4
+      a7 = t_gate a7 s14
+      (a4, a5) = CNot a4 a5
+      (a6, a7) = CNot a6 a7
+      (a7, a5) = CNot a7 a5
+      (a5, a6) = CNot a5 a6
+      (a2, a3, a4, a5, a6, a7) = (t_gate a2 s1, t_gate a3 s2, t_gate a4 s3, t_gate a5 s4, t_gate a6 s5, t_gate a7 s6)
+      (a2, a1) = CNot a2 a1
+      (a3, a1) = CNot a3 a1
+      (a4, a1) = CNot a4 a1
+      (a5, a1) = CNot a5 a1
+      (a6, a1) = CNot a6 a1
+      (a7, a1) = CNot a7 a1
+      (a2, a3, a4, a5, a6, a7) = (t_gate_inv a2 s7, t_gate_inv a3 s8, t_gate_inv a4 s9, t_gate_inv a5 s10, t_gate_inv a6 s11, t_gate_inv a7 s12)
+      (a1, a2, a3, a4, a5, a6, a7) = (H a1, H a2, H a3, H a4, H a5, H a6, H a7)
+      a1 = measure a1 : Bool      
+      a2 = measure a2 : Bool
+      a3 = measure a3 : Bool
+      a4 = measure a4 : Bool
+      a5 = measure a5 : Bool
+      a6 = measure a6 : Bool
+      a7 = measure a7 : Bool
+  in if a1 || a2 || a3 || a4 || a5 || a6 || a7
+     then let _ = measure output1 : Bool
+              _ = measure output2 : Bool
+          in Nothing
+     else Just (output1, output2)      
+
+
+prepMixedState14 (u : Unit) =
+  (a_state (), a_state ())
+  
+distillation2 : ! (Nat -> Qubit * Qubit)
+distillation2 n =
+  case n of
+    Z -> prepMixedState14 ()
+    S n' -> 
+     let (q1, q2) = distillation2 n' 
+         (q3, q4) = distillation2 n'
+         (q5, q6) = distillation2 n'
+         (q7, q8) = distillation2 n'
+         (q9, q10) = distillation2 n'
+         (q11, q12) = distillation2 n'
+         (q13, q14) = distillation2 n'
+     in
+     case oneBlock (q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14) of
+       Nothing -> distillation2 n
+       Just q -> q
+
