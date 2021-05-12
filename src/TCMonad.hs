@@ -714,8 +714,8 @@ removeLocalInst x = do
       env' = env {localInstance = gamma'}
   put ts {instanceContext = env'}
 
--- | Generate a list of names that is fresh relatively to the
--- clock value.
+-- | Generate a list of names that is relatively fresh using the
+-- clock value. 
 newNames :: [String] -> TCMonad [String]
 newNames ns = do
   ts <- get

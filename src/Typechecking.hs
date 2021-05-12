@@ -325,7 +325,6 @@ typeCheck flag (Pos p e) ty mod = do
     typeCheck flag e ty mod `catchError` \e -> throwError $ addErrPos p e
   return (ty', Pos p ann)
 
--- using fresh modality variables.
 typeCheck flag (Mod (Abst _ e)) ty mod = typeCheck flag e ty mod
 
 -- Sort check
@@ -345,8 +344,6 @@ typeCheck True (Pi (Abst xs m) ty mod) Sort cm = do
       then typeCheck True ty Sort cm
       else typeCheck True ty Set cm
   mapM_ (\x -> addVar x (erasePos ty')) xs
-     -- let sub = zip xs (map EigenVar xs)
-     --     m' = apply sub m
   (_, ann2) <- typeCheck True m Sort cm
   let res = Pi (abst xs ann2) ty' mod
   mapM_ removeVar xs
@@ -450,28 +447,22 @@ typeCheck True (Exists (Abst xs m) ty) a@(Set) mod
     removeVar xs
     return (a, res)
 
-typeCheck True a@(Lam bind) t mod
+typeCheck True a@(Lam (Abst xs m)) t mod
   | isKind t =
     case t of
-      Arrow t1 t2 _ ->
-        open bind $ \xs m ->
-          case xs of
-            x:[] -> do
-              addVar x t1
-              (_, ann) <- typeCheck True m t2 mod
-              ann' <- updateWithSubst ann
-              ann'' <- resolveGoals ann'
-              let res = LamP (abst [x] ann'')
-              removeVar x
-              return (t, res)
-            y:ys -> do
-              addVar y t1
-              (_, ann) <- typeCheck True (Lam (abst ys m)) t2 mod
-              ann' <- updateWithSubst ann
-              ann'' <- resolveGoals ann'
-              let res = LamP (abst [y] ann'')
-              removeVar y
-              return (t, res)
+      Arrow t1 t2 _ -> do
+        let x = head xs
+            ys = tail xs
+        addVar x t1
+        (_, ann) <-
+          if null ys
+            then typeCheck True m t2 mod
+            else typeCheck True (Lam (abst ys m)) t2 mod
+        ann' <- updateWithSubst ann
+        ann'' <- resolveGoals ann'
+        let res = LamP (abst [x] ann'')
+        removeVar x
+        return (t, res)
       b -> throwError $ KArrowErr a t
 
 -- Type check
@@ -1351,8 +1342,8 @@ handleTermApp flag ann pos t' t1 t2 mode1 = do
                      modalAnd (modalAnd mode2' mode1') mode3')
     b -> throwError $ ArrowErr t1 b
 
--- | Add annotations to the term /a/ according to
--- its type if it is applied to some other terms.
+-- | Insert missing annotations to the term /a/ according to
+-- its type when /a/ is applied to some other terms.
 addAnn ::
      Bool
   -> Modality
@@ -1370,9 +1361,9 @@ addAnn flag mode e a (Bang t m) env = do
           else Force
   t' <-
     if flag
-      then shape t  `catchError`
-                       \ e -> throwError $ AddDoc
-                              (text "for the expression" $$ (nest 2 $ disp t)) e
+      then shape t `catchError`
+           \ e -> throwError $
+                   AddDoc (text "for the expression" $$ (nest 2 $ disp t)) e
       else return t
   if flag
     then
@@ -1382,56 +1373,33 @@ addAnn flag mode e a (Bang t m) env = do
        let newMode = modalAnd mode m'
        addAnn flag newMode e (force a) t' env
 
-addAnn flag mode e a (Forall bd ty) env
-  | isKind ty =
-    open bd $ \xs t ->
+addAnn flag mode e a (Forall (Abst xs t) ty) env = 
       let mvars = map MetaVar xs
-          a' = foldl AppType a mvars
+          app = if isKind ty then AppType else AppTm
+          a' = foldl app a mvars
           new = map (\x -> (x, ty)) xs
           t' = apply (zip xs mvars) t
        in addAnn flag mode e a' t' (new ++ env)
 
-addAnn flag mode e a (Forall bd ty) env
-  | otherwise =
-    open bd $ \xs t ->
-      let mvars = map MetaVar xs
-          a' = foldl AppTm a mvars
-          new = map (\x -> (x, ty)) xs
-          t' = apply (zip xs mvars) t
-       in addAnn flag mode e a' t' (new ++ env)
-       
-addAnn flag mode e a (PiImp bd ty mode2) env
-  | isKind ty =
-    open bd $ \xs t ->
-      do let mvars = map MetaVar xs
-             a' = foldl AppDepTy a mvars
-             new = map (\x -> (x, ty)) xs
-             t' = apply (zip xs mvars) t
-         mode2' <- updateModality mode2
-         addAnn flag (modalAnd mode mode2') e a' t' (new ++ env)
-       
-addAnn flag mode e a (PiImp bd ty mode2) env
-  | otherwise =
-    open bd $ \xs t ->
-      do let app =
-               if flag
-               then AppDepInt
-               else AppDep
-             mvars = map MetaVar xs
-             a' = foldl app a mvars
-             new = map (\x -> (x, ty)) xs
-             t' = apply (zip xs mvars) t
-         mode2' <- updateModality mode2
-         addAnn flag (modalAnd mode mode2') e a' t' (new ++ env)
+addAnn flag mode e a (PiImp (Abst xs t) ty mode2) env = do
+  let app =
+        if isKind ty
+          then AppDepTy
+          else if flag
+                 then AppDepInt
+                 else AppDep
+      mvars = map MetaVar xs
+      a' = foldl app a mvars
+      new = map (\x -> (x, ty)) xs
+      t' = apply (zip xs mvars) t
+  mode2' <- updateModality mode2
+  addAnn flag (modalAnd mode mode2') e a' t' (new ++ env)
 
 addAnn flag mode e a (Imply bds ty mod) env = do
-  ts <- get
-  let i = clock ts
-      ns = zipWith (\i b -> "#goalinst" ++ (show i)) [i ..] bds
-  freshNames ns $ \ns -> do
+  let names = map (\ x -> "#goalinst") bds
+  names' <- newNames names
+  freshNames names' $ \ns -> do
     let instEnv = map (\x -> (x, e)) (zip ns bds)
-        i' = i + length bds
-    put ts {clock = i'}
     mapM_ (\((x, t), e) -> addGoalInst x t e) instEnv
     let a' = foldl AppDict a (map MetaVar ns)
     mod' <- updateModality mod
