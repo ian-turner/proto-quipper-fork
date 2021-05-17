@@ -489,18 +489,21 @@ typeCheck flag a (Forall (Abst xs m) ty) mod = do
           else (Forall (abst xs $ t') ty, LamTm (abst xs $ ann''))
   return res
   where
+    -- Make sure the variable \x\ does not leak into runtime.  
     checkExplicit ann'' x =
       when (isExplicit x ann'') $ throwError $ ImplicitVarErr x ann''
 
+-- Only used for checking method declaration.
 typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
   mod1' <- updateModality mod1
   let lxs = length xs
       lbd = length bds
       msubs = modeResolution GEq identityMod mod1'
-  when (msubs == Nothing) $ throwError $ ModalityErr identityMod mod1' a
-  let Just s' = msubs
-  updateModeSubst s'
-  if lxs <= lbd
+  case msubs of
+    Nothing -> throwError $ ModalityErr identityMod mod1' a
+    Just s' -> do
+      updateModeSubst s'
+      if lxs <= lbd
         then do
           let (pre, post) = splitAt lxs bds
               ty' =
@@ -521,25 +524,23 @@ typeCheck False a@(LamDict (Abst xs e)) (Imply bds ty mod2) mod1 = do
 typeCheck flag a (Imply bds ty mod2) mod1 = do
   mod1' <- updateModality mod1
   let msubs = modeResolution GEq identityMod mod1'
-  when (msubs == Nothing) $ throwError $ ModalityErr identityMod mod1' a
-  let Just s' = msubs
-  updateModeSubst s'
-  let ns1 = take (length bds) (repeat "#inst")
-  ns <- newNames ns1
-  -- We update the parameter and simple variable information here.
-  updateParamInfo bds
-  updateSimpleInfo bds
-  freshNames ns $ \ns -> do
-    bds' <- mapM normalize bds
-    let instEnv = zip ns bds'
-    mapM_ (\(x, t) -> insertLocalInst x t) instEnv
-    (t, ann) <- typeCheck flag a ty mod2
-    -- Make sure we use the hypothesis before
-    -- going out of the scope of Imply.
-    ann' <- resolveGoals ann
-    mapM_ (\(x, t) -> removeLocalInst x) instEnv
-    let res = LamDict (abst ns ann')
-    return (Imply bds t mod2, res)
+  case msubs of
+    Nothing -> throwError $ ModalityErr identityMod mod1' a
+    Just s' -> do
+      updateModeSubst s'
+      updateParamInfo bds
+      updateSimpleInfo bds
+      let ns1 = take (length bds) (repeat "#inst")
+      ns <- newNames ns1
+      freshNames ns $ \ns -> do
+        bds' <- mapM normalize bds
+        let instEnv = zip ns bds'
+        mapM_ (\(x, t) -> insertLocalInst x t) instEnv
+        (t, ann) <- typeCheck flag a ty mod2
+        ann' <- resolveGoals ann
+        mapM_ (\(x, t) -> removeLocalInst x) instEnv
+        let res = LamDict (abst ns ann')
+        return (Imply bds t mod2, res)
 
 typeCheck flag a@(Const _) (Bang ty m) mod =
   handleBangConstVar flag a (Bang ty m) mod
@@ -1410,14 +1411,15 @@ addAnn flag mode e a t env = return (a, t, env, mode)
 -- expecting a to be either a Const or Var
 handleBangConstVar flag a (Bang ty2 m2) mod = do
   mod' <- updateModality mod
-  let msubs = modeResolution GEq identityMod mod' 
-  when (msubs == Nothing) $ throwError $ ModalityErr identityMod mod' a
-  let Just s' = msubs
-  updateModeSubst s'
-  (ty', _, _) <- typeInfer flag a
-  case ty' of
-    Bang ty1 m1 -> equality flag a (Bang ty2 m2) mod
-    _ -> handleBangValue flag a (Bang ty2 m2) mod
+  let msubs = modeResolution GEq identityMod mod'
+  case msubs of
+    Nothing -> throwError $ ModalityErr identityMod mod' a
+    Just s' -> do
+      updateModeSubst s'
+      (ty', _, _) <- typeInfer flag a
+      case ty' of
+         Bang ty1 m1 -> equality flag a (Bang ty2 m2) mod
+         _ -> handleBangValue flag a (Bang ty2 m2) mod
 
 handleBangValue flag a ty1@(Bang ty m) mod = do
   r <- isValue a
