@@ -244,14 +244,14 @@ oneBlockCode' (u : Unit) =
       a5 = measure a5 : Bool
       a6 = measure a6 : Bool
       a7 = measure a7 : Bool
-      _ = measure output1 : Bool
-      _ = measure output2 : Bool
-  in ()
-  -- in if a1 || a2 || a3 || a4 || a5 || a6 || a7
-  --    then let _ = measure output1 : Bool
-  --             _ = measure output2 : Bool
-  --         in oneBlockCode ()
-  --    else (output1, output2)      
+      -- _ = measure output1 : Bool
+      -- _ = measure output2 : Bool
+      --  in ()
+  in if a1 || a2 || a3 || a4 || a5 || a6 || a7
+     then let _ = measure output1 : Bool
+              _ = measure output2 : Bool
+          in Nothing
+     else Just (output1, output2)      
 
 t_gate (input a : Qubit) =
   let (a, input) = CNot a input
@@ -276,23 +276,70 @@ oneBlock (input : Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit 
       (a6, a1) = CNot a6 a1
       (a7, a1) = CNot a7 a1
       (a6, output1) = CNot a6 output1
-      a6 = t_gate a6 s13
+      a6 = t_gate a6 s1
       (a5, a6) = CNot a5 a6
       (a7, output2) = CNot a7 output2
       (a6, a4) = CNot a6 a4
-      a7 = t_gate a7 s14
+      a7 = t_gate a7 s2
       (a4, a5) = CNot a4 a5
       (a6, a7) = CNot a6 a7
       (a7, a5) = CNot a7 a5
       (a5, a6) = CNot a5 a6
-      (a2, a3, a4, a5, a6, a7) = (t_gate a2 s1, t_gate a3 s2, t_gate a4 s3, t_gate a5 s4, t_gate a6 s5, t_gate a7 s6)
+      (a2, a3, a4, a5, a6, a7) = (t_gate a2 s3, t_gate a3 s4, t_gate a4 s5, t_gate a5 s6, t_gate a6 s7, t_gate a7 s8)
       (a2, a1) = CNot a2 a1
       (a3, a1) = CNot a3 a1
       (a4, a1) = CNot a4 a1
       (a5, a1) = CNot a5 a1
       (a6, a1) = CNot a6 a1
       (a7, a1) = CNot a7 a1
-      (a2, a3, a4, a5, a6, a7) = (t_gate_inv a2 s7, t_gate_inv a3 s8, t_gate_inv a4 s9, t_gate_inv a5 s10, t_gate_inv a6 s11, t_gate_inv a7 s12)
+      (a2, a3, a4, a5, a6, a7) = (t_gate_inv a2 s9, t_gate_inv a3 s10, t_gate_inv a4 s11, t_gate_inv a5 s12, t_gate_inv a6 s13, t_gate_inv a7 s14)
+      (a1, a2, a3, a4, a5, a6, a7) = (H a1, H a2, H a3, H a4, H a5, H a6, H a7)
+      a1 = measure a1 : Bool      
+      a2 = measure a2 : Bool
+      a3 = measure a3 : Bool
+      a4 = measure a4 : Bool
+      a5 = measure a5 : Bool
+      a6 = measure a6 : Bool
+      a7 = measure a7 : Bool
+  in if a1 || a2 || a3 || a4 || a5 || a6 || a7
+     then let _ = measure output1 : Bool
+              _ = measure output2 : Bool
+          in Nothing
+     else Just (output1, output2)      
+
+oneBlock' (u : Unit) =
+  let 
+      a1 = plusState ()
+      a2 = plusState ()
+      a3 = plusState ()
+      a4 = zeroState ()
+      a5 = zeroState ()       
+      a6 = zeroState ()       
+      a7 = zeroState ()
+      output1 = plusState ()
+      output2 = plusState ()
+      (a4, a2) = CNot a4 a2
+      (a5, a3) = CNot a5 a3
+      (a6, a1) = CNot a6 a1
+      (a7, a1) = CNot a7 a1
+      (a6, output1) = CNot a6 output1
+      a6 = t_gate a6 (a_state ())
+      (a5, a6) = CNot a5 a6
+      (a7, output2) = CNot a7 output2
+      (a6, a4) = CNot a6 a4
+      a7 = t_gate a7 (a_state ())
+      (a4, a5) = CNot a4 a5
+      (a6, a7) = CNot a6 a7
+      (a7, a5) = CNot a7 a5
+      (a5, a6) = CNot a5 a6
+      (a2, a3, a4, a5, a6, a7) = (t_gate a2 (a_state ()), t_gate a3 (a_state ()), t_gate a4 (a_state ()), t_gate a5 (a_state ()), t_gate a6 (a_state ()), t_gate a7 (a_state ()))
+      (a2, a1) = CNot a2 a1
+      (a3, a1) = CNot a3 a1
+      (a4, a1) = CNot a4 a1
+      (a5, a1) = CNot a5 a1
+      (a6, a1) = CNot a6 a1
+      (a7, a1) = CNot a7 a1
+      (a2, a3, a4, a5, a6, a7) = (t_gate_inv a2 (a_state ()), t_gate_inv a3 (a_state ()), t_gate_inv a4 (a_state ()), t_gate_inv a5 (a_state ()), t_gate_inv a6 (a_state ()), t_gate_inv a7 (a_state ()))
       (a1, a2, a3, a4, a5, a6, a7) = (H a1, H a2, H a3, H a4, H a5, H a6, H a7)
       a1 = measure a1 : Bool      
       a2 = measure a2 : Bool
@@ -310,7 +357,17 @@ oneBlock (input : Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit 
 
 prepMixedState2 (u : Unit) =
   (a_state (), a_state ())
-  
+
+singleRoundByOneBlock (u : Unit) =
+     let (q1, q2) = prepMixedState2 () 
+         (q3, q4) = prepMixedState2 ()
+         (q5, q6) = prepMixedState2 ()
+         (q7, q8) = prepMixedState2 ()
+         (q9, q10) = prepMixedState2 ()
+         (q11, q12) = prepMixedState2 ()
+         (q13, q14) = prepMixedState2 ()
+     in oneBlock (q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14)
+
 distillation2 : ! (Nat -> Qubit * Qubit)
 distillation2 n =
   case n of
