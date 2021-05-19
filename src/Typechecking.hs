@@ -1424,43 +1424,43 @@ handleBangConstVar flag a (Bang ty2 m2) mod = do
 handleBangValue flag a ty1@(Bang ty m) mod = do
   r <- isValue a
   mod' <- updateModality mod
-  if r
-    then do
-      checkParamCxt a
-      (t, ann) <- typeCheck flag a ty m
-      let s = modeResolution GEq identityMod mod' 
-      when (s == Nothing) $ throwError $ ModalityErr identityMod mod' a
-      let Just s'@(s1, s2, s3) = s
-      updateModeSubst s'
-      m' <- updateModality m
-      t' <- updateWithModeSubst t
-      return (Bang t' (simplify m'), Lift ann)
-    else do
-      checkParamCxt a
+  if r then do
+     let s = modeResolution GEq identityMod mod' 
+     case s of
+       Nothing -> throwError $ ModalityErr identityMod mod' a
+       Just s'@(s1, s2, s3) -> do
+         updateModeSubst s'
+         m' <- updateModality m
+         checkParamCxt a
+         (t, ann) <- typeCheck flag a ty m'
+         t' <- updateWithModeSubst t
+         return (Bang t' (simplify m'), Lift ann)
+  else do
       (tym, ann, cMode) <- typeInfer flag a
       cMode' <- updateModality cMode
-      let s = modeResolution GEq cMode' mod' 
-      when (s == Nothing) $ throwError $ ModalityErr cMode' mod' a
-      let Just s'@(s1, s2, s3) = s
-      updateModeSubst s'     
-      tym' <- updateWithSubst tym
-      case erasePos tym' of
-        tym1@(Bang _ _) -> do
-          tym1' <- updateWithModeSubst tym1
-          ty1' <- updateWithModeSubst ty1
-          (unifRes, (s, bs)) <- normalizeUnif GEq tym1' ty1'
-          case unifRes of
-            UnifError -> throwError $ NotEq a ty1' tym1'
-            ModeError p1 p2 ->
-              throwError $ ModalityGEqErr a ty1 tym1 p1 p2
-            Success -> do
-              ss <- getSubst
-              let sub' = s `mergeSub` ss
-              updateSubst sub'
-              updateModeSubst bs
-              ty1' <- updateWithModeSubst ty1 >>= updateWithSubst
-              return (ty1', ann)
-        _ -> throwError $ BangValue a (Bang ty m)
+      let s = modeResolution GEq cMode' mod'
+      case s of
+        Nothing -> throwError $ ModalityErr cMode' mod' a
+        Just s'@(s1, s2, s3) -> do
+          updateModeSubst s'     
+          tym' <- updateWithSubst tym
+          case erasePos tym' of
+               tym1@(Bang _ _) -> do
+                    tym1' <- updateWithModeSubst tym1
+                    ty1' <- updateWithModeSubst ty1
+                    (unifRes, (s, bs)) <- normalizeUnif GEq tym1' ty1'
+                    case unifRes of
+                      UnifError -> throwError $ NotEq a ty1' tym1'
+                      ModeError p1 p2 ->
+                        throwError $ ModalityGEqErr a ty1 tym1 p1 p2
+                      Success -> do
+                        ss <- getSubst
+                        let sub' = s `mergeSub` ss
+                        updateSubst sub'
+                        updateModeSubst bs
+                        ty1'' <- updateWithModeSubst ty1' >>= updateWithSubst
+                        return (ty1'', ann)
+               _ -> throwError $ BangValue a (Bang ty m)
 
 -- note that ty1 is prefix free.
 -- inferAddAnn flag a ty mod | trace ("inferAnn:"++ (show $ disp a) ++ ":" ++ (show $ disp ty)) $ False = undefined 
