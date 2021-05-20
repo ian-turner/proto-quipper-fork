@@ -282,7 +282,7 @@ typeInfer False a@(LamAnn ty (Abst xs m)) = do
 typeInfer flag (WithType a t) = 
   do (_, tAnn1) <- typeCheck True t Set identityMod
      let tAnn' = erasePos tAnn1
-     mod <- newMode ["#alpha", "#beta", "#gamma"]
+     mod <- newNames ["#alpha", "#beta", "#gamma"] >>= newMode
      (tAnn2, ann) <- typeCheck False a tAnn' mod
      mod' <- updateModality mod
      return (tAnn2, WithType ann tAnn2, mod')
@@ -290,7 +290,7 @@ typeInfer flag (WithType a t) =
 typeInfer flag a@(Case _ _) =
   freshNames ["#case"] $
   \[n] -> do
-    mod <- newMode ["#alpha", "#beta", "#gamma"]
+    mod <- newNames ["#alpha", "#beta", "#gamma"] >>= newMode 
     (t, ann) <- typeCheck flag a (MetaVar n) mod
     mod' <- updateModality mod
     return (t, WithType ann t, mod')
@@ -298,7 +298,7 @@ typeInfer flag a@(Case _ _) =
 typeInfer flag a@(Let _ _) =
   freshNames ["#let"] $
     \[n] -> do
-      mod <- newMode ["#alpha", "#beta", "#gamma"]
+      mod <- newNames ["#alpha", "#beta", "#gamma"] >>= newMode 
       (t, ann) <- typeCheck flag a (MetaVar n) mod
       mod' <- updateModality mod
       return (t, WithType ann t, mod')
@@ -306,7 +306,7 @@ typeInfer flag a@(Let _ _) =
 typeInfer flag a@(LetPair _ _) =
   freshNames ["#letPair"] $
   \[n] -> do
-    mod <- newMode ["#alpha", "#beta", "#gamma"]
+    mod <- newNames  ["#alpha", "#beta", "#gamma"] >>= newMode
     (t, ann) <- typeCheck flag a (MetaVar n) mod
     mod' <- updateModality mod
     return (t, WithType ann t, mod')
@@ -555,155 +555,97 @@ typeCheck flag a (Bang ty m) mod = do
 typeCheck False c@(Lam bind) t mod = do
   mod' <- updateModality mod
   let msubs = modeResolution GEq identityMod mod'
-  when (msubs == Nothing) $ throwError $ ModalityErr identityMod mod' c
-  let Just s' = msubs
-  updateModeSubst s'
-  at <- updateWithSubst t
-  handleFunctions at c t
+  case msubs of
+    Nothing -> throwError $ ModalityErr identityMod mod' c
+    Just s' -> do
+      updateModeSubst s'
+      at <- updateWithSubst t
+      handleFunctions at c t
   where
     handleFunctions at _ t
       | not (at == t) = typeCheck False c at mod
---    handleFunctions a@(Arrow t1 t2 mod1) c@(Lam bind) t | trace ("arrow:"++ show (disp mod1) ++ ":"++ show (disp a)) False = undefined
-    handleFunctions (Arrow t1 t2 mod1) c@(Lam bind) t =
-      open bind $ \xs m ->
-        case xs of
-          x:[] -> do
-            addVar x t1
-            (t2', ann) <- typeCheck False m t2 mod1 
-            checkUsage x m
-            removeVar x
-                -- x cannot appear in type annotation, so we do not
-                -- need to update the ann with current substitution.
-            let res = Lam (abst [x] ann)
-            return (Arrow t1 t2' mod1, res)
-          y:ys -> do
-            addVar y t1
-            (t2', ann) <- typeCheck False (Lam (abst ys m)) t2 mod1
-            checkUsage y m
-            let res = Lam (abst [y] ann)
-            return (Arrow t1 t2' mod1, res)
-
-    handleFunctions (Pi bd ty mod1) (Lam bind) t =
-      open bind $ \xs m ->
-        open bd $ \ys b ->
-          if length xs <= length ys
-            then do
-              let sub1 = zip ys (map Var xs)
-                  b' = apply sub1 b
-                  (vs, rs) = splitAt (length xs) ys
-              mapM_ (\x -> addVar x ty) xs
-              (t, ann) <-
-                typeCheck
-                  False
-                  m
-                  (if null rs
-                     then b'
-                     else Pi (abst rs b') ty mod1) mod1
-              mapM (\x -> checkUsage x m) xs
-              mapM_ removeVar xs
+    handleFunctions (Arrow t1 t2 mod1) c@(Lam (Abst xs m)) t = do
+      let x = head xs
+          ys = tail xs
+      addVar x t1
+      (t2', ann) <-
+        if null ys
+          then typeCheck False m t2 mod1
+          else typeCheck False (Lam (abst ys m)) t2 mod1
+      checkUsage x m
+      removeVar x
+      -- x cannot appear in type annotation, so we do not
+      -- need to update the ann with current substitution.
+      let res = Lam (abst [x] ann)
+      return (Arrow t1 t2' mod1, res)
+    handleFunctions (Pi (Abst ys b) ty mod1) (Lam (Abst xs m)) t =
+      handleDep (Pi, ys, b, ty) mod1 (xs, m) t
+    handleFunctions (PiImp (Abst ys b) ty mod1) (Lam (Abst xs m)) t =
+      handleDep (PiImp, ys, b, ty) mod1 (xs, m) t
+    handleFunctions ty l t = throwError $ withPosition l $ LamErr l ty
+    handleDep (pi, ys, b, ty) mod1 (xs, m) t =
+      if length xs <= length ys
+        then do
+          let sub1 = zip ys (map Var xs)
+              b' = apply sub1 b
+              (vs, rs) = splitAt (length xs) ys
+          mapM_ (\x -> addVar x ty) xs
+          (t, ann) <-
+            typeCheck
+              False
+              m
+              (if null rs
+                 then b'
+                 else pi (abst rs b') ty mod1)
+              mod1
+          mapM (\x -> checkUsage x m) xs
+          mapM_ removeVar xs
            -- Since xs may appear in the type annotation in ann,
            -- we have to update ann with current substitution.
            -- before going out of the scope of xs. We also have to
            -- resolve the current goals because current goals may
            -- depend on xs.
-              ann2 <- updateWithSubst ann
-              ann' <- resolveGoals ann2
-              t' <- updateWithSubst t
-              mod1' <- updateModality mod1
-              let lamDep =
-                    if isKind ty
-                      then LamDepTy
-                      else LamDep
-                  res = lamDep (abst xs ann')
-                  t'' = Pi (abst xs t') ty mod1'
-              return (t'', res)
-            else do
-              let lamDep =
-                    if isKind ty
-                      then LamDepTy
-                      else LamDep
-                  sub1 = zip ys (map Var xs)
-                  b' = apply sub1 b
-                  (vs, rs) = splitAt (length ys) xs
-              mapM_ (\x -> addVar x ty) vs
-              (t, ann) <-
-                typeCheck
-                  False
-                  (if null rs
-                     then m
-                     else Lam (abst rs m))
-                  b' mod1
-              mapM (\x -> checkUsage x m) vs
-              mapM_ removeVar vs
-              ann1 <- updateWithSubst ann
-              t' <- updateWithSubst t
-              ann' <- resolveGoals ann1
-              mod1' <- updateModality mod1
-              let res = lamDep (abst vs ann')
-              return (Pi (abst vs t') ty mod1', res)
+          ann2 <- updateWithSubst ann
+          ann' <- resolveGoals ann2
+          t' <- updateWithSubst t
+          mod1' <- updateModality mod1
+          let lamDep =
+                if isKind ty
+                  then LamDepTy
+                  else LamDep
+              res = lamDep (abst xs ann')
+              t'' = pi (abst xs t') ty mod1'
+          return (t'', res)
+        else do
+          let lamDep =
+                if isKind ty
+                  then LamDepTy
+                  else LamDep
+              sub1 = zip ys (map Var xs)
+              b' = apply sub1 b
+              (vs, rs) = splitAt (length ys) xs
+          mapM_ (\x -> addVar x ty) vs
+          (t, ann) <-
+            typeCheck
+              False
+              (if null rs
+                 then m
+                 else Lam (abst rs m))
+              b'
+              mod1
+          mapM (\x -> checkUsage x m) vs
+          mapM_ removeVar vs
+          ann1 <- updateWithSubst ann
+          t' <- updateWithSubst t
+          ann' <- resolveGoals ann1
+          mod1' <- updateModality mod1
+          let res = lamDep (abst vs ann')
+          return (pi (abst vs t') ty mod1', res)
 
-    handleFunctions (PiImp bd ty mod1) (Lam bind) t =
-      open bind $ \xs m ->
-        open bd $ \ys b ->
-          if length xs <= length ys
-            then do
-              let sub1 = zip ys (map Var xs)
-                  b' = apply sub1 b
-                  (vs, rs) = splitAt (length xs) ys
-              mapM_ (\x -> addVar x ty) xs
-              (t, ann) <-
-                typeCheck
-                  False
-                  m
-                  (if null rs
-                     then b'
-                     else PiImp (abst rs b') ty mod1) mod1
-              mapM_ removeVar xs
-           -- Since xs may appear in the type annotation in ann,
-           -- we have to update ann with current substitution.
-           -- before going out of the scope of xs. We also have to
-           -- resolve the current goals because current goals may
-           -- depend on xs.
-              ann2 <- updateWithSubst ann
-              ann' <- resolveGoals ann2
-              t' <- updateWithSubst t
-              mod1' <- updateModality mod1
-              let lamDep =
-                    if isKind ty
-                      then LamDepTy
-                      else LamDep
-                  res = lamDep (abst xs ann')
-                  t'' = PiImp (abst xs t') ty mod1'
-              return (t'', res)
-            else do
-              let sub1 = zip ys (map Var xs)
-                  b' = apply sub1 b
-                  (vs, rs) = splitAt (length ys) xs
-              mapM_ (\x -> addVar x ty) vs
-              (t, ann) <-
-                typeCheck
-                  False
-                  (if null rs
-                     then m
-                     else Lam (abst rs m))
-                  b' mod1
-              mapM_ removeVar vs
-              ann1 <- updateWithSubst ann
-              t' <- updateWithSubst t
-              mod1' <- updateModality mod1 
-              ann' <- resolveGoals ann1
-              let lamDep =
-                    if isKind ty
-                      then LamDepTy
-                      else LamDep
-                  res = LamDep (abst vs ann')
-              return (PiImp (abst vs t') ty mod1', res)
-    handleFunctions ty l t =
-      throwError $ withPosition l $ LamErr l ty
-      
+    
 typeCheck flag a@(Pair t1 t2) (Exists p ty) mod =
-  do mode1 <- newMode2 ["y", "z"]
-     mode2 <- newMode ["u", "v", "w"]
+  do mode1 <- newNames ["y", "z"] >>= newMode2 
+     mode2 <- newNames ["u", "v", "w"] >>= newMode 
      (ty', ann1) <- typeCheck flag t1 ty mode1
      open p $ \ x t ->
        do t1 <- shape ann1 `catchError`
@@ -714,15 +656,15 @@ typeCheck flag a@(Pair t1 t2) (Exists p ty) mod =
           mode1' <- updateModality mode1
           mode2' <- updateModality mode2
           mod' <- updateModality mod
-          let s = modeResolution GEq (modalAnd mode1' mode2') mod' 
-          when (s == Nothing) $ throwError $
-                  ModalityErr (modalAnd mode1' mode2') mod' a
-          let Just s'@(s1, s2, s3) = s
-          updateModeSubst s'     
+          let s = modeResolution GEq (modalAnd mode1' mode2') mod'
+          case s of
+            Nothing -> throwError $ ModalityErr (modalAnd mode1' mode2') mod' a
+            Just s'@(s1, s2, s3) -> do
+              updateModeSubst s'     
           -- t' is an instance of t, it does not contain x anymore,
           -- hence the return type should be Exists p ty', not
           -- Exists (abst x p') ty'
-          return (Exists p ty', Pair ann1 ann2)
+              return (Exists p ty', Pair ann1 ann2)
 
  
 typeCheck flag a@(Pair t1 t2) d mod =
