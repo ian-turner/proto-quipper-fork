@@ -347,18 +347,36 @@ instance Disp TypeError where
     text "unexpected pair pattern for existential type." $$
     text "when checking:" <+>
     hsep (map (display flag) xs) $$ text "against:" <+> display flag at
+
   display flag (ModalityErr cm m a) =
-    text "can't resolve modality inequality." $$ nest 2 (text "current mode:") <+>
-    display flag cm $$ nest 2 (text "expected mode:") <+>
-    display flag m $$ text "when checking" $$ nest 2 (display flag a)
+    let (actual, expect) = decodeModeErr cm m in
+    text "can't resolve modality." $$
+    text "when checking" $$ nest 2 (display flag a) $$
+    (text "It is") <+> actual <> text ","
+    $$ (text "but we expect it to be") <+> expect <> text "."
+    
+
   display flag (ModalityGEqErr tm ty1 tym1 (m1, t1) (m2, t2)) =
-    text "can't resolve modality inequality." $$ nest 2 (text "current mode:") <+>
-    display flag m1 $$ nest 2 (text "in") <+>
-    display flag t1 $$ nest 2 (text "expected mode:") <+>
-    display flag m2 $$ nest 2 (text "in") <+>
-    display flag t2 $$ text "when checking" $$ nest 2 (display flag tm) $$
+    let (actual, expect) = decodeModeErr m1 m2 in
+    text "can't resolve modality." $$
+    text "when checking" $$ nest 2 (display flag tm) $$
+    (text "The type") $$
+    nest 2 (display flag t1) $$
+    (text "indicates that it is") <+> actual <> text "," $$
+    (text "but is expected to be") <+> expect $$
     text "expected type:" <+>
     display flag ty1 $$ text "actual type:" <+> display flag tym1
+
+  -- display flag (ModalityGEqErr tm ty1 tym1 (m1, t1) (m2, t2)) =
+  --   let (actual, expect) = decodeModeErr m1 m2
+  --   text "can't resolve modality." $$
+  --   nest 2 (text "current :") <+>
+  --   display flag m1 $$ nest 2 (text "in") <+>
+  --   display flag t1 $$ nest 2 (text "expected mode:") <+>
+  --   display flag m2 $$ nest 2 (text "in") <+>
+  --   display flag t2 $$ text "when checking" $$ nest 2 (display flag tm) $$
+  --   text "expected type:" <+>
+  --   display flag ty1 $$ text "actual type:" <+> display flag tym1
   display flag (CircuitErr ty) =
     text "expecting a circuit type with modality annotation." $$
     text "actual type:" $$
@@ -385,3 +403,14 @@ instance Disp [(Variable, Exp)] where
   display b vs = vcat $ map helper vs
     where
       helper (x, t) = display b x <+> text ":" <+> display b t
+
+
+
+
+decodeModeErr (M (BConst False) y1 z1) (M (BConst True) y2 z2) =
+  (text "not boxable", text "boxable")
+decodeModeErr (M x1 (BConst False) z1) (M x2 (BConst True) z2) =
+  (text "not controllable", text "controllable")
+decodeModeErr (M x1 y1 (BConst False)) (M x2 y2 (BConst True)) =
+  (text "not reversible", text "reversible")
+
