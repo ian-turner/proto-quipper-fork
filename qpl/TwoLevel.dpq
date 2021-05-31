@@ -1,0 +1,46 @@
+module TwoLevel where
+
+import "lib/Prelude.dpq"
+
+
+-- basisChange : ! forall (n : Nat) -> Vec Bool n -> Vec Bool n -> Vec Qubit n -> Vec Qubit n
+-- basisChange s t x =
+--   case s of
+--     VNil ->
+--       let VNil = t
+--           VNil = x
+--       in []
+--     VCons s1 ss ->
+--       let VCons t1 tt = t
+          
+
+toBinary' : ! (Nat -> List Nat) 
+toBinary' n =
+  case n of
+    Z -> Nil
+    S n' -> 
+     let (q, r) = divMod n 2
+         rs = toBinary' q
+     in Cons r rs
+
+-- Convert the number 'j' to a n-digit binary (with the most significant bit at the end of the vector).
+-- If n is less than the 'natural' digit of 'j', then the result is truncated. 
+toBinary : ! (n : Nat) -> Nat -> Vec Bool n
+toBinary n j =
+  case n of
+    Z -> VNil
+    S n' ->
+      case j of
+        Z -> repeat False n
+        S _ ->
+          let (q, r) = divMod j 2
+              rs = toBinary n' q
+              r = if r == 0 then False else True
+           in VCons r rs
+
+
+
+twoLevel : ! (n : Nat) -> !(Qubit -> Qubit) -> (j k : Nat) -> Eq Bool (j <= n) True -> Eq Bool (k <= n) True ->
+                Vec Qubit n -> Vec Qubit n
+twoLevel u j k p1 p2 = twoLevel u j k p1 p2
+  
