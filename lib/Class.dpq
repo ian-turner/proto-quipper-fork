@@ -38,6 +38,11 @@ instance Equal Nat where
                Z -> False
                S y' -> x' == y'
 
+instance Equal Bool where
+  (==) x y =
+    case x of
+      True -> y
+      False -> not y
 
 instance Num Nat where
   (+) = add

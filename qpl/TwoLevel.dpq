@@ -39,8 +39,56 @@ toBinary n j =
            in VCons r rs
 
 
+controlNots : ! forall (n m : Nat) -> Qubit -> Vec Qubit n * Vec Bool n -> Vec Qubit m * Vec Bool m -> Qubit * Vec Qubit n * Vec Qubit m
+controlNots q lp rp =
+  let (ws1, bs1) = lp
+      (ws2, bs2) = rp
+      ws1 = zipWith (\ q b -> if b then q else QNot q) ws1 bs1
+      ws2 = zipWith (\ q b -> if b then q else QNot q) ws2 bs2
+      (q, ws1) = not_g q ws1
+      (q, ws2) = not_g q ws2
+      ws1 = zipWith (\ q b -> if b then q else QNot q) ws1 bs1
+      ws2 = zipWith (\ q b -> if b then q else QNot q) ws2 bs2
+ in (q, ws1 , ws2)
+      
 
-twoLevel : ! (n : Nat) -> !(Qubit -> Qubit) -> (j k : Nat) -> Eq Bool (j <= n) True -> Eq Bool (k <= n) True ->
+
+gray : ! forall (n m : Nat) ->
+         VecZipper Bool n m -> VecZipper Bool n m
+         -> VecZipper Qubit n m -> VecZipper Qubit n m
+gray s t x =
+  let VZ ls s1 rs = s
+      VZ lt t1 rt = t
+      VZ l q r = x
+  in if s1 == t1
+     then case ls of
+            VNil -> VZ l q r
+            VCons y ys ->
+              let VCons z zs = lt
+                  VCons u us = l
+              in 
+                 backward (gray (VZ ys y (VCons s1 rs)) (VZ zs z (VCons t1 rt))
+                              (VZ us u (VCons q r)))
+     else
+     case ls of
+            VNil ->
+              let (q, l, r) = controlNots q (l, ls) (r, rs)
+              in VZ l q r
+            VCons y ys ->
+              let VCons z zs = lt
+                  s' = VZ ys y (VCons (not s1) rs)
+                  t' = VZ zs z (VCons t1 rt)
+                  (q, l, r) = controlNots q (l, ls) (r, rs)
+                  VCons u us = l
+              in backward (gray s' t' (VZ us u (VCons q r))) 
+                              
+                 
+             
+testGray : Circ(VecZipper Qubit 2 0,  VecZipper Qubit 2 0)
+testGray = boxCirc (\ x -> gray (VZ [False, False] False []) (VZ [False, True] True []) x)
+
+
+twoLevel : ! (n : Nat) -> !(Qubit -> Qubit) -> (j k : Nat) -> 
                 Vec Qubit n -> Vec Qubit n
-twoLevel u j k p1 p2 = twoLevel u j k p1 p2
+twoLevel u j k = twoLevel u j k 
   
