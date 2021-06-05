@@ -38,6 +38,7 @@ main = do
        dispatch (Load True $ p </> "test/Distill.dpq")
        dispatch (Load True $ p </> "test/LogicalAnd.dpq")
        dispatch (Load True $ p </> "test/Reals.dpq")
+       dispatch (Load True $ p </> "test/TwoLevel.dpq")
        return ()
   return ()
    where error_handler e = 

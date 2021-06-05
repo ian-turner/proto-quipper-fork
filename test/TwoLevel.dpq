@@ -3,6 +3,14 @@ module TwoLevel where
 import "lib/Prelude.dpq"
 
 
+toBinary' : ! (Nat -> List Nat) 
+toBinary' n =
+  case n of
+    Z -> Nil
+    S n' -> 
+     let (q, r) = divMod n 2
+         rs = toBinary' q
+     in Cons r rs
 
 -- Convert the number 'j' to a n-digit binary (with the most significant bit at the end of the vector).
 -- If n is less than the 'natural' digit of 'j', then the result is truncated. 
@@ -63,6 +71,21 @@ gray s t x =
                   VCons u us = l
               in backward (gray s' t' (VZ us u (VCons q r))) 
 
+-- apply a unitary to a qubit using sign control
+-- need to debug the following code
+{-
+controlUnitary : ! forall (n m : Nat) -> !(Qubit -> Qubit) -> VecZipper Bool n m -> VecZipper Qubit n m -> VecZipper Qubit n m                     
+controlUnitary u v x =
+  let cu = controlled (box Qubit u)
+      VZ l v1 r = v
+  in case l of
+       VNil ->
+         let VZ xl x1 xr = x
+             (x1, xr, xl) = signControlUnitary (\ x y -> cu x y) x1 (xr, r) (xl, [])
+         in VZ xl x1 xr
+       VCons y ys ->
+         backward (controlUnitary u (VZ ys y (VCons v1 r)) (forward x))
+-}             
 
 testGray : Circ(VecZipper Qubit 2 0,  VecZipper Qubit 2 0)
 testGray = boxCirc (\ x -> gray (VZ [False, False] False []) (VZ [False, True] True []) x)
@@ -72,7 +95,7 @@ testGray2 = boxCirc (\ x -> gray (VZ [] False []) (VZ [] True []) x)
 
 
 twoLevel : ! (n : Nat) -> !(Qubit -> Qubit) -> (j k : Nat) ->
-                Eq Bool (j <= exponential 2 n) True -> Eq Bool (k <= exponential 2 n) True -> 
+                 Eq Bool (j <= exponential 2 n) True -> Eq Bool (k <= exponential 2 n) True -> 
                 Vec Qubit n -> Vec Qubit n
 twoLevel n u j k p1 p2 x =
    case n of
@@ -90,12 +113,9 @@ twoLevel n u j k p1 p2 x =
            VNil = r
         in VCons x1 xs
            
-testTwoLevel : Circ(Vec Qubit 3, Vec Qubit 3)
-testTwoLevel = boxCirc (\ x -> twoLevel 3 H 0 7 refl refl x)
-
-testTwoLevel2 : Circ(Vec Qubit 4, Vec Qubit 4)
-testTwoLevel2 = boxCirc (\ x -> twoLevel 4 H 3 3 refl refl x)
-
+testTwoLevel : Circ(Vec Qubit 4, Vec Qubit 4)
+testTwoLevel = boxCirc (\ x -> twoLevel 4 H 0 12 refl refl x)
+           
            
 
   
