@@ -1,4 +1,4 @@
-module LICS where
+module QPL2021 where
 
 data Bool = True | False
 
@@ -24,15 +24,12 @@ gate Init1 : Unit -> Qubit : Term1
 
 
 -- Hadamard gate.
-#Controllable
 gate H : Qubit -> Qubit : H 
 
 -- CNot gate, the second qubit is the control bit.
-#Controllable
 gate CNot : Qubit -> Qubit -> Qubit * Qubit : CNot
 
 -- Controlled R gate, the second qubit is the control bit.
-#Controllable
 gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv
 
 -- Toffoli gate with signed controls. The first qubit is the target.
@@ -41,10 +38,11 @@ gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv
 -- Similarly, the third qubit is also a control with
 -- sign indicated by the second boolean parameter.
 
-#Controllable
+
 gate ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate
 
 -- Bit discard gate.
+#NoControl
 gate Discard : Bit -> Unit
 
 -- Classical controlled X gate.
@@ -54,6 +52,7 @@ gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
 gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
 
 -- Measurement gate.
+#NoControl
 gate Meas : Qubit -> Bit
 
 
