@@ -15,18 +15,18 @@ infixl 12 <
 infixl 12 >
 
 class Num a where
-  (+) : a -> a -> a
-  (-) : a -> a -> a
-  (/) : a -> a -> a
-  (@) : a -> a -> a
-  (>) : a -> a -> Bool
-  (<) : a -> a -> Bool
-  (>=) : a -> a -> Bool
-  (<=) : a -> a -> Bool
+  (+)  : a -> a -> a
+  (-)  : a -> a -> a
+  (/)  : a -> a -> a
+  (@)  : a -> a -> a
+  (>)  : a -> a -> Bool
+  (<)  : a -> a -> Bool
+  (>=)  : a -> a -> Bool
+  (<=)  : a -> a -> Bool
 
 
 class Equal a where
-  (==) : (Parameter a) => a -> a -> Bool
+  (==)  : (Parameter a) => a -> a -> Bool
 
 instance Equal Nat where
   (==) x y =
@@ -38,6 +38,11 @@ instance Equal Nat where
                Z -> False
                S y' -> x' == y'
 
+instance Equal Bool where
+  (==) x y =
+    case x of
+      True -> y
+      False -> not y
 
 instance Num Nat where
   (+) = add
@@ -49,32 +54,43 @@ instance Num Nat where
   (>=) x y = not (x < y)
   (<=) x y = x < y || x == y
 
+instance forall (n : Nat) -> Num (Real n) where
+  (+) = plusReal
+  (-) = minusReal
+  (/) = divReal
+  (@) = mulReal
+  (>) = ltReal 
+  (<) x y = not (x > y) && not (eqReal x y)
+  (>=) x y = x > y || eqReal x y
+  (<=) x y = not (x > y)
+
 class QuantumOp a where
   unary : (Simple a) => !(Qubit -> Qubit) -> a -> a
-  copy : (Simple a) => a -> a * a
+  #NoControl
+  copy  : (Simple a) => a -> a * a
   cnots : (Simple a) => a -> a -> a * a
+
 
 instance QuantumOp Qubit where
   unary g q = g q
   copy q = CNot (Init0 ()) q  
   cnots q1 q2 = CNot q1 q2
 
-instance forall a b -> (QuantumOp a, QuantumOp b, Simple a, Simple b) =>
-                        QuantumOp (a * b) where
+instance forall a b -> (QuantumOp a, QuantumOp b, Simple a, Simple b) => QuantumOp (a * b) where
 
   unary g p = let (p1, p2) = p in (unary g p1, unary g p2)
 
-  copy p =
+  copy p = 
     let (x, y) = p
         (x', x) = copy x
-	(y', y) = copy y
+        (y', y) = copy y
     in ((x', y'), (x, y))
 
   cnots p1 p2 =
     let (x1, x2) = p1
         (y1, y2) = p2
         (x1, y1) = cnots x1 y1
-	(x2, y2) = cnots x2 y2
+        (x2, y2) = cnots x2 y2
     in  ((x1, x2), (y1, y2))
 
 

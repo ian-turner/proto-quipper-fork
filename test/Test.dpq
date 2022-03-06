@@ -28,4 +28,7 @@ k x y = x
 
 fancyType : ! (s : Type) -> (Simple s) => (p : Unit -> Type) ->
               !((x : s) -> (Simple (p x)) => p x) -> Unit
-fancyType s p f = ()              
+fancyType s p f = ()
+
+app : ! forall a b -> !(a -> b) -> !(a -> b)
+app f x = f x

@@ -9,9 +9,10 @@ addS1 n m = refl
 
 addS : ! (n m : Nat) -> Eq Nat (add n (S m)) (S (add n m))
 addS n m = 
-           case n of
-             Z -> refl 
-             S n' -> cong S (addS n' m)
+  case n of
+       Z -> refl 
+       S n' -> cong S (addS n' m)
+
 
 
 addS' : ! (n m : Nat) -> Eq Nat (S (add n m)) (add n (S m))

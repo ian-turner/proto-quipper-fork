@@ -17,8 +17,8 @@ nthQubitCirc : ! (n m : Nat) ->
 nthQubitCirc n m = box_garbage (Vec Qubit (S (add n m))) Qubit (\ x -> nthQubit n m x)
 --(Vec Qubit (S (add n m))) Qubit (nthQubit n m)
 
-nthQubitCirc_t1 : (l : Nat) * Circ(Vec Qubit (S (add 9 9)), Vec Qubit l * Qubit)
-nthQubitCirc_t1 = nthQubitCirc 9 9
+nthQubitCirc_t1 : (l : Nat) * Circ(Vec Qubit (S (add nine nine)), Vec Qubit l * Qubit)
+nthQubitCirc_t1 = nthQubitCirc nine nine
 
 
 update_pos : ! (pos m : Nat) -> 
@@ -45,11 +45,11 @@ boxUpdate pos m b =
     \ x -> update_pos pos m b x
 
 boxUpdate_t1 : (n : Nat) *
-                  Circ(Vec Qubit (S (add 9 9)),
-                        Vec Qubit n * Vec  Qubit (S (add 9 9)))
-boxUpdate_t1 = boxUpdate 9 9 True
+                  Circ(Vec Qubit (S (add nine nine)),
+                        Vec Qubit n * Vec  Qubit (S (add nine nine)))
+boxUpdate_t1 = boxUpdate nine nine True
 
-
+{-
 testpos : ! (pos m xy_max : Nat) ->
                         Vec Qubit (S (add pos m)) ->
                         Vec Qubit (S (add pos m)) ->
@@ -79,7 +79,7 @@ box_testpos pos m xy_max  =
   box_garbage
     (Vec Qubit (S (add pos m)) * Vec Qubit (S (add pos m)) * Vec Qubit (S (add pos m)))
      (Vec Qubit (S (add pos m))) 
-         $ uncurry $ uncurry (\ x -> testpos pos m xy_max x)
+         $ \ x -> (uncurry $ uncurry (testpos pos m xy_max)) x
 
 box_testpos_t1 : (n : Nat) *
                    Circ(Vec  Qubit (S (add 9 8)) *
@@ -87,3 +87,4 @@ box_testpos_t1 : (n : Nat) *
                        Vec Qubit n * Vec Qubit (S ((add 9 8))))
 box_testpos_t1 = box_testpos 9 8 10
   
+-}

@@ -1,0 +1,118 @@
+module LogicalAnd where
+
+import "lib/Prelude.dpq"
+
+
+t_gate : ! (Qubit -> Qubit)
+t_gate x = Rot (pi / 4.00000) x
+
+logicalAnd : ! (Qubit -> Qubit -> Qubit * Qubit * Qubit)
+logicalAnd x y =
+    let t = t_gate (H (Init0 ()))
+        (t, x) = CNot t x
+        (t, y) = CNot t y
+        (y, t) = CNot y t 
+        (x, t) = CNot x t
+        x = TGate_Inv x
+        y = TGate_Inv y
+        t = t_gate t
+        (x, t) = CNot x t
+        (y, t) = CNot y t
+        t = SGate (H t)
+     in (x, y, t)
+
+
+circ1 = boxCirc $ \ x -> uncurry logicalAnd x
+
+test : Bool * Bool * Bool
+test = measure $ logicalAnd (init False) (init False)
+
+-- Controlled Z gate, which is a member of Clifford group.
+cz (x y : Qubit) = let (x, y) = CNot (H x) y in (H x, y)
+
+
+logicalAndInv : ! (Qubit * Qubit * Qubit -> Qubit * Qubit)
+logicalAndInv input =
+  let (x, y, xy) = input
+      r = measure (H xy)
+  in if r
+     then let (y, x) = cz y x in (x, y)
+     else (x, y)
+
+-- test1 = boxCirc logicalAndInv
+
+logicalAndInv' = unbox $ reverse $ boxCirc $ \ x -> uncurry logicalAnd x
+
+-- ReadWrite  runReadWrite that also  
+leftBlock : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit)
+leftBlock input =
+  let (c, i, t) = input
+      (i, c) = CNot i c
+      (t, c) = CNot t c
+      (i, t, it) = logicalAnd i t
+      (it, c) = CNot it c
+   in (c, i, t, it)
+
+
+rightBlock : ! (Qubit * Qubit * Qubit * Qubit ->  Qubit * Qubit * Qubit)
+rightBlock input =
+  let (c, i, t, it) = input
+      (it, c) = CNot it c
+      (i, t) = logicalAndInv (i, t, it)
+      (i, c) = CNot i c
+      (t, i) = CNot t i
+   in (c, i, t)
+
+
+
+nested : ! forall (n : Nat) -> Qubit -> Vec Qubit n -> Vec Qubit n -> Vec Qubit n * Vec Qubit n * Qubit
+nested c is ts =
+  case is of
+    VNil ->  (VNil, ts, c)
+    VCons i is' ->
+      let VCons t ts' = ts
+          (c, i, t, c') = leftBlock (c, i, t)          
+          (is'', ts'', c'') = nested c' is' ts'
+          (c, i, t) = rightBlock (c, i, t, c'')
+      in (VCons i is'', VCons t ts'', c)
+
+
+-- boxNested (n : Nat) = box (Qubit * Vec Qubit n * Vec Qubit n) $
+--                         \ input -> let (c, is, ts) = input in nested c is ts
+
+test2 : Vec Bool 4 * Vec Bool 4 * Bool
+test2 = measure $ nested (init False) [ Init1 (), Init1 (), Init1 (), Init1 ()] [Init1 (), Init0 (), Init0 (), Init0 ()]
+--                                      1 1 1 1 + 1 0 0 0 
+test4 : Vec Bool 4 * Vec Bool 4 * Bool
+test4 = measure $ nested (init False) [ Init1 (), Init1 (), Init0 (), Init1 ()] [Init1 (), Init0 (), Init0 (), Init0 ()]
+--                                       1101 + 1000    = 0 0 1 1                     
+vecToTuple4 : ! forall a -> Vec a 4 -> a * a * a * a
+vecToTuple4 l =
+    let VCons a1 as1 = l
+        VCons a2 as2 = as1
+        VCons a3 as3 = as2
+        VCons a4 as4 = as3
+        VNil = as4
+     in (a1, a2, a3, a4)
+      
+tomographyTest : ! (Unit -> Bool * Vec Bool 4 * Vec Bool 4 * Bool)
+tomographyTest u =
+  let ctrl = H (Init0 ())
+      (a, ctrl) = CNot (Init1 ()) ctrl
+      (c, ctrl) = CNot (Init1 ()) ctrl
+      (b, ctrl) = CNot (Init0 ()) ctrl
+      (d, ctrl) = CNot (Init0 ()) ctrl
+      v1 = [ Init1 (), a, Init1 (), c]
+      v2 = [Init1 (), b, d, Init0 ()]
+      (v1, v2, c) = nested (init False) v1 v2
+      (a1, a2, a3, a4) = vecToTuple4 v1
+      (b1, b2, b3, b4) = vecToTuple4 v2      
+      (a2', ctrl) = CNot a2 ctrl
+      (a4', ctrl) = CNot a4 ctrl
+      (b3', ctrl) = CNot b3 ctrl
+      (b4', ctrl) = CNot b4 ctrl
+  in (measure ctrl, measure [a1, a2', a3, a4'], measure [b1, b2, b3', b4'], measure c)
+
+
+-- test3 = repeat (tomographyTest : !(Unit -> Bool * Vec Bool 4 * Vec Bool 4 * Bool)) 10
+test3 = map tomographyTest $ repeat () 10

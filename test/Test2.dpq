@@ -1,0 +1,170 @@
+module Test2 where
+
+data Bool = True | False
+object Qubit
+object Bit
+
+gate{1,1,1} H : Qubit -> Qubit
+gate{1,1,1} QNot : Qubit -> Qubit
+gate{1,1,1} CNot : Qubit -> Qubit -> Qubit * Qubit
+gate{1,0,1} Init0 : Unit -> Qubit
+gate{1,0,1} Term0 : Qubit -> Unit
+gate{1,0,0} Meas : Qubit -> Bit
+gate{1,0,0} Discard : Bit -> Unit
+
+app : ! forall a b -> !(a -> b) -> !(a -> b)
+app f x = f x
+
+h'' : !(Qubit -> Qubit)
+h'' = H 
+
+
+h : !(Qubit -> Qubit)
+h x = let y = Meas in app H x
+
+
+m : !(Qubit -> Bit)
+m x = app Meas x
+
+
+circ1 : Circ(Qubit, Bit)
+circ1 = box Qubit (\ x -> Meas (h x))
+
+
+circ2 : Circ(Qubit, Unit)
+circ2 = box Qubit (\ x -> Term0 (h x))
+
+-- test1 = reverse circ1
+
+test2 : Circ(Unit, Qubit)
+test2 = reverse circ2
+
+f2 : ! (Circ{1,0,1}(Unit, Qubit) -> Circ{1,0,0}(Unit, Qubit))
+f2 x = f2 x
+
+test2' : !(Unit -> Circ(Unit, Qubit))
+test2' x = f2 test2
+
+h' (x : Qubit) = app Meas x
+
+-- The following show the problem due to the interaction of labeling system
+-- and type classes. If we don't require annotation for type class.  
+-- class Bogus a where
+--   haha : a -> Bit
+
+-- instance Bogus Qubit where
+--   haha x = Meas x
+
+-- circ3 : Circ(Qubit, Bit)
+-- circ3 = box Qubit (\ x -> haha (h x))
+
+
+class Bogus a where
+  haha {1,0,0} : a -> Bit
+
+
+instance Bogus Qubit where
+  haha x = Meas x
+--  haha x = H x
+
+circ3 : Circ(Qubit, Bit)
+circ3 = box Qubit (\ x -> haha (h x))
+
+-- test3 = reverse circ3
+
+cp (x : Qubit) =
+  let y = Init0 ()
+  in CNot y x
+
+
+boxCp = box Qubit cp
+
+-- contrlCp = controlled boxCp
+rev (x : Qubit) = (unbox (reverse boxCp)) (cp x)
+
+-- boxRev = box Qubit rev
+
+-- The following is an example of mode should not be shared as a global.
+-- i.e., the lifting of \ x -> x should not affect the global mode.
+-- g1 : ! (Qubit -> Bit)
+-- g1 x = let (a, b) = (Meas x, (\ x -> x) : ! (Bool -> Bool)) in a
+
+g1 : ! (Qubit -> Bit)
+g1 x = let (a, b) = (Meas x, (\ x -> x) : ! (Bool -> Bool)) in a
+
+g2 : ! (Qubit -> (Bool -> Bool))
+g2 x = let (a, b) = (Discard (Meas x), (\ x -> x) : ! (Bool -> Bool)) in b
+
+g3 : !(Bool -> Bool)
+g3 x = g2 (Init0 ()) x
+
+g1' : ! (Unit -> Bool -> Bool)
+g1' z = let (a, b) = ((\ (x : Qubit) -> Discard (Meas x)) : !(Qubit -> Unit) , \ (x : Bool) -> x) in b
+
+boxG1 = box Qubit g1
+
+e : ! (Circ{1,0,0}(Qubit, Bit) -> Circ(Qubit, Bit))
+e x = x
+
+-- hadamard = box (Qubit * Unit) (\ x -> let (y, u) = x in (h y, u))
+hadamard = box (Qubit) h
+--initialization = box Unit (\ x -> (Init0 (), x))
+initialization = box Unit Init0
+
+controlling : ! {a : Type} -> forall (b s : Type) ->
+                (Simple s, Simple a, Simple b) =>
+                !(a -> b) -> !(a -> s -> b * s)
+controlling a f = controlled (box a f) 
+
+withBasisChange :
+  ! {a b : Type} -> (Simple a, Simple b) =>
+       Circ(a, b) -> Circ(b, b) -> Circ(a, a)
+withBasisChange a b circ1 circ2 =
+  let circ1' = box a (\ x -> (unbox circ1 x, ()))
+      circ2' = box (b * Unit) (\ x -> let (y, z) = x in (unbox circ2 y, z))
+      circ3 = withComputed circ1' circ2'
+  in box a (\ x -> let (r, _) = unbox circ3 (x, ()) in r)
+
+testH' = withBasisChange initialization hadamard
+
+-- testH = withComputed initialization hadamard
+-- testH = reverse initialization
+
+class Neg a where
+  negate : (Simple a) => a -> a
+
+instance Neg Qubit where
+  negate a = QNot a
+
+instance forall a b -> (Simple a, Simple b, Neg a, Neg b) => Neg (a * b) where
+  negate x =
+    let (a, b) = x in (negate a, negate b)
+  
+--- controlling (withComputed )
+--  CNot
+
+controlledNeg : ! forall (a b s : Type) -> (Neg s, Simple s, Simple a, Simple b) =>
+                    Circ(a, b) -> !(a -> s -> b * s)
+controlledNeg circ input ctrl = -- controlled circ input (negate ctrl)
+  let (r, ctrl') = controlled circ input (negate ctrl)
+  in (r, negate ctrl')
+
+testC : !(Qubit * Qubit -> Qubit * Qubit * Unit)
+testC q = let (z, r) = controlledNeg testH' () q in (r, z)
+
+f (x : Bool) = (x, x, x)
+
+f' (x : Unit) = let y = False in f y
+testBoxC = box (Qubit * Qubit) testC 
+ 
+{-
+testC' : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit)
+testC' tr = let (a, b, c) = tr in controlled testBoxC (a, b) c
+
+testBoxC' = box (Qubit * Qubit * Qubit) testC'
+-- testG1 = reverse boxG1
+
+apply : ! {s : Type} -> forall u v -> (Simple s, Simple u, Simple v) =>
+             Circ(s, u) -> Circ(u, v) -> Circ(s, v)
+apply s circ1 circ2 = box s (\ x -> unbox circ2 ((unbox circ1) x))
+-}

@@ -1,0 +1,61 @@
+module Dynlift where
+
+import "lib/Prelude.dpq"
+
+binary : ! {x : Nat} -> Vec Bool x -> Nat
+binary x l =
+  case x of
+    Z -> Z
+    S n ->
+      let VCons y ys = l
+      in if y then exponential 2 n + binary ys
+              else binary ys
+
+f : ! (x : Nat) -> Vec Nat x
+f x = decrease x
+
+-- The following should not type check, because binary is using
+-- dynlift. 
+-- test1 = f (binary [measure (Init1 ()) ])
+test2 = f (binary [True ])
+
+test3 = add (binary [ measure (Init1 ())]) (binary [measure (Init1 ())])
+
+test4 : (n : Nat) * Vec Nat n
+test4 = (3, [1,2,3])
+
+-- The following should not type check, because binary is using
+-- dynlift. 
+
+-- test5 : (n : Nat) * Vec Nat n
+-- test5 = (binary [measure (Init1 ())], [1,2,3])
+
+data B (x : Bool)
+
+-- g : ! (Unit -> B (dynlift (Meas (Init1 ()))))
+-- g x = g x
+
+g : ! (Unit -> B ((measure (Init1 ()))))
+g x = g x
+
+
+test6 : Vec Nat (binary [measure (Init1 ())])
+test6 = []
+
+    
+{-
+f : ! (x : List Bool) -> Vec Qubit (toNat x)
+
+test1 : ! (Unit -> Unit)
+test1 u =
+  let x = Init0 ()
+      y = Init0 ()
+      x' = H x
+      (y', x'') = CNot y x'
+      y'' = Meas y'
+      x''' = Meas x''
+      r = (dynlift x''', dynlift y'')
+  in ()
+-}
+
+

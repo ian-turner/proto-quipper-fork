@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE PatternSynonyms, ViewPatterns #-}
-
+{-# LANGUAGE DeriveDataTypeable #-} 
 -- | This module implements various of utility functions. 
 
 module Utils
@@ -15,7 +15,6 @@ module Utils
          Variable,
          Id(..),
          Position(..),
-         Label,
          dParen,
          initCount,
          ZipCount,
@@ -24,8 +23,8 @@ module Utils
          enterCase,
          nextCase,
          exitCase,
-         hashPos
-         
+         hashPos,
+         Label(..)
        )
        where
 
@@ -37,7 +36,8 @@ import Text.Parsec.Error(ParseError,showErrorMessages,errorPos,errorMessages)
 import Prelude hiding((<>))
 import Nominal
 import Data.Char
-
+import Data.Generics 
+import System.IO.Unsafe
 -- | An empty data type for classifying variables. 
 data V
 
@@ -48,7 +48,7 @@ instance AtomKind V where
 -- | A variable contain an atom for nominal representation and its name string for
 -- error processing. 
 data Variable = Variable (AtomOfKind V) (NoBind String) 
-  deriving (Generic, Bindable, Nominal, NominalShow, NominalSupport, Ord)
+  deriving (Nominal.Generic, Bindable, Nominal, NominalShow, NominalSupport, Ord)
 
 instance NominalShow (NoBind String) where
   showsPrecSup sup d (NoBind x) = showsPrecSup sup d x
@@ -65,22 +65,29 @@ instance Disp Variable where
   display False (Variable x _) = text (show x)
   
 -- | An empty data type for labels.
+
 data L
+
 instance AtomKind L where
   suggested_names _ = ["l"]
   expand_names _ xs = xs ++ [ x ++ (show n) | n <- [1..], x <- xs ]
 
--- | Labels are used for representing the input/output of circuits. 
+
 type Label = AtomOfKind L
 
-instance Disp (AtomOfKind L) where
-  display _ t = text (show t)
+instance Disp Label where
+  display _ t = text $ show t
+
 
 -- | A prefix pattern definition for opening a binder.  
 pattern Abst :: (Bindable a, Nominal t) => a -> t -> Bind a t
 pattern Abst x t <- ((\ b -> open b (\ x b' -> (x, b'))) -> (x, t))
 
 -- | Generate a list of fresh variables from a given list of strings.
+-- Ideally, when using 'freshNames', we want to ensure the so-called /freshness condition/,
+-- but sometimes I do not follow this, and use 'freshNames' in combination with
+-- a counter (e.g., 'newNames') as mean to generate
+-- (pseudo) global fresh names, and later rebind them. 
 freshNames :: [String] -> ([Variable] -> t) -> t
 freshNames [] body = body []
 freshNames (n:ns) body =
@@ -90,7 +97,6 @@ freshNames (n:ns) body =
   where freshName s k =
           with_fresh $ \a -> k (Variable a (NoBind s))
 
--- | Generate a list of fresh labels from a given length.
 freshLabels :: Int -> ([Label] -> t) -> t
 freshLabels n body | n == 0  = body []
 freshLabels n body | otherwise  =
@@ -102,7 +108,7 @@ freshLabels n body | otherwise  =
 
 -- | Constant identifiers, they are used for top-level definitions and constructors.
 data Id = Id String
-        deriving (Show, Eq, Ord, Generic, NominalShow, NominalSupport, Nominal, Bindable)
+        deriving (Show, Eq, Ord, Nominal.Generic, NominalShow, NominalSupport, Nominal, Bindable)
 
 -- | Get the name string from an identifier.
 getName :: Id -> String
@@ -115,8 +121,9 @@ instance Disp Id where
 
 -- | Position information for error reporting. Built-in positions are
 -- generated from the built-in type classes. 
+
 data Position = P SourcePos | DummyPos | BuiltIn Int
-  deriving (Show, Eq, NominalShow, NominalSupport, Generic, Nominal)
+  deriving (Show, Eq, NominalShow, NominalSupport, Nominal.Generic, Nominal, Data, Typeable)
 
 instance Nominal SourcePos where
   pi • p = p
@@ -184,6 +191,9 @@ instance Disp a => Disp (Maybe a) where
   display _ Nothing = text ""
   display b (Just x) = display b x
 
+instance (Disp a, Disp b, Disp c ) => Disp (a, b, c) where
+  display flag (a, b, c) = parens (display flag a <> comma <> display flag b <> comma <> display flag c)
+
 
 -- * The zipper for counting
 
@@ -210,7 +220,7 @@ data Count =
     -- that is being pattern matched in the case expression. The second argument denotes
     -- the count before going into the case expression. The third argument denote the
     -- count in each branch of the case expression.
-  deriving (Show, Eq, Nominal, Generic, NominalShow, NominalSupport, Ord)
+  deriving (Show, Eq, Nominal, Nominal.Generic, NominalShow, NominalSupport, Ord)
 
 -- | The count zipper, the left component is for the
 -- current count (may be in a branch), the right component is

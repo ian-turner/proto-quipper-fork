@@ -5,7 +5,7 @@ import "lib/Prelude.dpq"
 ntimes : ! (a : Type) -> (Simple a) => Nat -> Circ(a, a) -> Circ(a, a)
 ntimes a n circ =
   case n of
-    Z -> box a id
+    Z -> box a (\ x -> x)
     S n' -> let c = unbox (ntimes a n' circ)
                 circ' = unbox circ
              in box a $ \ x -> circ' (c x)
@@ -20,10 +20,11 @@ compose a circ1 circ2 =
 
 
 testH : Circ(Qubit, Qubit)
-testH = ntimes Qubit 3 (box Qubit H)
+testH = ntimes Qubit three (box Qubit H)
 
 -- single qubit rotate
-gate Rotate Nat : Qubit -> Qubit
+
+gate Rotate Nat : Qubit -> Qubit : Rotate_Inv
 
 firstLayer : ! forall (n : Nat) -> Vec Nat n -> Vec Qubit n -> Vec Qubit n
 firstLayer params regs =
@@ -42,7 +43,8 @@ secondLayer n v =
             in VCons x (VCons y xs')
 
 
--- The following program should not pass the type checker-> Implicit arguments
+-- The following program should not pass the type checker
+-- Implicit arguments
 -- in case pattern is used explicitly-> 
 -- rounding : !  (n : Nat) -> Nat -> Vec Qubit n -> Vec Qubit n
 -- rounding n p v =
@@ -50,13 +52,14 @@ secondLayer n v =
 --     Z -> v
 --     S n' -> 
 --      let VCons x xs = v in 
---       case reverse_vec Qubit n' xs of
+--        case reverse_vec xs of
 --         VNil -> VCons x VNil
 -- 	VCons h hs ->
 --           let (h, x) = R p h x
---               z = (reverse_vec Qubit n' (VCons h hs))
+--               z = reverse_vec (VCons h hs)
 --           in
 --            VCons x z
+
 -- boxSecond : ! (y : Nat) -> Nat -> Circ(Vec Qubit y, Vec Qubit y)
 -- boxSecond y m = box (Vec Qubit y) $ \ x -> rounding y m $ secondLayer m x
 
@@ -115,14 +118,14 @@ modN p v =
 boxSecond' : ! (n : Nat) -> Nat -> Circ(Vec Qubit (S n), Vec Qubit (S n))
 boxSecond' n p = box (Vec Qubit (S n)) $ \ x -> modN p x
 
-test1 : Circ(Vec Qubit 5, Vec Qubit 5)
-test1 = boxSecond' 4 6
+test1 : Circ(Vec Qubit five, Vec Qubit five)
+test1 = boxSecond' four six
 
 boxSecond'' : ! (n m : Nat) -> Nat -> Circ(VecZipper Qubit n m, VecZipper Qubit m n)
 boxSecond'' n m p = box (VecZipper Qubit n m) $ \ x -> secondLayer' m p x
 
 test2 : Circ(VecZipper  Qubit  (S  (S  (S  Z)))  Z,
                 VecZipper Qubit  Z  (S  (S  (S  Z))))
-test2 = boxSecond'' 3 0 6
+test2 = boxSecond'' three Z six
 
 

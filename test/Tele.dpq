@@ -33,7 +33,7 @@ bell00 =  box Unit $
 alice : ! (Qubit * Qubit -> Bit * Bit)
 alice p = let (q, a) = p 
               (a', q') = CNot a q
-              q'' = H q' in (Mea q'', Mea a')
+              q'' = H q' in (Meas q'', Meas a')
 	    
 
 aliceCirc : Circ(Qubit * Qubit, Bit * Bit) 
@@ -56,11 +56,13 @@ bobCirc = box (Qubit * (Bit * Bit)) bob
 tele : ! (Qubit -> Qubit)
 tele q = let (a, b) = unbox bell00 ()
              (x, y) = alice (q, a) 
-             b = bob (b, (x, y)) in b
+             b = bob (b, (x, y))
+          in b
 
 teleCirc : Circ (Qubit, Qubit)
 teleCirc = box Qubit tele
 
+-- reverseTele = reverse teleCirc
 
 plus_minus_generic : ! (n : Nat) -> Bool -> Vec Qubit n
 plus_minus_generic n b = let qs = initVec n b in map H qs
@@ -90,7 +92,7 @@ bell_g_box n = box Unit $ \ u ->  bell_generic n
 alice_generic : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n -> Vec Bit n * Vec Bit n
 alice_generic n q a = let (a', q') = unzip $ zipWith CNot a q
                           q'' = map H q'        
-                       in (map Mea q'', map Mea a')
+                       in (map Meas q'', map Meas a')
 
 alice_g_box : ! (n : Nat) -> Circ (Vec Qubit n * Vec Qubit n, Vec Bit n * Vec Bit n)
 alice_g_box n = box (Vec Qubit n * Vec Qubit n) $
@@ -118,16 +120,40 @@ tele_generic n q = let (a, b) = bell_generic n
 teleBox : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 teleBox n = box (Vec Qubit n) $ \ x -> tele_generic n x
 
-teleBox_t1 : Circ (Vec Qubit 9, Vec Qubit 9)
-teleBox_t1 = teleBox 9
+
+-- main = let x = unbox (teleBox 100) ((initVec 50 True))
+--            y = map Meas x
+--            z = map dynlift y
+--         in z
+
+teleBox_t1 : Circ (Vec Qubit nine, Vec Qubit nine)
+teleBox_t1 = teleBox nine
 
 teleBox' : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 teleBox' n = box (Vec Qubit n) $ \ x -> tele_generic n x
 
 
 
-coin : !(Unit -> Qubit)
-coin x = H $ initQubit False
 
-main : Circ(Unit, Qubit)
-main = box Unit coin
+bellState : ! (Unit -> Unit)
+bellState u =
+  let x = Init0 ()
+      y = Init0 ()
+      x' = H x
+      (y', x'') = CNot y x'
+      y'' = Meas y'
+      x''' = Meas x''
+      r = (dynlift x''', dynlift y'')
+  in ()
+
+
+-- ha = bellState ()
+
+teleportation =
+  let x = [Init1 (), Init0 (), Init0 (), Init0 (), Init0 (), Init1 ()]
+      r = unbox (teleBox six) x
+      r' = map Meas r
+      r'' = map (\ x -> dynlift x) r'
+  in r''
+
+-- test2 = let x = teleportation in box Qubit (\ x -> let y = dynlift (Meas (H (Init0 ()))) in x)

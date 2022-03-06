@@ -1,0 +1,30 @@
+module DCP where
+
+import "lib/Prelude.dpq"
+
+testLoop : Vec Nat 5 
+testLoop = ind (\ x -> Vec Nat x) 5 VNil (\ i a -> VCons i a) 
+
+testLoop' : Vec Nat 5 
+testLoop' = ind (\ x -> Vec Nat x) 5 VNil (\ i a -> VCons (minus 5 (S i)) a) 
+
+
+epsilon : ! {n : Nat} -> Real n -> Real n
+epsilon n x =
+  let x5 = x @ x @ x @ x @ x
+      x2 = x @ x
+      x3 = x @ x @ x
+      x3' = (cast 1.0 - x) @ (cast 1.0 - x) @ (cast 1.0 - x)
+      x2' = (cast 1.0 - x) @ (cast 1.0 - x)
+      x5' = (cast 1.0 - x) @ (cast 1.0 - x) @ (cast 1.0 - x) @ (cast 1.0 - x) @ (cast 1.0 - x)
+      a = x5 + (cast 5.0) @ x2 @ x3'
+      b = x5 + (cast 5.0) @ x2 @ x3' + (cast 5.0) @ x3 @ x2' + x5'
+   in a / b
+
+
+
+
+
+
+
+

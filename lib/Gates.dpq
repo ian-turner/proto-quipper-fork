@@ -4,70 +4,119 @@ import "lib/Basics.dpq"
 import "lib/Nat.dpq"
 
 
--- All gates must have at least one input->
-gate Init0 : Unit -> Qubit
-gate Init1 : Unit -> Qubit
+-- All gates must have at least one input.
+-- {boxable, controllable, reversible}
+-- for gate {controllable, reversible}
 
-gate Term0 : Qubit -> Unit
-gate Term1 : Qubit -> Unit
+#NoControl
+gate Init0 : Unit -> Qubit : Term0 
 
-gate WGate : Qubit -> Qubit -> Qubit * Qubit
+-- reversible.  
 
-gate WGateInverse : Qubit -> Qubit -> Qubit * Qubit
 
-gate H : Qubit -> Qubit
+-- irreversible
+-- gate Init0 : Unit -> Qubit
 
-gate TGate : Qubit -> Qubit
+gate W : Qubit -> Qubit -> Qubit * Qubit : W_Inv 
 
-gate C_H : Qubit -> Qubit -> Qubit * Qubit
+#NoControl
+gate Init1 : Unit -> Qubit : Term1
+
+-- gate {1,0,1} Term0 : Qubit -> Unit
+-- gate {1,0,1} Term1 : Qubit -> Unit
+
+gate WGate : Qubit -> Qubit -> Qubit * Qubit : WGateInverse
+-- gate WGate : Qubit -> Qubit -> Qubit * Qubit : WGate
+
+-- gate {1,1,1} WGateInverse : Qubit -> Qubit -> Qubit * Qubit
+gate H : Qubit -> Qubit : H
+
+
+gate TGate : Qubit -> Qubit : TGate_Inv
+
+
+gate SGate : Qubit -> Qubit : SGate_Inv
+
+
+gate ZGate : Qubit -> Qubit : ZGate
+gate YGate : Qubit -> Qubit : YGate
+
 
 
 -- The second qubit is the control bit
-gate CNot : Qubit -> Qubit -> Qubit * Qubit
+
+gate CNot : Qubit -> Qubit -> Qubit * Qubit : CNot
 
 -- convention: to support circuit printing,
 -- any nontrivial binary control gate have to be prefixed with `C_`, e->g->
 -- the following C_X, C_Z->
-gate C_X : Qubit -> Bit -> Qubit * Bit
 
-gate C_Z : Qubit -> Bit -> Qubit * Bit
+gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
+
+gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
+
+gate CY : Qubit -> Qubit -> Qubit * Qubit : CY
+
+gate CZ : Qubit -> Qubit -> Qubit * Qubit : CZ
+
+gate Rot (n : Nat) -> (Real n) : Qubit -> Qubit  : Rot_Inv
+
+gate Diag (n : Nat) -> (Real n) (Real n) : Qubit -> Qubit  : Diag_Inv
+
+
+-- gate Random Nat Nat : Qubit -> Qubit
 
 -- Rotatation gate, its parameter must be a monomoprhic type
-gate R Nat : Qubit -> Qubit -> Qubit * Qubit
 
+gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv
+
+#NoControl
 gate Discard : Bit -> Unit
 
+
 -- Measurement gate
-gate Mea : Qubit -> Bit
+#NoControl
+gate Meas : Qubit -> Bit
 
 
 
 -- A Toffoli gate specialized to one positive and one negative
 -- control-> The second argument is the positive control and the third
--- argument is the negative one->
-gate ToffoliGate_10 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+-- argument is the negative one.
+
+gate ToffoliGate_10 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate_10
+
 
 -- A Toffoli gate specialized to one positive and one negative
 -- control-> The second argument is the negative control and the third
--- argument is the positive one->
-gate ToffoliGate_01 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+-- argument is the positive one.
+
+
+gate ToffoliGate_01 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate_01
 
 -- A Toffoli gate with signed controls-> A sign of 'True' means the
 -- control fires when the qubit is 1; a sign of 'False' means the
 -- control fires when the qubit is 0->
 -- The first parameter controls the second qubit, the second parameter
 -- controls the third qubit
-gate ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+
+
+gate ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate
+
+
+gate Toffoli : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : Toffoli
 
 
 -- A controlled-not gate with a signed control, the second qubit is the controlling qubit
-gate CNotGate Bool : Qubit -> Qubit -> Qubit * Qubit
+
+-- gate {1,1,1} CNotGate Bool : Qubit -> Qubit -> Qubit * Qubit
 
 -- A not gate
-gate QNot : Qubit -> Qubit
+
+gate QNot : Qubit -> Qubit : QNot
 
 
-gate ControlledExpGate Bool : Qubit -> Qubit -> Qubit * Qubit
+gate ControlledExpGate Bool : Qubit -> Qubit -> Qubit * Qubit : ControlledExpGate_Inv
 
 -- A wrapper on ControlledExpGate
 controlledExpGate : ! (Qubit -> Qubit * Bool -> Qubit * Qubit)
@@ -88,14 +137,19 @@ qterm' bq =
 
 
 -- Generalized multi-control gate
-controlled Not_g : Qubit -> Qubit
-controlled H_g : Qubit -> Qubit
+-- controlled Not_g : Qubit -> Qubit
+-- controlled H_g : Qubit -> Qubit
+not_g : ! forall s -> (Simple s) => Qubit -> s -> Qubit * s
+not_g q s = controlled (box Qubit QNot) q s
 
-cnot : ! forall u -> (Simple u) => Qubit -> Qubit -> u -> (Qubit * Qubit) * u
+
+h_g : ! forall s -> (Simple s) => Qubit -> s -> Qubit * s
+h_g q s = controlled (box Qubit H) q s
+
+cnot : ! forall u -> (Simple u) => Qubit -> Qubit -> u ->
+           (Qubit * Qubit) * u
 cnot a b s =
-   let (a, bs) = Not_g
-                  a
-		  (b, s)
+   let (a, bs) = not_g a (b, s)
        (b, s) = bs
    in ((a, b), s)
 
@@ -107,4 +161,61 @@ initQubit b = case b of
 		False -> Init0 ()
 
 
+tgate_inv : ! (Qubit -> Qubit)
+tgate_inv = unbox $ reverse (box Qubit TGate)
+-- iterN 7 TGate x
 
+sgate : ! (Qubit -> Qubit)
+sgate = SGate 
+
+tgate : ! (Qubit -> Qubit)
+tgate = TGate 
+
+meas : ! (Qubit -> Bit)
+meas = Meas
+
+toffoli : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
+toffoli c b a = Toffoli c b a
+  -- let 
+  --     c = H c
+  --     (c, b) = CNot c b
+  --     c = tgate_inv c
+  --     (c, a) = CNot c a
+  --     c = tgate c
+  --     (c, b) = CNot c b
+  --     c = tgate_inv c
+  --     (c, a) = CNot c a
+  --     c = H (TGate c)
+  --     b = tgate b
+  --     (b, a) = CNot b a
+  --     a = tgate a
+  --     b = tgate_inv b
+  --     (b, a) = CNot b a
+  -- in (c, b, a)
+
+boxToffoli : Circ(Qubit * Qubit * Qubit, Qubit * Qubit * Qubit)
+boxToffoli =
+  box (Qubit * Qubit * Qubit) $ \ x -> uncurry (uncurry toffoli) x
+
+
+toffoliGate : ! (Bool -> Bool -> Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
+toffoliGate a b x y z =
+  if a then if b then toffoli x y z
+            else let (x, y, z) = toffoli x y (QNot z)
+                 in (x, y, QNot z)
+   else if b then let (x, y, z) = toffoli x (QNot y) z in (x, QNot y, z)
+        else let (x, y, z) = toffoli x (QNot y) (QNot z) in (x, QNot y, QNot z)
+        
+-- testTof =
+--   let (x, y, z) = toffoli (initQubit True) (initQubit True) (initQubit False)
+--   in (dynlift (meas x), dynlift (meas y), dynlift (meas z))
+
+-- testCNot =
+--   let (x, y) = CNot (initQubit False) (initQubit True)
+--   in (dynlift (meas x), dynlift (meas y))
+
+cnotGate : ! (Bool -> Qubit -> Qubit -> Qubit * Qubit)
+cnotGate f x y = if f then CNot x y else let (x, y) = CNot x (QNot y) in (x, QNot y)
+
+  
+   

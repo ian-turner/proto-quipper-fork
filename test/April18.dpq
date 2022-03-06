@@ -1,0 +1,83 @@
+module April18 where
+import "lib/Prelude.dpq"
+
+
+bell00 : Bool * Bool
+bell00 = let x = Init0 ()
+             y = Init0 ()
+             x  = H x
+             (y, x) = CNot y x
+         in (dynlift (Meas y), dynlift (Meas x))
+
+
+make_toffoli : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
+make_toffoli c b a = 
+  let 
+      c = H c
+      (c, b) = CNot c b
+      c = tgate_inv c
+      (c, a) = CNot c a
+      c = tgate c
+      (c, b) = CNot c b
+      c = tgate_inv c
+      (c, a) = CNot c a
+      c = H (TGate c)
+      b = tgate b
+      (b, a) = CNot b a
+      a = tgate a
+      b = tgate_inv b
+      (b, a) = CNot b a
+  in (c, b, a)
+
+
+boxTof = boxCirc $ \ x -> uncurry (uncurry make_toffoli) x
+
+-- testTof1 : Bool * Bool * Bool
+-- testTof1 =
+--   let (x, y, z) = toffoli (initQubit True) (initQubit True) (initQubit False)
+--   in (dynlift $ Meas x, dynlift $ Meas y, dynlift $ Meas z)
+
+-- Or
+
+
+-- Or 
+
+-- testTof'3 : Bool * Bool * Bool
+-- testTof'3 = runCirc boxTof (True, True, True)
+
+st (u : Unit) =
+  let x = Init0 ()
+      y = Init0 ()
+      x = dynlift (Meas (H x))
+  in if x then (QNot y) else (y)
+
+-- measSt : Bool
+-- measSt = measure (st ())
+
+g : !(Qubit -> Qubit)
+g x = g x
+
+f : !(Qubit -> Qubit)
+f x = H (f x)
+  -- let y = H x
+  --     -- _ = dynlift (Meas y)
+  -- in f y -- (Init0 ()) 
+
+main1 = box Qubit f
+
+main (x : Qubit) = unbox main1 x
+
+main2 : ! (Qubit -> Qubit -> Qubit * Qubit)
+main2 = controlling f 
+
+-- main3 : ! (Qubit -> Qubit -> Qubit * Qubit)
+main3 = box (Qubit * Qubit) (\ x -> uncurry main2 x)
+-- \ x -> (uncurry $ controlled main1) x
+
+-- testTof2 : Bool * Bool * Bool
+-- testTof2 =
+--   let (x, y, z) = toffoli (init True) (init True) (init False)
+--   in (measure x, measure y, measure z)
+
+-- testTerm = Term0 (Init1 ())
+

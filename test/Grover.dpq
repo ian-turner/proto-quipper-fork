@@ -3,11 +3,15 @@ import "lib/Prelude.dpq"
 
 
 
-toffoli : ! (Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
-toffoli x y z = ToffoliGate True True x y z
+-- toffoli : ! (Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
+-- toffoli x y z = ToffoliGate True True x y z
 
 
-controlled CZ : Qubit -> Qubit
+-- controlled CZ : Qubit -> Qubit
+-- gate {1,1,1} ZGate : Qubit -> Qubit
+
+cz : ! forall s -> (Simple s) => Qubit -> s -> Qubit * s
+cz q s = controlled (box Qubit ZGate) q s
 
 -- There are some reshuffling using reverse_vec to make the order match up with
 -- Mermin's book-> But the core part is the mapM->
@@ -28,18 +32,18 @@ cascade n a c b =
 box_cascade : ! (n : Nat) -> Circ(Vec Qubit n * Qubit * Vec Qubit n,
                                   Vec Qubit n * Vec Qubit n * Qubit)
 box_cascade n = box (Vec Qubit n * Qubit * Vec Qubit n) $
-                 \ x -> (uncurry $ uncurry (\ y -> cascade n y)) x
+                 \ x -> (uncurry $ uncurry (cascade n)) x
 
-testCas1 : Circ(Vec Qubit 4 * Qubit * Vec Qubit 4,
-                                  Vec Qubit 4 * Vec Qubit 4 * Qubit)
-testCas1 = box_cascade 4
+testCas1 : Circ(Vec Qubit four * Qubit * Vec Qubit four,
+                                  Vec Qubit four * Vec Qubit four * Qubit)
+testCas1 = box_cascade four
 
 
 nfoldZ : ! (n : Nat) -> Vec Qubit n -> Qubit -> Vec Qubit n -> Qubit -> Qubit ->
               Qubit * Qubit * Vec Qubit n * Qubit * Vec Qubit n
 nfoldZ n a c b d1 d2 =
   let (a', b', c') = cascade n a c b
-      (d1', r) = CZ d1 (d2, c')
+      (d1', r) = cz d1 (d2, c')
       (d2', c'') = r
       cascade' = unbox $ reverse $ box_cascade n
       (a'', c''', b'') = cascade' (a', b', c'')
@@ -50,9 +54,9 @@ box_nfoldZ : ! (n : Nat) -> Circ(Vec Qubit n * Qubit * Vec Qubit n * Qubit * Qub
                                 Qubit * Qubit * Vec Qubit n * Qubit * Vec Qubit n)
 box_nfoldZ n =
   box (Vec Qubit n * Qubit * Vec Qubit n * Qubit * Qubit) $
-      uncurry $ uncurry $ uncurry $ uncurry (\ y -> nfoldZ n y)
+      \ y -> (uncurry $ uncurry $ uncurry $ uncurry (nfoldZ n)) y
 
-testNfoldZ : Circ(Vec Qubit 4 * Qubit * Vec Qubit 4 * Qubit * Qubit,
-                                Qubit * Qubit * Vec Qubit 4 * Qubit * Vec Qubit 4)
-testNfoldZ = box_nfoldZ 4
+testNfoldZ : Circ(Vec Qubit four * Qubit * Vec Qubit four * Qubit * Qubit,
+                                Qubit * Qubit * Vec Qubit four * Qubit * Vec Qubit four)
+testNfoldZ = box_nfoldZ four
 

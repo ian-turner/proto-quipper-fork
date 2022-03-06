@@ -3,522 +3,547 @@
 {-# LANGUAGE BangPatterns #-}
 
 -- | This module implements a closure-based call-by-value evaluation.
--- It still has memory problem when generating super-large circuits.
+-- It can run into memory problem when generating super-large circuits (e.g., 1 millions gates).
+module Evaluation
+  ( eval
+  , initES
+  , size
+  , toVal
+  ) where
 
-module Evaluation (evaluation, evaluate,  size, toVal, getAllWires) where
-
-import Syntax
 import Erasure
-import SyntacticOperations
-import Utils
-import Nominal
 import Simulation
-import TCMonad
-import TypeError
+import SyntacticOperations
+import Syntax
+import Utils
 
-
-import Control.Monad.State.Strict
-import Control.Monad.Identity
+import Nominal
+import Control.Exception
+import Control.Monad.State
 import Control.Monad.Except
-
+import Control.Monad.Identity
+import TCMonad
+import Text.PrettyPrint
+import Data.List
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import Data.Set (Set)
-import Data.List
 import qualified Data.Set as S
+import Data.Tuple
 import Debug.Trace
-
-
-
-
--- * The evaluation functions for TCMonad.
-
--- | Evaluate an expression with an underlying circuit, return value and the updated circuit.
-evaluate :: Morphism -> EExp -> TCMonad (Value, Morphism)
-evaluate circ e =
-  do st <- get
-     let gl = globalCxt $ lcontext st
-         (r, s) = runState (runExceptT $ eval e)
-                  ES{morph = circ, evalEnv = gl, localEvalEnv = Map.empty, gcSize = 10000}
-     case r of
-       Left e -> throwError $ EvalErr e
-       Right r -> return (r, morph s)
-
--- | Evaluate a parameter term and return a value. 
-evaluation :: EExp -> TCMonad Value
-evaluation e =
-  do st <- get
-     let gl = globalCxt $ lcontext st
-         (r, _) = runState (runExceptT $ eval e)
-                  ES{morph = Morphism VStar [] VStar, evalEnv = gl, localEvalEnv = Map.empty,
-                     gcSize = 10000}
-     case r of
-       Left e -> throwError $ EvalErr e
-       Right r -> return r
+import Data.Number.CReal
 
 -- * The Eval monad and eval function.
 
--- | The evaluation monad.
-type Eval a = ExceptT EvalError (State EvalState) a
+-- | The evaluation monad combines the ReadWrite monad
+-- and carried an EvalState.
+type Eval a = StateT EvalState ReadWrite a
 
--- | Evaluator state, it contains an underlying circuit and
--- a global context. 
+-- | The evaluator state, it contains an underlying circuit and
+-- a global context.
 data EvalState =
-  ES { morph :: Morphism, -- ^ The underlying incomplete circuit.
-       evalEnv :: Context,  -- ^ The global evaluation context.
-       localEvalEnv :: Map Variable (Value, Integer, Integer, [Variable]),
-       -- ^ The heap for evaluation, represented by a map.
-       -- The first 'Integer' represents the approximate number of occurrences,
-       -- the second 'Integer' represents its accurate reference count,
-       -- the ['Variable'] is the variables that it refers to.
-       
-       gcSize :: Integer
-       -- ^ The size of the heap. Currently it is not used for gc.
-     }
+  ES
+    { evalEnv :: Context -- ^ The global evaluation context.
+    , labels :: [Label] -- ^ A list of labels that are generated during evaluation 
+    }
 
--- | Evaluate an expression to
--- a value in the value domain. The eval function also takes an environment
--- as argument and form a closure when evaluating a lambda abstraction or a lifted term.
+-- | Initialize an EvalState from a global context.
+initES :: Context -> EvalState
+initES gl = ES {evalEnv = gl, labels = []}
 
-eval :: EExp -> Eval Value
--- eval a | trace ("eval:" ++ show (disp a)) False = undefined
-eval (EVar x) = do
-  v <- lookupLEnv x 
-  return v
+-- | Lifting a label to a boolean. 
+dynamicLift :: Label -> Eval Bool
+dynamicLift l = lift $ dynliftRW l
 
-eval EStar = return VStar
-eval EUnit = return VUnit
-eval a@(EConst k) =
-  do st <- get
-     let genv = evalEnv st
-     case Map.lookup k genv of
-       Nothing -> throwError $ UndefinedId k
-       Just e ->
-         case identification e of
-           DataConstr _ -> return (VConst k)
-           DefinedGate v -> return v
-           DefinedFunction (Just (_, v, _)) -> return v
-           DefinedMethod _ v -> return v
-           DefinedInstFunction _ v -> return v
+-- | Append a list of gates to the underlying ReadWrite state. 
+addGates :: [Gate] -> Eval ()
+addGates gs = lift $ mapM_ gateRW gs
 
-eval (EBase k) = return $ VBase k
+-- | Evaluate an expression to a value in the value domain.
+-- The eval function also takes a local environment
+-- as argument and form closures when evaluating lambda abstractions
+-- or lifted terms.
+eval :: LEnv -> EExp -> Eval Value
+eval !lenv (EVar x) = return $ lookupLEnv x lenv
+eval !lenv EStar = return VStar
+eval !lenv EUnit = return VUnit
+eval !lenv a@(EConst k) = do
+  st <- get
+  let genv = evalEnv st
+  case Map.lookup k genv of
+    Nothing -> error $ "undefined" ++ (show $ disp k)
+    Just e ->
+      case identification e of
+        DataConstr _ -> return (VConst k)
+        DefinedGate v -> return v
+        DefinedFunction (Just (_, v, _)) -> return v
+        DefinedFunction Nothing ->
+          throw $ userError ("undefined: " ++ (show $ disp k))
+        DefinedMethod _ v -> return v
+        DefinedInstFunction _ v -> return v
 
-eval a@(ELBase k) =
-  do st <- get
-     let genv = evalEnv st
-     case Map.lookup k genv of
-       Nothing -> throwError $ UndefinedId k
-       Just e ->
-         case identification e of
-           DataType Simple _ (Just (ELBase id)) -> return (VLBase id)
-           DataType (SemiSimple _) _ (Just d) -> eval d
-           DataType _ _ Nothing -> return (VBase k)
+eval !lenv (EBase k) = return $ VBase k
 
-eval (EForce m) =
-  do m' <- eval m
-     case m' of
-       VLift _ e -> eval e
-       w@(VLiftCirc _) -> return w
-       v@(VApp VUnBox _) -> return $ VForce v
+eval !lenv a@(ELBase k) = do
+  st <- get
+  let genv = evalEnv st
+  case Map.lookup k genv of
+    Nothing -> throw $ userError ("undefined: " ++ (show $ disp k))
+    Just e ->
+      case identification e of
+        DataType Simple _ (Just (ELBase id)) -> return (VLBase id)
+        DataType (SemiSimple _) _ (Just d) -> eval lenv d
+        DataType _ _ Nothing -> return (VBase k)
 
-eval (ETensor e1 e2) =
-  do e1' <- eval e1
-     e2' <- eval e2
-     return $ VTensor e1' e2'
+eval !lenv (EForce m) = do
+  m' <- eval lenv m
+  case m' of
+    VLift (Abst lenv e) -> eval lenv e
+    -- VDynlift -> return $ VForce VDynlift
+    w@(VLiftCirc _) -> return w
+    v@(VApp VUnBox _) -> return $ VForce v
+    a -> error $ "from eval(EForce):" ++ (show $ disp a)
 
+eval !lenv (ETensor e1 e2) = do
+  e1' <- eval lenv e1
+  e2' <- eval lenv e2
+  return $ VTensor e1' e2'
 
-eval a@(ELam ws body) = return (VLam ws body)
-     
-eval a@(ELift ws body) = return (VLift ws body)
-     
-eval EUnBox = return VUnBox
-eval EReverse = return VReverse
-eval a@(EBox) = return VBox
-eval a@(EExBox) = return VExBox
-eval ERunCirc = return VRunCirc
+eval !lenv a@(ELam body) = return (VLam (abst lenv body))
+eval !lenv a@(ELift body) = return (VLift (abst lenv body))
+eval !lenv EUnBox = return VUnBox
+eval !lenv EReverse = return VReverse
+eval !lenv EDynlift = return VDynlift
+eval !lenv EControlled = return VControlled
+eval !lenv EWithComputed = return VWithComputed
+eval !lenv a@(EBox) = return VBox
+eval !lenv a@(EExBox) = return VExBox
+eval !lenv a@(ERealOp x) = return (VRealOp x)
+eval !lenv a@(EWrapR m) = return (VWrapR m)
 
-eval (EApp m n) =
-  do v <- eval m
-     w <- eval n
-     v `seq` w `seq` evalApp v w
+eval !lenv (EApp m n) = do
+  v <- eval lenv m
+  w <- eval lenv n
+  evalApp v w
 
-eval (EPair m n) = 
-  do v <- eval m
-     w <- eval n
-     v `seq` w `seq` return (VPair v w)
+eval !lenv (EPair m n) = do
+  v <- eval lenv m
+  w <- eval lenv n
+  return (VPair v w)
 
-eval (ELet m bd) =
-  do m' <- eval m
-     open bd $! \ x n ->
-       do addDefinition x m'
-          m' `seq` eval n
+eval !lenv (ELet m (Abst x n)) = do
+  m' <- eval lenv m
+  let lenv' = addDefinition x m' lenv
+  eval lenv' n
 
+eval !lenv (ELetPair m (Abst xs n)) = do
+  m' <- eval lenv m
+  let r = unVPair (length xs) m'
+  case r of
+    Just vs ->
+      let lenv' = foldl (\a (x, y) -> addDefinition x y a) lenv
+                  (zip xs vs)
+      in eval lenv' n
+    Nothing -> error "unpair error, from eval ELetPair."
+    
+eval !lenv (ELetPat m (Abst (EPApp kid vs) n)) = do
+  m' <- eval lenv m
+  case vflatten m' of
+    Nothing -> error ("from LetPat" ++ (show $ disp m'))
+    Just (Left id, args) | kid == id -> 
+         do let vs' = vs
+                subs = (zip vs' args)
+                lenv' = foldl (\a (x, v) -> addDefinition x v a)
+                        lenv subs
+            eval lenv' n
+    Just (Left id, args) | otherwise -> 
+         error "pattern mismatch, from eval ELetPat"
 
-eval (ELetPair m (Abst xs n)) =
-  do m' <- eval m
-     let r = unVPair (length xs) m'
-     case r of
-       Just vs -> do
-         mapM_ (\ (x, y) -> addDefinition x y)
-                        (zip xs vs)
-         eval n
-       Nothing -> throwError $! TupleMismatch (map fst xs) m'
+eval !lenv b@(ECase m (EB bd)) = do
+  m' <- eval lenv m
+  case vflatten m' of
+    Nothing -> error ("from eval (Case):" ++ (show $ dispRaw m'))
+    Just (Left id, args) -> reduce id args bd
+  where
+    reduce id args ((Abst (EPApp kid vs) m):bds) | kid == id =
+      do let vs' = vs
+             subs = zip vs' args
+             lenv' = foldl' (\a (x, v) -> addDefinition x v a)
+                     lenv subs
+         eval lenv' m
+    reduce id args ((Abst (EPApp kid vs) m):bds) | otherwise =
+          reduce id args bds
+    reduce id args [] =
+      throw $ userError ("missing a branch for: " ++ show (disp id))
 
-
-eval (ELetPat m bd) =
-  do m' <- eval m
-     case vflatten m' of
-       Nothing -> error ("from LetPat" ++ (show $! disp m'))
-       Just (Left id, args) ->
-         open bd $! \ p m ->
-         case p of
-           EPApp kid vs
-             | kid == id ->
-               do let vs' = vs 
-                      subs = (zip vs' args)
-                  mapM_ (\ (x, v) -> addDefinition x v) subs
-                  eval m
-           p -> error "pattern mismatch, from eval ELetPat" 
-
-eval b@(ECase m (EB bd)) =
-  do m' <- eval m
-     case vflatten m' of
-       Nothing -> error ("from eval (Case):")
-       Just (Left id, args) ->
-         reduce id args bd
-  where reduce id args (bd:bds) =
-          open bd $! \ p m ->
-          case p of
-             EPApp kid vs
-               | kid == id -> 
-               do st <- get
-                  let vs' = vs
-                      subs = zip vs' args
-                  mapM_ (\ (x, v) -> addDefinition x v) subs
-                  eval m
-               | otherwise -> reduce id args bds
-        reduce id args [] = 
-          throwError $! MissBranch id b
-
-eval a = error $! "from eval: " ++ (show $! disp a)
-
+eval !lenv a = error $ "from eval: " ++ (show $ disp a)
 
 -- * Helper functions for eval.
-
 -- | Look up a value from the local environment.
--- It also implements a nonstop GC. Compared to stop-the-world-gc,
--- The CONS is that if the garbage is not access
--- anymore, there is no way to collect them. The
--- PROS is that it runs faster than stop-the-world-gc and it does not
--- stop anything. 
-lookupLEnv :: Variable -> Eval Value
-lookupLEnv x =
-  do st <- get
-     let lenv = localEvalEnv st
-         size = gcSize st
-     case Map.lookup x lenv of
-       Nothing -> error $ "from lookupLEnv:" ++ show x
-       Just (v, n, ref, ps) ->
-         if (n-1 <= 0) && ref == 0 then
-           do let lenv' = decrRef ps (Map.delete x lenv)
-              put st{localEvalEnv = lenv'}
-              return v
-         else
-           do let lenv' = Map.insert x (v, n-1, ref, ps) lenv
-              put st{localEvalEnv = lenv'}
-              return v
+lookupLEnv :: Variable -> LEnv -> Value
+lookupLEnv x lenv =
+  case Map.lookup x lenv of
+    Nothing -> error $ "undefined variable from lookupLEnv:" ++ show x
+    Just v -> v
 
 -- | Add a value to the environment.
-addDefinition (x, n) m =
-  do st <- get
-     let vs = vars m
-         lenv = localEvalEnv st
-         lenv' = if n == 0 then lenv
-                 else Map.insert x (m, n, 0, vs) (addRef vs lenv) 
-     put st{localEvalEnv = lenv'}
+addDefinition :: Variable -> Value -> LEnv -> LEnv
+addDefinition x m lenv = Map.insert x m lenv
 
--- | Increase the reference count for given variables.
-addRef :: [Variable] -> Map Variable (Value, Integer, Integer, [Variable]) ->
-           Map Variable (Value, Integer, Integer, [Variable])               
-addRef [] lenv = lenv
-addRef (v:vs) lenv =
-  case Map.lookup v lenv of
-    Nothing -> error "from addRef"
-    Just (val, n, ref, ps) ->
-      let lenv' = Map.insert v (val, n , ref+1, ps) lenv
-      in addRef vs lenv'
-  
--- | A helper function for evaluating various of applications.
+-- | Evaluate various of applications.
 evalApp :: Value -> Value -> Eval Value
-
-evalApp VUnBox v | Wired _ <- v = return $! VApp VUnBox v
-evalApp VUnBox v | otherwise = return VUnBox
-evalApp (VForce (VApp VUnBox v)) w =
+evalApp VUnBox v =
   case v of
-    Wired bd ->
-      open bd $! \ wires m ->
-      case m of
-        f@(VCircuit (Morphism ins gs outs)) ->
-          let binding = makeBinding ins w 
-          in appendMorph binding (Morphism ins gs outs)
-    a -> error $! "evalApp(Unbox ..) " ++ (show $! disp a)
+    (Wired _) -> return $ VApp VUnBox v
+    _ -> return VUnBox
+
+-- Note that (VRealOp pi) is a function.
+evalApp (VRealOp x) n | x == "pi" =
+  case toInt n of
+    Nothing -> error "from pi n"
+    Just n' -> return $ VWrapR $ MR n' pi
+    
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "sin" =
+  return $ VWrapR $ MR l (sin r)
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "ceiling" =
+  return $ VWrapR $ MR l (fromIntegral (ceiling r :: Integer))
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "round" =
+  return $ VWrapR $ MR l (fromIntegral (round r :: Integer))
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "floor" =
+  return $ VWrapR $ MR l (fromIntegral (floor r :: Integer))
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "exp" =
+  return $ VWrapR $ MR l (exp r)
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "cos" =
+  return $ VWrapR $ MR l (cos r)
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "log" = do
+  when (r < 0) $ error "applying log a negative real"
+  return $ VWrapR $ MR l (log r)
+
+evalApp (VRealOp x) (VWrapR (MR l r)) | x == "sqrt" = do
+  when (r < 0) $ error "squaring a negative real"
+  return $ VWrapR $ MR l (sqrt r)
+
+evalApp (VApp (VApp (VRealOp x) _) n) (VWrapR (MR l r)) | x == "cast" =
+  case toInt n of
+    Nothing -> error "from evalVApp: toInt"
+    Just l' -> return $ VWrapR $ MR l' r
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "plusReal" =
+  if l' == l then return $ VWrapR $ MR l' (r' + r)
+  else error "length mismatch from plusReal, when evaluating evalVApp."
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "minusReal" =
+  if l' == l then return $ VWrapR $ MR l' (r' - r)
+  else error "length mismatch from minusReal, when evalutating evalVApp."
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "divReal" =
+  if l' == l then
+    do when (r == 0) $ error "divided by zero"
+       return $ VWrapR $ MR l' (r' / r)
+  else error "length mismatch from evalVApp: divReal"
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "mulReal" =
+  if l' == l then return $ VWrapR $ MR l' (r' * r)
+  else error "length mismatch from mulReal, when evaluating evalVApp."
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "eqReal" =
+  if l' == l then
+    if showCReal l' r' == showCReal l' r then
+      return $ VConst (Id "True")
+    else return $ VConst (Id "False")
+  else error "length mismatch from eqReal, when evaluating evalVApp."
+
+evalApp (VApp (VRealOp x) (VWrapR (MR l' r'))) (VWrapR (MR l r)) | x == "ltReal" =
+  if l' == l then
+    let r1 = (read $ showCReal l' r') :: CReal
+        r2 = (read $ showCReal l' r) :: CReal in
+    if r1 > r2 then
+      return $ VConst (Id "True")
+    else return $ VConst (Id "False")
+  else error "length mismatch from ltReal, when evaluating evalApp."
+
+evalApp (VDynlift) (VLabel v) = do
+  b <- dynamicLift v
+  if b
+    then return $ VConst (Id "True")
+    else return $ VConst (Id "False")
+
+-- append gates
+evalApp (VForce (VApp VUnBox (Wired (Abst wires morph)))) w = do
+  let binding = makeBinding (input morph) w
+  st <- get
+  let st' = st{labels = labels st ++ wires}
+  put st'
+  let morph' = rename morph binding
+      gs = gates morph'
+      outs = output morph'
+  addGates gs
+  return outs
 
 evalApp (VApp (VApp (VApp VBox q) _) _) v =
   case v of
-    VLift _ m -> evalBox (Right m) q
+    VLift (Abst lenv m) -> evalBox lenv (Right m) q
     VApp VUnBox w -> return w
-    m@(VLiftCirc _) -> evalBox (Left m) q
-    a -> error $ "evalApp VBox:" ++ (show $ disp a)
+    m@(VLiftCirc _) -> evalBox Map.empty (Left m) q
+    a -> error $ "unexpected value" ++ (show $ disp a) ++ " , from evalApp VBox."
+  where
+    evalBox :: LEnv -> Either Value EExp -> Value -> Eval Value
+    evalBox lenv body uv = freshLabels (size uv) $ \vs -> do
+      st <- get
+      b <-
+        case body of
+             Right body' -> eval lenv body'
+             Left v -> return v
+      let uv' = toVal uv vs
+          bgs = boxGates $ runStateT (evalApp b uv') st
+          gs = fst bgs
+          res = fst $ snd bgs
+          st' = snd $ snd bgs
+          vs' = labels st'
+          newMorph = Morphism uv' gs res
+          morph' = Wired (abst (vs ++ vs') newMorph)
+      return morph'
 
-evalApp (VApp (VApp (VApp (VApp VExBox q) _) _) _) v =  
+evalApp (VApp (VApp (VApp (VApp VExBox uv) _) _) _) v =
   case v of
-    VLift _ body ->
-      evalExbox body q
+    VLift (Abst lenv body) ->
+      freshLabels (size uv) $ \vs -> do
+        st <- get
+        b <- eval lenv body
+        let uv' = toVal uv vs
+            bgs = boxGates $ runStateT (evalApp b uv') st
+            gs = fst bgs
+            res = fst $ snd bgs
+            n = fstVPair res
+            res' = sndVPair res
+            st' = snd $ snd bgs
+            vs' = labels st'
+            newMorph = Morphism uv' gs res'
+            morph' = Wired (abst (vs ++ vs') newMorph)
+        return (VPair n morph')
+  where
+    fstVPair (VPair a _) = a
+    sndVPair (VPair _ b) = b
 
-evalApp (VApp (VApp (VApp VRunCirc  _) _) (Wired (Abst _ (VCircuit m)))) input =
-  case runCircuit m input of
-    Left e -> throwError $! SimulationErr e
-    Right r -> return r
+evalApp (VApp (VApp VReverse _) _) (Wired (Abst ws (Morphism ins gs outs))) = do
+  let gs' = revGates gs
+  return $ Wired (abst ws $ Morphism outs gs' ins)
 
+evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
+  freshNames ["#ctrl", "#input", "#circ"] $ \([ctrl, inp, circ]) -> do
+    let ins = input m
+        gs = gates m
+        outs = output m
+        mycirc = Wired (abst ws $ Morphism ins (controlledGates ctrl gs) outs)
+        env = Map.fromList [(circ, mycirc)]
+        exp =
+          EPair (EApp (EForce $ EApp EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
+    return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
+  where
+    controlledGates a gs = map (helper a) gs
+    helper a (Gate id ps ins outs b False inv) = Gate id ps ins outs b False inv
+    helper a (Gate id ps ins outs VStar flag inv) =
+      Gate id ps ins outs (VVar a) flag inv
+    helper a (Gate id ps ins outs b flag inv) =
+      Gate id ps ins outs (VPair b (VVar a)) flag inv
 
-evalApp (VApp (VApp VReverse _) _) m' =
-  case m' of
-    Wired bd ->
-      open bd $! \ ws (VCircuit (Morphism ins gs outs)) ->
-      let gs' = revGates gs in
-        return $! Wired (abst ws (VCircuit $! Morphism outs gs' ins))
+evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _) _) _) m =
+  return $ VComputed m
+
+-- Congugate the circ1 : Circ(a, b*e) to circ2 : Circ(b * c, b * d),
+-- return a circuit of type Circ(a*c, a*d). The resulting circuit
+-- can be controlled via circ2 (not circ1). 
+evalApp (VComputed (Wired (Abst ws1 circ1))) (Wired (Abst ws2 circ2)) = 
+  let gs1 = gates circ1
+      a = input circ1
+      b1 = fstVPair $ output circ1
+      e = sndVPair $ output circ1
+      gs1' = map disableCtrl gs1
+      gs1'' = revGates gs1'
+      circ1' = Morphism (VPair b1 e) gs1'' a
+      b2 = fstVPair $ input circ2
+      binding = makeBinding b2 b1
+      circ2' = rename circ2 binding
+      gs2 = gates circ2'
+      c = sndVPair $ input circ2'
+      b3 = fstVPair $ output circ2'
+      d = sndVPair $ output circ2'
+      binding2 = makeBinding b1 b3
+      circ3 = rename circ1' binding2
+      gs1''' = gates circ3
+      a' = output circ3
+      res =
+        Wired $
+        abst
+          (ws1 ++ ws2)
+          (Morphism (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d))
+  in return res
+  where
+    disableCtrl (Gate e1 e2 e3 e4 e5 b inv) = Gate e1 e2 e3 e4 e5 False inv
+    fstVPair (VPair a _) = a
+    sndVPair (VPair _ b) = b
 
 evalApp a@(Wired _) w = return a
 
-evalApp v w = 
+evalApp v w =
   let (h, res) = unwindVal v
   in case h of
-    VLam _ bd -> handleBody (res ++ [w]) bd
-    VLiftCirc (Abst vs (Abst lenv e)) -> 
-        do let args = res ++ [w]
-               lvs = length vs
-           if lvs > (length args) then
-             return $! VApp v w
-             else do let ns = countVar vs e
-                         sub = filter (\ (_ , (v, n)) -> n /= 0) $ zip vs (zip args ns)
-                         sub' = zip vs args
-                         ws = drop lvs args
-                         lenv' = updateCirc sub' lenv
-                     mapM_ (\(x, (v, n)) -> addDefinition (x, n) v) (lenv' ++ sub)
-                     e' <- eval e
-                     case e' of
-                       VLam _ bd -> handleBody ws bd
-                       _ -> return $! foldl VApp e' ws
-        
-    _ -> return $! VApp v w
-          
-  where unwindVal (VApp t1 t2) =
-          let (h, args) = unwindVal t1
-          in (h, args++[t2])
-        unwindVal a = (a, [])
-        -- Handle beta reduction
-        handleBody args bd = open bd $! \ vs m ->
-             let lvs = length vs
-             in
-              if lvs > length args
-              then return $! VApp v w
-              else do let sub = zip vs args
-                          ws = drop lvs args
-                      mapM_ (\ (x,v) -> addDefinition x v) sub
-                      if null ws then eval m
-                        else 
-                        do m' <- eval m
-                           m' `seq` ws `seq` return $! foldl' VApp m' ws
+        VLam (Abst lenv bd) -> handleBody lenv (res ++ [w]) bd
+        VLiftCirc (Abst vs (Abst lenv e)) -> do
+          let args = res ++ [w]
+              lvs = length vs
+          if lvs > (length args)
+            then return $ VApp v w
+            else do
+              let sub' = zip vs args
+                  ws = drop lvs args
+                  lenv' = updateCirc sub' lenv
+                  lenv'' = Map.fromList (lenv' ++ sub')
+              e' <- eval lenv'' e
+              case e' of
+                VLam (Abst lenv''' bd) -> handleBody lenv''' ws bd
+                _ -> return $ foldl (\x y -> VApp x y) e' ws
+        _ -> return $ VApp v w
+  where -- Handle beta reduction
+    handleBody lenv args bd =
+      open bd $ \vs m ->
+        let lvs = length vs
+         in if lvs > length args
+              then return $ VApp v w
+              else do
+                let sub = zip vs args
+                    ws = drop lvs args
+                    lenv' = foldl' (\a (x, v) -> addDefinition x v a) lenv sub
+                if null ws
+                  then eval lenv' m
+                  else do
+                    m' <- eval lenv' m
+                    return $ foldl (\x y -> VApp x y) m' ws
         -- Perform substitution on the variables in a circuit.
-        updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, (Value, Integer))]
-        updateCirc sub lenv =
-             let (x, (circ, n)):[] = Map.toList lenv
-                 Wired (Abst wires (VCircuit (Morphism ins
-                                               [Gate id params gin gout ctrls] outs)))
-                   = circ
-                 params' = helper params sub
-                 ctrls':[] = helper [ctrls] sub
-                 circ' = Wired (abst wires
-                                 (VCircuit (Morphism ins
-                                             [Gate id params' gin gout ctrls'] outs)))
-             in [(x, (circ', n))]
-        -- Perfrom substitution.             
-        helper :: [Value] -> [(Variable, Value)] -> [Value]
-        helper [] lc = []
-        helper (VStar:xs) lc = VStar:helper xs lc
-        helper ((VVar x):xs) lc =
-             let res = helper xs lc in
-             case lookup x lc of
-               Just v -> v:res
-               Nothing -> error $! "can't find variable " ++ (show $! disp x)
-
--- | Evaluate a box term.
-evalBox :: Either Value EExp -> Value -> Eval Value               
-evalBox body uv =
-  freshLabels (size uv) $! \ vs ->
-   do st <- get
-      b <- case body of
-                Right body' -> eval body'
-                Left v -> return v
-      let uv' = toVal uv vs
-          d = Morphism uv' [] uv'
-          (res, st') = runState (runExceptT $! evalApp b uv') st{morph = d}
-      case res of
-        Left e -> throwError e
-        Right res' -> 
-          let Morphism ins gs _ = morph st'
-              newMorph = Morphism ins (reverse gs) res'
-              wires = getAllWires newMorph
-              morph' = Wired $! abst wires (VCircuit newMorph)
-          in return morph'
-
--- | Evaluate an existsBox term. Note that
--- it is tempting to combine 'evalExbox' and 'evalBox' into one function,
--- but this will introduce bug, because we do not distinguish existential
--- pair and the usual tensor pair at runtime, the evaluator may confuse
--- the tensor pair with existential pair, thus making the wrong decision.
--- So we define 'evalExbox' and 'evalBox' separately to enforce the assumptions.
-evalExbox :: EExp -> Value -> Eval Value        
-evalExbox body uv =
-  freshLabels (size uv) $! \ vs ->
-   do st <- get
-      b <- eval body
-      let uv' = toVal uv vs
-          d = Morphism uv' [] uv'
-          (res, st') = runState (runExceptT $! evalApp b uv') st{morph = d}
-      case res of
-        Left e -> throwError e
-        Right (VPair n res') -> 
-          let Morphism ins gs _ = morph st'
-              newMorph = Morphism ins (reverse gs) res'
-              wires = getAllWires newMorph
-              morph' = Wired $! abst wires (VCircuit newMorph)
-          in return (VPair n morph')        
-        Right a -> error $! "from eval_exBox\n" ++ (show $! disp a)
+    updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, Value)]
+    updateCirc sub lenv =
+      let [(x, Wired (Abst wires (Morphism ins gs outs)))] = Map.toList lenv
+          params1 = map params gs
+          ctrls = map ctrl gs
+          params' = map (\p -> helper p sub) params1
+          ctrls' = helper ctrls sub
+          gs' =
+            zipWith3
+              (\p c g ->
+                 Gate
+                   (gateName g)
+                   p
+                   (inputVal g)
+                   (outputVal g)
+                   c
+                   (ctrlFlag g)
+                   (inv g))
+              params'
+              ctrls'
+              gs
+          circ' = Wired (abst wires (Morphism ins gs' outs))
+       in [(x, circ')]
+        -- Perfrom substitution.
+    helper :: [Value] -> [(Variable, Value)] -> [Value]
+    helper [] lc = []
+    helper (b:xs) lc =
+      let b' = applyValSubst b lc
+          res = helper xs lc
+       in b' : res
+    applyValSubst VStar lc = VStar
+    applyValSubst a@(VConst _) lc = a
+    applyValSubst l@(VLabel _) lc = l
+    applyValSubst (VVar x) lc =
+      case lookup x lc of
+        Just v -> v
+        Nothing -> error $ "can't find variable " ++ (show $ disp x)
+    applyValSubst (VPair a b) lc =
+      let a' = applyValSubst a lc
+          b' = applyValSubst b lc
+       in VPair a' b'
+    applyValSubst (VApp a b) lc =
+      let a' = applyValSubst a lc
+          b' = applyValSubst b lc
+       in VApp a' b'
+    applyValSubst c lc = error $ "from applyValSubst:" ++ (show $ disp c)
 
 
-
--- | Append a circuit to the underline circuit state according to a binding.
--- For efficiency reason we try prepend instead of append, so 'evalBox' and 'evalExbox'
--- have to reverse the list of gates as part of the post-processing. 
-appendMorph :: Binding -> Morphism -> Eval Value
-appendMorph binding f@(Morphism fins fs fouts) =
-  do st <- get
-     let circ = morph st
-         (Morphism fins' fs' fouts') = rename f binding
-     case circ of
-       Morphism ins gs outs ->
-         let
-           newCirc = Morphism ins (reverse fs'++gs) fouts' in
-         do put st{morph = newCirc }
-            return fouts'
-
-
--- | A binding is a map of labels. 
+-- | A binding is a map of labels.
 type Binding = Map Label Label
 
--- | Obtain a binding from two simple terms. 
+-- | Obtain a binding from two simple terms.
 makeBinding :: Value -> Value -> Binding
 makeBinding w v =
   let ws = getWires w
       vs = getWires v
-  in if length ws /= length vs
-     then 
-       error ("binding mismatch!\n" ++ (show $! disp w) ++
-               "\n" ++ (show $! disp v))
-       else Map.fromList (zip ws vs)
+   in Map.fromList (zip ws vs)
 
-
-
-   
--- | Reverse a list of gate in theory, in reality it only
--- changes the name of a gate to its adjoint, the gates are
--- already stored in reverse order due to the way we implement 'appendMorph'.
+-- | Reverse a list of gates. 
+-- It also changes the name of a gate to its adjoint. 
 revGates :: [Gate] -> [Gate]
-revGates xs = revGatesh xs [] 
-  where revGatesh [] gs = gs
-        revGatesh ((Gate id params ins outs ctrls):res) gs =
-          let id' = invertName id
-          in revGatesh res ((Gate id' params outs ins ctrls):gs)
+revGates xs = map invertGateName $ reverse xs
+  where
+    invertGateName (Gate id params ins outs ctrls flag (Just g)) =
+      Gate g params outs ins ctrls flag (Just id)
+    invertGateName (Gate id params ins outs ctrls flag Nothing) =
+      error $ "non-invertable gate: " ++ getName id
 
--- | Change the name of a gate to its adjoint
-invertName :: Id -> Id             
-invertName id | getName id == "Init0" =  Id "Term0"
-invertName id | getName id == "Init1" =  Id "Term1"
-invertName id | getName id == "Term1" =  Id "Init1"
-invertName id | getName id == "Term0" =  Id "Init0"
-invertName id | getName id == "H" =  Id "H"
-invertName id | getName id == "CNot" =  Id "CNot"
-invertName id | getName id == "Not_g" =  Id "Not_g"
-invertName id | getName id == "C_Not" =  Id "C_Not"
-invertName id | getName id == "QNot" =  Id "QNot"
-invertName id | getName id == "CNotGate" =  Id "CNotGate"
-invertName id | getName id == "ToffoliGate_10" =  Id "ToffoliGate_10"
-invertName id | getName id == "ToffoliGate_01" =  Id "ToffoliGate_01"
-invertName id | getName id == "ToffoliGate" =  Id "ToffoliGate"
-invertName id | getName id == "Mea" = error "cannot invert Mea gate"
-invertName id | getName id == "Discard" = error "cannot invert Discard gate"
-invertName id =  Id $! getName id ++ "*"
-
-
--- | Rename /uv/ using fresh labels draw from /vs/.
+-- | Obtain a fresh value of type /uv/ using fresh labels draw from /vs/.
 toVal :: Value -> [Label] -> Value
 toVal uv vs = evalState (templateToVal uv) vs
 
 -- | Obtain a fresh template inhabitant of a simple type, with wirenames
--- drawn from the state. The input is a simple data type.
+-- drawn from the state. The input is a simple data type, the output is a
+-- simple data value.
 templateToVal :: Value -> State [Label] Value
-templateToVal (VLBase _) =
-  do x <- get
-     let (v:vs) = x
-     put vs
-     return (VLabel v)
+templateToVal (VLBase _) = do
+  x <- get
+  let (v:vs) = x
+  put vs
+  return (VLabel v)
 templateToVal a@(VConst _) = return a
 templateToVal a@(VUnit) = return VStar
-templateToVal (VApp e1 e2) =
-  do e1' <- templateToVal e1
-     e2' <- templateToVal e2
-     return $! VApp e1' e2'
-
-templateToVal (VTensor e1 e2) =
-  do e1' <- templateToVal e1
-     e2' <- templateToVal e2
-     return $! VPair e1' e2'
-
-templateToVal a = error "applying templateToVal function to an ill-formed template"
+templateToVal (VApp e1 e2) = do
+  e1' <- templateToVal e1
+  e2' <- templateToVal e2
+  return $ VApp e1' e2'
+templateToVal (VTensor e1 e2) = do
+  e1' <- templateToVal e1
+  e2' <- templateToVal e2
+  return $ VPair e1' e2'
+templateToVal a =
+  error "applying templateToVal function to an ill-formed template"
 
 -- | Get the size of a simple data type.
-size :: Num a => Value -> a
+size :: Value -> Int
 size (VLBase x) = 1
+size (VLabel x) = 1
 size (VConst _) = 0
 size VUnit = 0
+size VStar = 0
 size (VApp e1 e2) = size e1 + size e2
 size (VTensor e1 e2) = size e1 + size e2
-size a = error $! "applying size function to an ill-formed template:" ++ (show $! disp a)     
+size (VPair e1 e2) = size e1 + size e2
+size a =
+  error $ "applying size function to an ill-formed template:" ++ (show $ disp a)
 
--- | Obtain all the labels from the circuit.
-getAllWires :: Morphism -> [Label]
-getAllWires (Morphism ins gs outs) =
-  let inWires = S.fromList $! getWires ins
-      outWires = S.fromList $! getWires outs
-      gsWires = S.unions $! map getGateWires gs
-  in S.toList (inWires `S.union` outWires `S.union` gsWires)
-  where getGateWires (Gate _ _ ins outs ctrls) =
-          S.fromList (getWires ins) `S.union`
-          S.fromList (getWires outs) `S.union`
-          S.fromList (getWires ctrls)
+-- | Convert applicative natural number into the haskell int type.
+toInt :: Value -> Maybe Int
+toInt (VApp (VConst id) t') =
+  if getName id == "S" then
+    do n <- toInt t'
+       return $ 1+ n
+  else Nothing
 
+toInt (VConst id) = 
+  if getName id == "Z" then
+    return 0
+  else Nothing
 
--- | Decrease the reference count for a list of variables.
-decrRef :: [Variable] -> Map Variable (Value, Integer, Integer, [Variable]) ->
-           Map Variable (Value, Integer, Integer, [Variable])          
-decrRef [] m = m
-decrRef (v:vs) m =
-  case Map.lookup v m of
-    Nothing -> error "from decrRef"
-    Just (val, n, ref, ps) ->
-      let m' = Map.insert v (val, n, ref-1, ps) m
-      in decrRef vs m'
-        
-                             
-          
+toInt _ = Nothing

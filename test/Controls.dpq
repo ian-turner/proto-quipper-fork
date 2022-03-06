@@ -3,19 +3,19 @@ import "lib/Prelude.dpq"
 
 myCtrl : ! forall v -> (Simple v) => Qubit -> Qubit -> v -> (Qubit * Qubit) * v
 myCtrl a b c = withControl c $ do
-             a <- applyS $ H_g a
-             b <- applyS $ H_g b
+             a <- applyS $ h_g a
+             b <- applyS $ h_g b
              applyS $ cnot a b
 
 myCtrl1 : ! forall (s t : Type) -> (Simple s, Simple t) => Qubit -> Qubit -> s -> t ->
                   Qubit * Qubit * t * s
 myCtrl1 a b c d =
         withControl c $ do
-             a <- applyS $ H_g a
+             a <- applyS $ h_g a
 	     -- without monad tranformer, we would have to
 	     -- explicitly use let and re-introduce the
 	     -- do notation->
-             let (b, d) = withControl d $ applyS $ H_g b in
+             let (b, d) = withControl d $ applyS $ h_g b in
              do (a, b) <- applyS $ cnot a b
 	     	return (a, b, d)
 
@@ -27,9 +27,9 @@ myCtrl2 : ! forall (s t : Type) -> (Simple s, Simple t) => Qubit -> Qubit -> s -
                 Qubit * Qubit * t * s
 myCtrl2 a b c d =
   runIdentity $ withControlT c $ do
-       a <- apply $ H_g a
+       a <- apply $ h_g a
        -- With monad transformer, we have to deal with residue 'd' explicitly
-       (b, d) <- withControlT d $ apply $ H_g b 
+       (b, d) <- withControlT d $ apply $ h_g b 
        (a, b) <- apply $ cnot a b
        return (a, b, d)
 
@@ -40,11 +40,11 @@ myCtrl3 a b c d =
       -- a  way to thread control wires->
        a <- apply $ \ x ->
              let (c, d) = x
-	     	 (a, c) = H_g a c
+	     	 (a, c) = h_g a c
 	     in (a, (c, d))
        b <- apply $ \ x ->
               let (c, d) = x
-	          (b, d) = H_g b d
+	          (b, d) = h_g b d
 	      in (b, (c, d))
       -- it is very easy to be wrong here because
       -- if we want cnot to be only controlled by
@@ -82,7 +82,7 @@ box_mycirc2 = box ( Qubit* Qubit* Qubit) mycirc2
 timestep : ! (Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
 timestep a b c = 
   let (a, b, _) = myCtrl a b ()
-      (c, ab) = Not_g c (a,b)
+      (c, ab) = not_g c (a,b)
       f = reverseSimpleFunction (Qubit * Qubit) $ \ y -> uncurry myCtrl y ()
       (a, b) = f (ab, ())
   in (a, b, c)
@@ -113,8 +113,8 @@ circ4 l x =
                     l'
         return $ map H l''
 
-box_circ4 : Circ(Vec Qubit 4 * Qubit, Vec Qubit 4 * Qubit)
-box_circ4 = box (Vec Qubit 4 * Qubit) $ \ x -> uncurry circ4 x
+box_circ4 : Circ(Vec Qubit four * Qubit, Vec Qubit four * Qubit)
+box_circ4 = box (Vec Qubit four * Qubit) $ \ x -> uncurry circ4 x
 
 
 
@@ -152,8 +152,8 @@ circ9 : ! forall (n : Nat) -> (Vec Qubit n) -> Qubit -> Vec Qubit n * Qubit
 circ9 l x = 
  runState x $ mapM (\ q -> applyS (\ x -> CNot x q)) l
 
-main : Circ(Vec Qubit 4 * Qubit, Vec Qubit 4 * Qubit)
-main = box (Vec Qubit 4 * Qubit) $ \ x -> uncurry circ9 x
+main : Circ(Vec Qubit four * Qubit, Vec Qubit four * Qubit)
+main = box (Vec Qubit four * Qubit) $ \ x -> uncurry circ9 x
 
 
 

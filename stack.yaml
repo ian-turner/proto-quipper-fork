@@ -17,7 +17,8 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver: lts-14.17
+resolver: lts-15.7
+
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -42,6 +43,7 @@ packages:
 extra-deps: 
 - easyrender-0.1.1.4
 - nominal-0.2.0.0
+# - /home/frank/softwares/nominal-0.2.0.0
 
 
 # Override default flag values for local packages and extra-deps

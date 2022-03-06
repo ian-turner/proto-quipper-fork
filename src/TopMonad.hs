@@ -10,32 +10,34 @@ import ConcreteSyntax as C
 import Parser
 import TCMonad
 import TypeClass
-import ProcessDecls
 import Typechecking
 import Resolve
+import Erasure
 import TypeError
+import Evaluation
+import Simulation
 import Utils
 import SyntacticOperations
 
 
 import Nominal
-
+import qualified Data.MultiSet as S
 import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Exception hiding (TypeError)
 import Text.Parsec hiding (count)
 import Text.PrettyPrint
 import Control.Monad.State
-import qualified Data.Map as Map
-import Data.Map (Map)
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 
 
 -- | Top-level error data type. 
 data Error =
   NoReloadError  
-  | IOError IOError  -- ^ A wrapper for IO error.
+  | IOError IOError -- ^ A wrapper for IO error.
   | ScopeErr ScopeError -- ^ A wrapper for scope error.
-  | Mess Position Doc  -- ^ A wrapper for a message.
+  | Mess Doc  -- ^ A wrapper for a message.
   | Cyclic Position [String] String -- ^ Cyclic importation error.
   | ParseErr ParseError -- ^ A wrapper for parsing error.
   | CompileErr TypeError -- ^ A wrapper for typing error.
@@ -45,25 +47,16 @@ instance Disp Error where
   display flag (IOError e) = text $ show e
 
   display flag NoReloadError = text "There is no file to reload"
-  display flag (Mess p s) = display flag p $$ display flag s
-  display flag (Cyclic p sources target) = display flag p $$
-                                  text "cyclic importing detected" $$
-                                  text "when importing:" <+> text target $$
-                                  text "current importation chain:" $$
-                                  (vcat $ map text sources)
+  display flag (Mess msg) = msg
+  display flag (Cyclic p sources target) =
+    display flag p $$
+    text "cyclic importing detected" $$
+    text "when importing:" <+> text target $$
+    text "current importation chain:" $$
+    (vcat $ map text sources)
+    
   display flag (ParseErr e) = display flag e
   display flag (ScopeErr e) = display flag e
-  display flag (CompileErr (PfErrWrapper a e t)) =
-    text "proof checking error:" $$
-    dispRaw e $$
-    text "when checking the following annotated term:" $$
-    dispRaw a $$
-    text "against the type:" $$
-    dispRaw t $$
-    text "*************************" $$
-    text "this is a bug, please send bug report. Thanks!"
-    
-
   display flag (CompileErr e) = display flag e
     
 
@@ -85,32 +78,29 @@ initTopState p = TopState {
   filename = Nothing
   }
 
--- | A run function for the 'Top' monad.
-runTop :: String -> Top a -> IO a
-runTop p body = 
-  do (r, s') <- runStateT (runExceptT (runT body)) (initTopState p)
-     case r of
-       Right a -> return a
-       Left e -> error ("from runTop: " ++ (show $ disp e)) 
+-- | Project 'Top' monad into an 'IO' computation.
+runTop :: String -> Top a -> IO (Either Error a, TopState)
+runTop p body = runStateT (runExceptT (runT body)) (initTopState p)
 
 
 -- | Interpreter's state.
 data InterpreterState = InterpreterState {
   scope :: Scope,   -- ^ Scope information.
   context :: Context,  -- ^ Typing context.
-  circ :: Morphism,  -- ^ Top level incomplete circuit.
   mainExp :: Maybe (A.Value, A.Exp),  -- ^ Main value and its type.
   instCxt :: GlobalInstanceCxt, -- ^ Type class instance context.
   parserState :: ParserState,   -- ^ Infix operators table.
   parentFiles :: [String], -- ^ Parent files, for
-                    -- preventing cyclic importing.
+                           -- preventing cyclic importing.
   importedFiles :: [String], -- ^ Imported files, for preventing double importing.
-  counter :: Int, -- ^ A counter. 
-  path :: String -- ^ DPQ project path.
+  counter :: Int, -- ^ A counter.
+  path :: String, -- ^ DPQ project path.
+  topGates :: [Gate]
   }
 
 
--- | Lift 'IO' to 'Top'.
+-- | Embed an 'IO' computation to 'Top' monad, handle 'IOError' from
+-- the 'IO' computation.
 ioTop :: IO a -> Top a
 ioTop x = T $ ExceptT $ lift (caught x)
   where caught :: IO a -> IO (Either Error a)
@@ -122,12 +112,6 @@ getFilename :: Top (Maybe String)
 getFilename = do
   s <- get
   return (filename s)
-
--- | Get current top-level circuit.
-getCirc :: Top Morphism
-getCirc = do
-  s <- getInterpreterState
-  return (circ s)
 
 -- | Get the interpreter state.
 getInterpreterState :: Top InterpreterState
@@ -149,13 +133,14 @@ topResolve t =
 
 -- | Lift the 'Resolve' monad to 'Top' monad. 
 scopeTop :: Resolve a -> Top a
-scopeTop x = case runResolve x of
-                 Left e -> throwError (ScopeErr e)
-                 Right a -> return a
+scopeTop x =
+  case runResolve x of
+    Left e -> throwError (ScopeErr e)
+    Right a -> return a
 
--- | Perform an 'TCMonad' action, will update 'Top'. 
+-- | Perform an 'TCMonad' action, will update the context and instance context in 'Top'. 
 tcTop :: TCMonad a -> Top a
-tcTop m =
+tcTop m = 
   do st <- getInterpreterState
      let cxt = context st
          inst = instCxt st
@@ -169,24 +154,50 @@ tcTop m =
             putInstCxt inst'
             return e
 
+-- | Perform evaluation in 'Top' monad, record gates to toplevel
+evaluation :: A.Exp -> Bool -> Top Value            
+evaluation exp isClifford =
+  do gl <- getCxt
+     exp' <- tcTop $ erasure exp
+     putGates []
+     (res, gs) <- ioTop $ simulate isClifford $
+                  do {r <- runStateT (eval Map.empty exp') (initES gl);
+                      return $ fst r}
+     putGates gs
+     return res
+
+-- | Perform evaluation in 'Top' monad, return gates
+evaluation' :: A.Exp -> Bool -> Top Gates
+evaluation' exp isClifford =
+  do gl <- getCxt
+     exp' <- tcTop $ erasure exp
+     res <- ioTop $ simulate isClifford $
+                  do {r <- runStateT (eval Map.empty exp') (initES gl);
+                      return $ fst r}
+     return (snd res)
+
+     
 -- | Infer a type at top-level. It is a wrapper for 'typeInfer'.    
 topTypeInfer :: A.Exp -> Top (A.Exp, A.Exp)
 topTypeInfer def = tcTop $
-  do (ty, tm) <- typeInfer (isKind def) def
+  do (ty, tm, _) <- typeInfer (isKind def) def
      ty' <- updateWithSubst ty
+     let fvs = getVars All ty'
+     when (not $ S.null fvs) $
+       throwError $ TyAmbiguous Nothing ty'
      tm' <- updateWithSubst tm
      (ann1, rt) <- elimConstraint def tm' ty'
-     let ann' = unEigen ann1
+     -- let ann' = unEigen ann1
      rt' <- resolveGoals rt `catchError` \ e -> throwError $ withPosition def e
-     ann'' <- resolveGoals ann' `catchError` \ e -> throwError $ withPosition def e
+     ann'' <- resolveGoals ann1 `catchError` \ e -> throwError $ withPosition def e
      return $ (rt', ann'')     
-       where elimConstraint e a (A.Imply (b:bds) ty) = 
+       where elimConstraint e a (A.Imply (b:bds) ty mod) = 
                  do ns <- newNames ["#outergoalinst"]
                     freshNames ns $ \ [n] ->
                       do addGoalInst n b e
-                         let a' = A.AppDict a (GoalVar n)
-                         elimConstraint e a' (A.Imply bds ty)
-             elimConstraint e a (A.Imply [] ty) = elimConstraint e a ty
+                         let a' = A.AppDict a (A.Var n)
+                         elimConstraint e a' (A.Imply bds ty mod)
+             elimConstraint e a (A.Imply [] ty _) = elimConstraint e a ty
              elimConstraint e a (A.Pos _ ty) = elimConstraint e a ty    
              elimConstraint e a t = return (a, t)
 
@@ -202,18 +213,19 @@ clearInterpreterState =
   do p <- getPath
      putInterpreterState $ emptyState p
 
+
 -- | The empty interpreter state.
 emptyState p = InterpreterState {
   scope = emptyScope,
   context = Map.empty,
-  circ = Morphism A.VStar [] A.VStar,
   mainExp = Nothing,
   instCxt = [],
   parserState = initialParserState,
   parentFiles = [],
   importedFiles = [],
   counter = 0,
-  path = p
+  path = p,
+  topGates = []
   }
 
 -- | Get the DPQ path.
@@ -234,6 +246,7 @@ getCounter :: Top Int
 getCounter = do
   s <- getInterpreterState
   return (counter s)
+
 
 -- | Add a build in identifier according to the third argument.
 -- For example, @addBuiltin (BuiltIn i) "Simple" A.Base@.
@@ -257,12 +270,6 @@ putScope scope = do
   let s' = s { scope = scope }
   putInterpreterState s'
 
--- | Update top-level circuit.
-putCirc :: Morphism -> Top ()
-putCirc c = do
-  s <- getInterpreterState
-  let s' = s {circ = c}
-  putInterpreterState s'      
   
 -- | Update counter.
 putCounter :: Int -> Top ()
@@ -270,6 +277,13 @@ putCounter i = do
   s <- getInterpreterState
   let s' = s {counter = i}
   putInterpreterState s'
+
+putGates :: [Gate] -> Top ()
+putGates gs = do
+  s <- getInterpreterState
+  let s' = s {topGates = gs}
+  putInterpreterState s'
+
 
 -- | Update current file name.
 putFilename :: String -> Top ()
@@ -283,6 +297,11 @@ getPState :: Top ParserState
 getPState = do
   s <- getInterpreterState
   return (parserState s)
+
+getGates :: Top [Gate]
+getGates = do
+  s <- getInterpreterState
+  return (topGates s)
 
 -- | Update infix operator table.
 putPState :: ParserState -> Top ()
@@ -306,18 +325,6 @@ putInstCxt cxt = do
   putInterpreterState s'
 
 
--- | Make a built-in class of the form @C x1 ... xn@. The input /d/
--- is the class name,  /n/ is the number of arguments for /c/. 
-makeBuiltinClass :: Id -> Int -> Top ()
-makeBuiltinClass d n | n > 0 =
-  do i <- getCounter
-     dict <- addBuiltin (BuiltIn (i+1)) (getName d ++"Dict") A.Const
-     putCounter (i+3)
-     let names = map (\ i -> "x"++ show i) $ take n [0 .. ]
-         dictType = freshNames names $
-                    \ ns -> A.Forall (abst ns $ foldl A.App (A.Base d) (map A.Var ns)) A.Set
-         kd = foldr (\ x y -> A.Arrow A.Set y) A.Set names
-     tcTop $ process (A.Class (BuiltIn (i+2)) d kd dict dictType [])
 
 -- | Lift a parsing result to 'Top' monad.
 parserTop :: Either ParseError a -> Top a
@@ -368,3 +375,6 @@ putMain v t = do
   s <- getInterpreterState
   let s' = s {mainExp = Just (v, t)}
   putInterpreterState s'
+
+
+

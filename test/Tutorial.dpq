@@ -7,6 +7,9 @@ data Bool = True | False
 
 data Nat = Z | S Nat
 
+one = S Z
+two = S (S Z)
+three = S two
 -- ----------------------------------------------------------------------
 -- * Objects
 
@@ -16,40 +19,47 @@ object Bit
 -- ----------------------------------------------------------------------
 -- * Gates
 
--- Qubit initialization.
-gate Init0 : Unit -> Qubit
-gate Init1 : Unit -> Qubit
+-- Qubit initialization and termination
+gate Init0 : Unit -> Qubit : Term0
+gate Init1 : Unit -> Qubit : Term1
 
--- Qubit termination. 
-gate Term0 : Qubit -> Unit
-gate Term1 : Qubit -> Unit
 
--- Hadamard gate. 
-gate H : Qubit -> Qubit  
 
--- CNot gate, the second qubit is the control bit. 
-gate CNot : Qubit -> Qubit -> Qubit * Qubit
+-- Hadamard gate.
 
--- Controlled R gate, the second qubit is the control bit. 
-gate R Nat : Qubit -> Qubit -> Qubit * Qubit
+gate H : Qubit -> Qubit : H 
+
+-- CNot gate, the second qubit is the control bit.
+
+gate CNot : Qubit -> Qubit -> Qubit * Qubit : CNot
+
+-- Controlled R gate, the second qubit is the control bit.
+
+gate R Nat : Qubit -> Qubit -> Qubit * Qubit : R_Inv
 
 -- Toffoli gate with signed controls. The first qubit is the target.
 -- The second qubit is a control with sign indicated
 -- by the first boolean parameter (positive or negative).
 -- Similarly, the third qubit is also a control with
 -- sign indicated by the second boolean parameter.
-gate ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit
+
+
+gate ToffoliGate Bool Bool : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : ToffoliGate
 
 -- Bit discard gate.
+#NoControl
 gate Discard : Bit -> Unit
 
+#NoControl
 -- Classical controlled X gate.
-gate C_X : Qubit -> Bit -> Qubit * Bit
+gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
 
+#NoControl
 -- Classical controlled Z gate.
-gate C_Z : Qubit -> Bit -> Qubit * Bit
+gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
 
 -- Measurement gate.
+#NoControl
 gate Meas : Qubit -> Bit
 
 -- ----------------------------------------------------------------------
@@ -179,7 +189,7 @@ oneRotation : ! (n : Nat) -> Circ(Qubit * Vec Qubit n, Qubit * Vec Qubit n)
 oneRotation n =
   box (Qubit * Vec Qubit n) 
     (λ x ->
-       let (q, v) = x in rotate 2 (H q) v)
+       let (q, v) = x in rotate two (H q) v)
                      
 qft : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
 qft v =
@@ -187,12 +197,12 @@ qft v =
     VNil -> VNil
     VCons q qs ->
       let q' = H q
-          (q'', qs') = rotate 2 q' qs
+          (q'', qs') = rotate two q' qs
           qs'' = qft qs'
       in VCons q'' qs''
 
 qftBox : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
-qftBox n = box (Vec Qubit n) qft
+qftBox n = box (Vec Qubit n) (\x -> qft x)
 
 qftBoxLittle : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
 qftBoxLittle n = box (Vec Qubit n) (λ v -> qft (reverse_vec Qubit n v))
@@ -227,8 +237,8 @@ class Monad (m : Type -> Type) where
   return : forall a -> a -> m a
   bind : forall a b -> m a -> (a -> m b) -> m b
 
-pure : ! forall (m : Type -> Type) ->
-           (Monad m) => forall a -> a -> m a
+-- pure : ! forall (m : Type -> Type) ->
+--            (Monad m) => forall a -> a -> m a
 pure = return
 
 seq : ! forall (m : Type -> Type) ->
@@ -254,12 +264,14 @@ ap f x =
 data WithGarbage a = WG ((n : Nat) * Vec Qubit n) a
 
 instance Monad WithGarbage where
-  return x = WG (Z, VNil) x
-  bind wg f = let WG ng r = wg
-                  (n, g) = ng
-                  WG mg' r' = f r
-                  (m, g') = mg'
-               in WG (add n m, append g g') r'
+  return x =
+    WG (Z, VNil) x
+  bind wg f =
+    let WG ng r = wg
+        (n, g) = ng
+        WG mg' r' = f r
+        (m, g') = mg'
+    in WG (add n m, append g g') r'
 
 unGarbage : ! forall a -> WithGarbage a -> (n : Nat) * Vec Qubit n * a
 unGarbage z = let WG ex a = z in let (n, v) = ex in (n, (v, a))
@@ -268,27 +280,112 @@ class Disposable a where
   dispose : a -> WithGarbage Unit
 
 instance Disposable Qubit where
-  dispose q = WG (1, VCons q VNil) ()
+  dispose q = WG (one, VCons q VNil) ()
 
 -- ----------------------------------------------------------------------
 -- * Obtain reversible circuits from WithGarbage
 
-with_computed : ! forall d -> {a b c : Type} ->
-                  (Simple a, Simple b) =>
-                   !(a -> WithGarbage b) ->
-                   !(c * b -> d * b) ->
-                    (c * a -> d * a)
+
+f2 : ! (a b : Type) -> (Simple a) => !(a -> WithGarbage b) ->
+           (a -> ((n : Nat) * Vec Qubit n * b))
+f2 a b f =
+  (λ (z : a) -> unGarbage (f z))
+
+f1 : ! (a b : Type) -> (Simple a, Simple b) => a -> !(a -> WithGarbage b) -> a
+              --        (n : Nat) *  Vec Qubit n * b   
+            -- ((n : Nat) * (Simple (Vec Qubit n * b)) =>
+            --               Circ(a, Vec Qubit n * b)))
+--           (n : Nat) * Circ(a, Vec Qubit n * b)
+f1 a b x f = -- existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
+  let (n, circ) = existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
+      circ_rev = unbox (reverse circ)
+  in circ_rev ((unbox circ) x)
+
+-- f1 : ! (a b : Type) -> (Simple a, Simple b) => a -> !(a -> WithGarbage b) -> a
+              --        (n : Nat) *  Vec Qubit n * b   
+            -- ((n : Nat) * (Simple (Vec Qubit n * b)) =>
+            --               Circ(a, Vec Qubit n * b)))
+--           (n : Nat) * Circ(a, Vec Qubit n * b)
+f1' (a b : Type) (Simple a) (Simple b) (x : a) (f : !(a -> WithGarbage b)) = -- existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
+  let (n, circ) = existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
+      circ_rev = unbox (reverse circ)
+  in circ_rev ((unbox circ) x)
+
+  -- (n, (unbox circ) x)
+    --  (n, circ)
+-- f3 (a b : Type) (Simple a) (Simple b) (f : !(a -> WithGarbage b)) =
+--   let (n, circ) = existsBox a (λx -> Vec Qubit x * b) (λ (z : a) -> unGarbage (f z))
+--   in (n, circ)
+
+rev : ! (a b : Type) -> (Simple a, Simple b) => !(a -> WithGarbage b) ->
+          (n : Nat) * Circ(Vec Qubit n * b, a)
+          -- !(a -> a)
+rev a b f =
+  let (n, circ) = existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
+      circ_f = unbox circ
+      circ_rev = (reverse circ)
+  in (n, circ_rev)
+
+with_computed : ! forall d ->  (a b c : Type) ->
+                    (Simple a, Simple b) =>
+                    !(a -> WithGarbage b) ->
+                    !(c * b -> d * b) -> !(c * a -> d * a)
 with_computed a b c f g input =
   let (y, x) = input
-      (_, circ) =
-         existsBox a (\x -> Vec Qubit x * b)
-           (\z -> unGarbage (f z))
-      h' = unbox circ
+      (n, circ) = existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
+      h' = unbox circ 
       (v, r) = h' x
       circ_rev = unbox (reverse circ)
       (d, r') = g (y, r)
       res = circ_rev (v, r')
+      -- e : ! Nat
+      -- e = circ_rev
+
   in (d, res)
+
+with_computed' : ! forall d ->  (a b c : Type) ->
+                    (Simple a, Simple b) =>
+                    !(a -> WithGarbage b) ->
+                    !(c * b -> d * b) -> !(c * a -> d * a)
+with_computed' a b c f g input =
+  let (y, x) = input
+      (_, circ) = existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
+      h' = unbox circ
+      (v, r) = h' x
+      circ_rev = unbox (reverse circ)
+      (d, r') = g (y, r)
+  in (d, circ_rev (v, r'))
+
+
+swap : ! forall a b -> a * b -> b * a
+swap u = let (x, y) = u in (y, x)
+
+with_computed'' : ! forall d ->  (a b c : Type) ->
+                    (Simple a, Simple b, Simple c, Simple d) =>
+                    !(a -> WithGarbage b) ->
+                    !(c * b -> d * b) -> !(c * a -> d * a)
+with_computed'' a b c f g input =
+  let (_, circ) = existsBox a (λx -> Vec Qubit x * b) (λz -> unGarbage (f z))
+      circ' = box a (\ x -> swap (unbox circ x))
+      gCirc = box (b * c) (\ x -> let (a, b) = x in swap (g (b, a)))
+      h = withComputed circ' gCirc
+      (e1, e2) = input
+  in swap (unbox h (e2, e1))
+
+boxGarbage : ! forall c -> {a b d : Type} -> (Simple a , Simple b, Simple c, Simple d) =>
+                     !(a -> WithGarbage b) -> !(d * b -> c * b) -> Circ(d * a, c * a)
+boxGarbage a b d f g =
+   box (d * a) (λ x -> with_computed'' a b d f g x) 
+
+boxGarbage' : ! forall c -> {a b d : Type} -> (Simple a , Simple b, Simple c, Simple d) =>
+                     !(a -> WithGarbage b) -> !(d * b -> c * b) -> Circ(d * a, c * a)
+boxGarbage' a b d f g =
+   box (d * a) (λ x -> with_computed a b d f g x) 
+
+-- boxGarbage' : ! forall c -> (a b d : Type) -> (Simple a , Simple b, Simple c, Simple d) =>
+--                      !(a -> WithGarbage b) -> !(d * b -> c * b) -> !(d * a -> c * a)
+-- boxGarbage' (c : Type) . (a b d : Type) (Simple a) (Simple b) (Simple c) (Simple d) (f : !(a -> WithGarbage b)) (g : !(d * b -> c * b)) =
+--     box (d * a) (λ x -> with_computed a b d f g x)
 
 -- ----------------------------------------------------------------------
 -- * Reversible adder oracle
@@ -327,13 +424,13 @@ copy3 q =
        (q1, q3) = CNot (Init0 ()) q1
    in (q1, q2, q3)
 
-adder : !(Qubit * Qubit * Qubit -> WithGarbage (Qubit * Qubit))
-adder input = do
-  let (a, b, carryIn) = input
-      (a1, a2, a3) = copy3 a
-      (b1, b2, b3) = copy3 b
+
+adder : !(Qubit -> Qubit -> Qubit -> WithGarbage (Qubit * Qubit))
+adder a b carryIn = do
+  let (a1, a2, a3) = copy3 a
+      (b1, b2, b3) = copy3 b 
       (carryIn1, carryIn2, carryIn3) = copy3 carryIn 
-  s <- [| xor (xor a1 b1) (pure carryIn1)|]
+  s <- [| (a1 `xor` b1) `xor` (pure carryIn1)|]   
   carryOut <- [| [| (a2 && b2) || (a3 && carryIn2) |] || (b3 && carryIn3) |]
   return (s, carryOut)
 
@@ -347,11 +444,60 @@ copy p =
       (q5, q6) = CNot in2 q2
   in ((q3, q5), (q4, q6))
 
-adderRev : Circ(Qubit * Qubit *
-                  (Qubit * Qubit * Qubit),
-                Qubit * Qubit *
-                 (Qubit * Qubit * Qubit))
-adderRev =
-   box (Qubit * Qubit * (Qubit * Qubit * Qubit))
-      (\ x -> with_computed adder copy x)
-      
+-- Box adder' into a reversible circuit.
+adderRev : Circ(Qubit * Qubit * (Qubit * Qubit * Qubit),
+                           Qubit * Qubit * (Qubit * Qubit * Qubit))
+adderRev = 
+   boxGarbage adder' copy
+-- (Qubit * Qubit * Qubit) (Qubit * Qubit) (Qubit * Qubit)
+
+controlling : ! {a : Type} -> forall (b s : Type) ->
+              (Simple s, Simple a, Simple b) =>
+                !(a -> b) -> !(a -> s -> b * s)
+controlling a f = controlled (box a f) 
+
+uncurry : ! forall a b c -> (a -> b -> c) -> (a * b -> c)
+uncurry f x = let (a, b) = x in f a b
+
+-- adderRev2 : Circ(Qubit * Qubit * (Qubit * Qubit * Qubit) * Qubit,
+                    --       Qubit * Qubit * (Qubit * Qubit * Qubit)*Qubit)
+adderRev2 : ! (n : Nat) ->
+                Circ((Qubit * Qubit * (Qubit * Qubit * Qubit)) * Vec Qubit n,
+                    (Qubit * Qubit * (Qubit * Qubit * Qubit)) * Vec Qubit n)
+adderRev2 n = box ((Qubit * Qubit * (Qubit * Qubit * Qubit)) * Vec Qubit n)
+                (\ x -> uncurry (controlled adderRev) x)
+--   boxGarbage' adder' (\ x -> uncurry (controlling copy) x)
+
+
+b : ! (a : Type) ->
+        forall (b : Type) ->
+       (Simple a, Simple b) => !(a -> b) -> Circ(a, b)
+b a f = box a f       
+
+e : ! (a : Type) ->
+      forall (b : Type) ->
+       (Simple a, Parameter b) =>
+         (p : b -> Type) ->
+           !(a -> ((n : b) * p n)) ->
+           ((n : b) * (Simple (p n)) => Circ(a, p n))
+e a p f = existsBox a p f
+
+
+rev' : ! (a : Type) -> forall b ->
+           (Simple a, Simple b) => !(a -> b) -> Circ(b, a)
+rev' a f =
+  let c = box a f
+      y = unbox c
+      x = reverse c in x
+
+rev'' : ! forall a b ->
+           (Simple a, Simple b) => Circ(a, b) -> Nat
+rev'' f =
+  let g = f
+      h = g
+      y = unbox f
+      x = reverse f
+      h = x
+      u = h
+      in three
+

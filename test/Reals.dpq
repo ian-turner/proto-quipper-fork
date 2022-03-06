@@ -1,0 +1,14 @@
+module Reals where
+import "lib/Prelude.dpq"
+
+a : Bool
+a = (pi : Real 10) > cast 2.22
+
+f : Real 10
+f = cast 2.2
+-- Using cast with pi will result in an error.
+-- a2 = cast pi : Real 10
+
+g = pi + 2.12345
+
+g2 = realToNat (pi : Real 10)

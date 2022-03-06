@@ -11,13 +11,14 @@ import "lib/Prelude.dpq"
 -- filter : {A : Set} → (A → Bool) → List A → List A
 -- filter p [] = []
 -- filter p (x ∷ xs) with inspect (p x)
--- ->->->                  | true  with≡ eq = {! eq : p x ≡ true !}
--- ->->->                  | false with≡ eq = {! eq : p x ≡ false !}
+-- ...                  | true  with≡ eq = {! eq : p x ≡ true !}
+-- ...                  | false with≡ eq = {! eq : p x ≡ false !}
 
 
 data (Parameter a) => Singleton a (x : a) = WithEq (y : a) (Eq a x y)
 
-inspect a (Parameter a) -> (x : a) = WithEq x refl
+
+inspect a (Parameter a) . (x : a) = WithEq x refl
 
 filter : ! forall a -> (Parameter a) => !(a -> Bool) -> List a -> List a
 filter p l = case l of
@@ -35,6 +36,6 @@ filter p l = case l of
  --  inspect : (f : ∀ x → B x) (x : A) → Graph f x (f x)
  --  inspect _ _ = ingraph refl
 
-data (Parameter a) => Graph a (x : a)  =
-         GEq (b : a -> Type) (y : b x) (f : !(x : a) -> b x) (Eq (b x) (f x) y)
+-- data (Parameter a) => Graph a (x : a)  =
+--          GEq (b : a -> Type) (y : b x) (f : !(x : a) -> b x) (Eq (b x) (f x) y)
 

@@ -7,7 +7,9 @@ data Bool = True | False
 
 object Qubit
 
-object Bit
+object Bit {- liftTo bool -}
+
+
 
 id : ! forall a -> a -> a
 id x = x
@@ -15,16 +17,16 @@ id x = x
 swap : ! forall a b -> a * b -> b * a
 swap u = let (x, y) = u in (y, x)
 
-uncurry' : ! forall a b c -> (a -> b -> c) -> (a * b -> c)
-uncurry' f = \ x -> let (a, b) = x in f a b
+-- uncurry' : ! forall a b c -> (a -> b -> c) -> (a * b -> c)
+-- uncurry' f = \ x -> let (a, b) = x in f a b
 
-uncurry : ! forall a b c -> !(a -> b -> c) -> !(a * b -> c)
+uncurry : ! forall a b c -> (a -> b -> c) -> (a * b -> c)
 uncurry f x = let (a, b) = x in f a b
 
 curry : ! forall a b c -> (a * b -> c) -> (a -> b -> c)
 curry f = \ x y -> f (x, y)
 
--- The higher the number is, the lower the priority is->
+-- The higher the number is, the lower the priority is
 infixr 30 $
 
 ($) : ! forall a b -> (a -> b) -> a -> b
@@ -37,7 +39,6 @@ fst x =
 snd : ! forall a b -> (Parameter a) => a * b -> b
 snd x =
   let (x1, x2) = x in x2
-
 
 
 
@@ -63,3 +64,18 @@ not b =
   False -> b
 
 
+-- compose : ! forall b c -> (a : Type) ->
+--              (Simple c, Simple a, Simple b) =>
+--              Circ(a, b) -> Circ(b, c) -> Circ(a, c)
+-- compose a f g =
+--   let f' = unbox f
+--       g' = unbox g
+--   in box a (\ x -> g' (f' x))
+
+
+-- idV : ! (Bool -> Bool)
+-- idV l = case l of
+--          True -> True
+
+-- g : Bool
+-- g = idV False

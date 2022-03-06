@@ -26,7 +26,9 @@ test_focus (n m : Nat) . (maskmap bitmap newmap : VecZipper Qubit n m) =
          bitmap' = VZ bitl b2 bitr
          maskmap' = VZ maskl ma2 maskr
      return (maskmap', bitmap', newmap')
-  
+
+
+
 -- box_test_focus (n m : Nat) = 
 --  boxGarbage -- ((Vec Qubit n * Qubit * Vec Qubit m) *
 --             --    (Vec Qubit n * Qubit * Vec Qubit m) *
@@ -56,7 +58,7 @@ test_forward_focus (n m x_max : Nat) (pf : Eq Bool (x_max <= n) True)
 
 
 box_move (n m x_max : Nat) (pf : Eq Bool (x_max <= n) True) =
-  boxGarbage $ uncurry $ uncurry (\ x -> test_forward_focus n m x_max pf x) 
+  boxGarbage $ \ x -> (uncurry $ uncurry (test_forward_focus n m x_max pf)) x
                
 		   
 
@@ -113,9 +115,9 @@ test_positions (n m : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True)
             new1 = case mod m x_max > Z of
                         True ->
                            do (maskmap3, bitmap3, newmap3) <-
-			            eitherOr (1 <= m)
-                                       (\ pf -> test_backward_focus n m 1 pf)
-                                       (\ pf -> stay_focus' n m 1 pf) 
+			            eitherOr (one <= m)
+                                       (\ pf -> test_backward_focus n m one pf)
+                                       (\ pf -> stay_focus' n m one pf) 
                                        maskmap2 bitmap2 newmap2
                               eitherOr (pred x_max <= n)
                                    (\ pf -> test_forward_focus n m (pred x_max) pf)
@@ -127,9 +129,9 @@ test_positions (n m : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True)
                        case mod m x_max < pred x_max of
                           True ->
                             do (maskmap5, bitmap5, newmap5) <-
-			          eitherOr (1 <= n)
-                                      (\ pf -> test_forward_focus n m 1 pf)
-                                      (\ pf -> stay_focus n m 1 pf) 
+			          eitherOr (one <= n)
+                                      (\ pf -> test_forward_focus n m one pf)
+                                      (\ pf -> stay_focus n m one pf) 
                                       maskmap4 bitmap4 newmap4
                                eitherOr (pred x_max <= m)
                                     (\ pf -> test_backward_focus n m (pred x_max) pf)
@@ -139,11 +141,11 @@ test_positions (n m : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True)
                           False -> return (maskmap4, bitmap4, newmap4)
          in do (maskmap6, bitmap6, newmap6) <- new2
                let VZ a1 a2 a3  = newmap6
-               newmap6' <- (uncurry $ uncurry (\ x -> update_focus False x)) (a1, a2, a3)
+               newmap6' <- (uncurry $ uncurry (update_focus False)) (a1, a2, a3)
                return (bitmap6, newmap6', maskmap6)
 
 box_test_positions (n m x_max : Nat) (pf : Eq Bool (x_max > Z) True) =
-  boxGarbage $ uncurry $ uncurry (\ x -> test_positions n m x_max pf x) 
+  boxGarbage $ \ x -> (uncurry $ uncurry (test_positions n m x_max pf)) x 
 		  
 
 -- box_test_positions_t1 = box_test_positions 9 9 5 refl
@@ -183,22 +185,24 @@ while_for n m x_max pf bitmap newmap maskmap =
 
 
 box_while_for (n m x_max : Nat) (pf : Eq Bool (x_max > Z) True) =
-  boxGarbage $ uncurry $ uncurry (\ x -> while_for n m x_max pf x)
+  boxGarbage $ \ x -> (uncurry $ uncurry (while_for n m x_max pf)) x
 		   
 
 
--- while : ! (n : Nat) -> Nat -> (x_max : Nat) -> Eq Bool (x_max > Z) True
---               -> Vec Qubit (S n) -> Vec Qubit (S n) -> Vec Qubit (S n)
---                -> WithGarbage ((Vec Qubit (S n)) * (Vec Qubit (S n)) * (Vec Qubit (S n)))
-while (n c x_max : Nat) (pf : Eq Bool (x_max > Z) True)
-  (bitmap newmap maskmap : Vec Qubit (S n)) =                 
+while : ! (n : Nat) -> Nat -> (x_max : Nat) -> Eq Bool (x_max > Z) True
+              -> Vec Qubit (S n) -> Vec Qubit (S n) -> Vec Qubit (S n)
+               -> WithGarbage ((Vec Qubit (S n)) * (Vec Qubit (S n)) * (Vec Qubit (S n)))
+-- while (n c x_max : Nat) (pf : Eq Bool (x_max > Z) True)
+--   (bitmap newmap maskmap : Vec Qubit (S n)) =
+while n c x_max pf bitmap newmap maskmap = 
   case c of
     S c' -> let VCons h1 t1  = maskmap
                 VCons b bs = bitmap
                 VCons new news = newmap
             in
-            do (bit, new, mask) <- while_for n Z x_max pf (VZ bs b VNil) (VZ news new VNil)
-                                       (VZ t1 h1 VNil)
+            do (bit, new, mask) <-
+                  while_for n Z x_max pf (VZ bs b VNil)
+                      (VZ news new VNil) (VZ t1 h1 VNil)
                let VZ bits bit vn = bit
                    VZ news' new' vn' = new
                    VZ masks' mask' vn'' = mask
@@ -208,10 +212,11 @@ while (n c x_max : Nat) (pf : Eq Bool (x_max > Z) True)
                in while n c' x_max pf (VCons bit bits) (VCons new' news') (VCons mask' masks')
     Z -> return (bitmap, newmap, maskmap)           
 
+
 flood_fill (n : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True)
   (bitmap maskmap : Vec Qubit (S n)) = do
   let newmap = initVec (S n) False
-      counter = S $ div (S n) 4
+      counter = S $ div (S n) four
   -- swapping position of newmap and bitmap->    
   while n counter x_max pf newmap bitmap maskmap
    -- in do r <-  mapM (\ x -> let (a, b) = x
@@ -227,16 +232,16 @@ flood_fill (n : Nat) (x_max : Nat) (pf : Eq Bool (x_max > Z) True)
 --   box_garbage $ uncurry (flood_fill m x_max pf)
 
 real_flood_fill (m x_max : Nat) (pf : Eq Bool (x_max > Z) True)  = 
-  withoutGarbage (uncurry $ (\ x -> flood_fill m x_max pf x)) copy            
+  withoutGarbage (\ x -> (uncurry $ flood_fill m x_max pf) x) copy            
 
 real_while (n c x_max : Nat) (pf : Eq Bool (x_max > Z) True)  = 
-  withoutGarbage (uncurry $ uncurry $ \ x -> while n c x_max pf x) copy            
+  withoutGarbage (\ x -> (uncurry $ uncurry $ while n c x_max pf) x) copy            
 
 real_while_for (n m x_max : Nat) (pf : Eq Bool (x_max > Z) True)  = 
-  withoutGarbage (uncurry $ uncurry $ \ x -> while_for n m x_max pf x) copy            
+  withoutGarbage (\ x -> (uncurry $ uncurry $ while_for n m x_max pf) x) copy            
 
 real_test_positions (n m x_max : Nat) (pf : Eq Bool (x_max > Z) True)  = 
-  withoutGarbage (uncurry $ uncurry $ \ x -> test_positions n m x_max pf x) copy            
+  withoutGarbage (\ x -> (uncurry $ uncurry $ test_positions n m x_max pf) x) copy            
 
 
 
@@ -258,11 +263,15 @@ checkwin_red' n v =
   case v of
     VNil -> return $ initQubit True 
     VCons x xs -> do
-      r <- foldM bor x xs
+      r <- foldM (\ x -> bor x) x xs
       bnot r
 
-checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
-  (pf2 : Eq Bool (x_max <= m) True) (redboard : Vec Qubit (S m)) = do
+
+-- checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
+--   (pf2 : Eq Bool (x_max <= m) True) (redboard : Vec Qubit (S m)) = do
+checkwin_red : ! (m x_max : Nat) -> Eq Bool (x_max > Z) True -> Eq Bool (x_max <= m) True
+                  -> Vec Qubit (S m) -> WithGarbage Qubit
+checkwin_red m x_max pf1 pf2 redboard = do
   let VCons x xs = redboard
       VZ begin q res = moveBackward Qubit Z m x_max pf2 (VZ VNil x xs)
       (begin1, begin2) = copy begin
@@ -272,7 +281,7 @@ checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
       VZ vnr x' xs' = moveForward Qubit Z m x_max pf2 (VZ begin1 q res)
       VNil = vnr
       red = VCons x' xs'
-  begin_blue <- mapM bnot begin2
+  begin_blue <- mapM (\ x -> bnot x) begin2
   let VZ vnb y ys = moveForward Qubit Z m x_max pf2 (VZ begin_blue q' tail_blue)
       VNil = vnb
       blue = VCons y ys 
@@ -291,13 +300,13 @@ real_checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
         (CNot r)
 
 box_checkwin_red (m x_max : Nat) (pf1 : Eq Bool (x_max > Z) True)
-  (pf2 : Eq Bool (x_max <= m) True) = box (Qubit * Vec Qubit (S m)) $ uncurry (\ x -> real_checkwin_red m x_max pf1 pf2 x)
+  (pf2 : Eq Bool (x_max <= m) True) = box (Qubit * Vec Qubit (S m)) $ \ x -> uncurry (real_checkwin_red m x_max pf1 pf2) x
 
 -- A thunk of small_board to prevent immediate evaluation->
-small_board (x : Unit) = box_checkwin_red (mul 2 7) 5 refl refl
+small_board (x : Unit) = box_checkwin_red (mul two seven) five refl refl
 
-test_small_board : ! (Bool * Vec Bool (S (mul 2 7)) ->
-                        Bool * Vec Bool (S (mul 2 7)))
+test_small_board : ! (Bool * Vec Bool (S (mul two seven)) ->
+                        Bool * Vec Bool (S (mul two seven)))
 test_small_board x = runCirc (small_board ()) x
 
 a_small_board_blue =
@@ -407,12 +416,25 @@ testPositions =
 --   False, True, False, True, False,
 --    False, True, True, True, False]
 
--- main = test_small_board (False, a_small_board_red)
-large_board (x : Unit) = box_checkwin_red (5 @ 7 - 1) 7 refl refl
-large_board' (x : Unit) = box_checkwin_red (9 @ 7 - 1) 9 refl refl
--- main = large_board' ()
+-- main = test_small_board (False, a_small_board_blue)
+large_board (x : Unit) = box_checkwin_red (five @ seven - one) seven refl refl
+{-
+50567
 
--- large_board ()
+real	0m18.311s
+user	0m21.785s
+sys	0m3.794s
+-}
+large_board' (x : Unit) = box_checkwin_red (nine @ seven - one) nine refl refl
+
+-- main1 (x : Unit) = uncurry (real_checkwin_red 34 7 refl refl) (init (False, nVec 35 True))
+
+-- main = large_board ()
+{-
+main = large_board ()
+
+-}
+
 -- large_board ()
 
 -- some performance statistics:

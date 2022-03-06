@@ -1,31 +1,39 @@
 module Apil12 where
 import "lib/Prelude.dpq"
 
-controlled ZGate : Qubit -> Qubit
+-- controlled ZGate : Qubit -> Qubit
 
-controlled SGate : Qubit -> Qubit
+-- gate {1,1,1} SGate : Qubit -> Qubit
+
+-- gate {1,1,1} ZGate : Qubit -> Qubit
+
+z_gate : ! forall s -> (Simple s) => Qubit -> s -> Qubit * s
+z_gate q s = controlled (box Qubit ZGate) q s
+
+s_gate : ! forall s -> (Simple s) => Qubit -> s -> Qubit * s
+s_gate q s = controlled (box Qubit SGate) q s
 
 
 cZ : ! (Qubit -> Qubit -> Qubit * Qubit)
-cZ x y = ZGate x y
+cZ x y = z_gate x y
 
 -- f : !(Qubit -> Qubit * Qubit)
 -- f q = cZ q q 
 
 cS : ! (Qubit -> Qubit -> Qubit * Qubit)
-cS x y = SGate x y
+cS x y = s_gate x y
 
 box_cZ : Circ(Qubit * Qubit, Qubit * Qubit)
-box_cZ = box (Qubit * Qubit) $ uncurry cZ
+box_cZ = box (Qubit * Qubit) $ \ x -> uncurry cZ x
 
 box_cS : Circ(Qubit * Qubit, Qubit * Qubit)
-box_cS = box (Qubit * Qubit) $ uncurry cS
+box_cS = box (Qubit * Qubit) $ \ x -> uncurry cS x
 
 mapH : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
 mapH l = map H l
 
 box_mapH : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
-box_mapH n = box (Vec Qubit n) mapH
+box_mapH n = box (Vec Qubit n) $ \ x -> mapH x
 
 -- sum (n : Nat) =
 --   case n of
@@ -47,8 +55,8 @@ simple DVec a : Nat -> Type where
   DVec a Z = DNil 
   DVec a (S n) = DCons (Vec a n) (DVec a n)
 
-test2 : DVec Nat 3
-test2 = DCons [1,2] $ DCons [1] $ DCons [] DNil
+test2 : DVec Nat three
+test2 = DCons [one, two] $ DCons [one] $ DCons [] DNil
 
 controls : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n -> Qubit ->
                 Qubit * Vec Qubit n * Vec Qubit n
@@ -63,7 +71,7 @@ controls v2 v1 q =
 
 
 box_ctr : !(n : Nat) -> Circ(Vec Qubit n * Vec Qubit n * Qubit, Qubit * Vec Qubit n * Vec Qubit n)
-box_ctr n = box (Vec Qubit n * Vec Qubit n * Qubit) $ uncurry $ uncurry controls
+box_ctr n = box (Vec Qubit n * Vec Qubit n * Qubit) $ \ x -> (uncurry $ uncurry controls) x
 
 additiveCtrl : ! forall (n : Nat) -> Vec Qubit n -> DVec Qubit n -> DVec Qubit n * Vec Qubit n
 additiveCtrl v dv =
@@ -76,7 +84,7 @@ additiveCtrl v dv =
       in (DCons v dv'', VCons x xs')
 
 cool : !(n : Nat) -> Circ(Vec Qubit n * DVec Qubit n, DVec Qubit n * Vec Qubit n)
-cool n = box (Vec Qubit n * DVec Qubit n) $ uncurry additiveCtrl
+cool n = box (Vec Qubit n * DVec Qubit n) $ \ x -> uncurry additiveCtrl x
 
 
 f : ! forall a -> List a -> List a

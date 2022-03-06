@@ -1,14 +1,13 @@
 name:                dpq
-version:             0.0.1.0
+version:             0.0.1.1
 license:             BSD3
 author:              "Frank (Peng) Fu, Kohei Kishida, Neil J. Ross, Peter Selinger"
 maintainer:          "peng.frank.fu@gmail.com, selinger@mathstat.dal.ca"
-copyright:           "2019"
+copyright:           "2022"
 
 extra-source-files:
 - README.md
 - ChangeLog.md
-
 
 
 # Metadata used when publishing your package
@@ -29,6 +28,7 @@ homepage:   https://gitlab.com/frank-peng-fu/dpq-remake
 dependencies:
 - base >= 4.7 && < 5
 - containers
+- multiset
 - parsec
 - indents
 - transformers
@@ -40,6 +40,9 @@ dependencies:
 - directory
 - process
 - nominal
+- network
+- syb
+- numbers
 
 library:
   source-dirs: src
@@ -53,6 +56,7 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     - -O3
+    - -fno-full-laziness
     dependencies:
     - dpq
 

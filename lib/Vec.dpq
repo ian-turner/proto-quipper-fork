@@ -26,11 +26,11 @@ instance forall a (n : Nat) -> (QuantumOp a, Simple a) => QuantumOp (Vec a n) wh
 	    (xs1, xs2) = copy xs
 	in (VCons x1 xs1, VCons x2 xs2)    
 
-  cnots l1 l2 =
+  cnots l1 l2 = 
     case l1 of
       VNil ->
        let VNil = l2 in (VNil, VNil)
-      VCons x xs ->
+      VCons x xs -> 
         let VCons y ys = l2
 	    (x1, y1) = cnots x y
 	    (xs1, ys1) = cnots xs ys
@@ -50,7 +50,10 @@ instance forall a (n : Nat) -> (Equal a, Parameter a) => Equal (Vec a n) where
 append : ! forall a (n m : Nat) -> Vec a n -> Vec a m -> Vec a (add n m)
 append l1 l2 = case l1 of
                   VNil -> l2
-    	          VCons x xs -> VCons x (append xs l2)
+    	          VCons x xs -> 
+                      (VCons x (append xs l2))
+
+
 
 -- append' : ! forall a (m : Nat) -> (n : Nat) -> Vec a n -> Vec a m -> Vec a (add n m)
 -- append' n l1 l2 = case l1 of
@@ -58,10 +61,15 @@ append l1 l2 = case l1 of
 --     	            VCons x xs ->
 --                       let S n' = n in VCons x (append' n' xs l2)
 
-append' : ! forall a (m : Nat) -> (n : Nat) -> Vec a n -> Vec a m -> Vec a (add n m)
-append' n l1 l2 = case n of
-                    Z -> let VNil = l1 in l2
-                    S n' -> let VCons x xs = l1 in VCons x (append' n' xs l2)
+append' : !forall a (m : Nat) -> (n : Nat) -> Vec a n ->
+            Vec a m -> Vec a (add n m)
+append' n l1 l2 =
+        case n of
+          Z -> let VNil = l1 in l2
+          S n' -> 
+           let VCons x xs = l1 in 
+            VCons x (append' n' xs l2)
+
 
 -- append'' : ! forall a (m : Nat) -> (n : Nat) -> Vec a n -> Vec a m -> Vec a (add n m)
 -- append'' n l1 l2 = case l1 of
@@ -73,17 +81,23 @@ append' n l1 l2 = case n of
 
 infixl 11 ++
 
-(++) : ! forall a (n m : Nat) -> Vec a n  -> Vec a m -> Vec a (add n m)
+-- (++) : ! forall a (n m : Nat) -> Vec a n  -> Vec a m -> Vec a (add n m)
 (++) = append 
 
-reverse_aux : ! {a : Type} -> {n m : Nat} -> Vec a n -> Vec a m -> Vec a (add n m)
+
+reverse_aux : ! {a : Type} -> {n m : Nat} -> Vec a n -> Vec a m ->
+                Vec a (add n m)
 reverse_aux a n m l1 l2 =
   case n of
     Z -> case l1 of
            VNil -> l2
-    S n' -> case l1 of
-             VCons q qs -> 
-    	       subst (\ x -> Vec a x) (addS n' m) $ reverse_aux qs (VCons q l2)
+    S n' -> 
+      case l1 of
+        VCons q qs -> 
+          subst (\ x -> Vec a x) (addS n' m) $
+              reverse_aux qs (VCons q l2)
+
+
 -- a n' (S m)
   -- case n of
   --   Z -> case l1 of
@@ -116,6 +130,7 @@ zipWith f l1 l2 =
 	  let VCons q2 qs2 = l2 in
 	   VCons (f q1 q2) (zipWith f qs1 qs2)
 
+
 zip : ! forall a b (n : Nat) ->  Vec a n -> Vec b n -> Vec (a * b) n
 zip l1 l2 =
   case l1 of
@@ -133,6 +148,7 @@ unzip l = case l of
 	                let (x , y) = p 
 		            (l1, l2) = unzip qs in
 		         (VCons x l1, VCons y l2)
+
 
 map : ! forall a b (n : Nat) -> !(a -> b) -> Vec a n -> Vec b n
 map f l =
@@ -161,10 +177,13 @@ sf_vec_index a n m as =
   case as of
     VCons h t -> 
       case n of
-        Z -> (VNil, h, t)
+        Z -> (VNil, h, t)          
         S n' ->
-         let (before, x, after) = sf_vec_index a n' m (subst (Vec a) (addS1 n' m) t) in
-          (VCons h before, x, after)
+         let (before, x, after) =
+                sf_vec_index a n' m (subst (Vec a) (addS1 n' m) t)
+         in (VCons h before, x, after)
+        
+
 
 sf_vec_unindex : ! (a : Type) -> (n m : Nat) ->
                   Vec a n -> a -> Vec a m -> Vec a (S (add n m)) 
@@ -207,7 +226,8 @@ instance forall a (n m : Nat) -> (QuantumOp a, Simple a) => QuantumOp (VecZipper
         (a2', b2') = cnots a2 b2
         (a3', b3') = cnots a3 b3
      in (VZ a1' a2' a3', VZ b1' b2' b3')
-        
+
+
 forward : !forall a (n m : Nat) -> VecZipper a (S n) m -> VecZipper a n (S m)
 forward v =
   let VZ l q r = v
@@ -221,7 +241,7 @@ go a n m k v =
   case k of
     Z -> v
     S k' -> subst (\ h -> VecZipper a n h) (addS k' m) $
-      go a n (S m) k' $ forward v
+                 go a n (S m) k' $ forward v
 
 -- Move focus from left to right k step
 goForward : ! (a : Type) -> (n m k : Nat) -> (Eq Bool (k <= n) True) ->
@@ -271,3 +291,10 @@ depFold p f a l =
     VCons b bs ->
       f b (depFold p (\ x -> f x) a bs)
 
+
+
+decrease : ! (x : Nat) -> Vec Nat x
+decrease x =
+  case x of
+    Z -> VNil
+    S y -> VCons x (decrease y)

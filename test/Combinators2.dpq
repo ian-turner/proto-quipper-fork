@@ -176,9 +176,9 @@ with_disjunction_aux qs body =
         let T a has t = with_disjunction_aux t (\ p ->
            let T a has p = with_ancilla False (\ q ->
   	    let T q p h = toT $ ToffoliGate False True q p h
-                (q, p) = CNotGate True q p
+                (q, p) = cnotGate True q p
                 T a as q = toT $ body q
-                (q, p) = CNotGate True q p
+                (q, p) = cnotGate True q p
       	        T q p h = toT $ ToffoliGate False True q p h
             in (T a (Cons h as) p, q) )
            in ((a, has), p) )
@@ -302,7 +302,7 @@ for_each_map3 xs ys zs s body =
 cnotGate_if : ! (Bool -> Qubit -> Qubit -> Bool -> Qubit * Qubit)
 cnotGate_if cond x y s =
   case cond of
-    True -> CNotGate s x y
+    True -> cnotGate s x y
     False -> (x, y)
     
 twos_complement : ! (List Bool -> List Bool)
@@ -336,9 +336,9 @@ boolreg_of_int_le m x =
   case m <= Z of
     True -> Nil
     False -> let y = isOdd x
-                 r = divMod x 2
+                 r = divMod x (S (S Z))
                  (res, rem) = r
-             in Cons y $ boolreg_of_int_le (m - 1) res
+             in Cons y $ boolreg_of_int_le (m - one) res
 
 simple Five a b c d e : Type where
   Five a b c d e = F a b c d e

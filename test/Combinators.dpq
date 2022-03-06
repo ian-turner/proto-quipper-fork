@@ -151,8 +151,8 @@ list_split a n m xs =
 -- test2 : Vec Nat (S Z) * Vec Nat (S Z)
 -- test2 = list_split (S Z) (VCons Z (VCons (S Z) VNil))
 
-list1 : Vec Nat 4
-list1 = (VCons (S Z) (VCons (S (S Z)) (VCons (S (S (S Z))) (VCons 4 VNil))))
+list1 : Vec Nat four
+list1 = (VCons (S Z) (VCons (S (S Z)) (VCons (S (S (S Z))) (VCons four VNil))))
 
 
 -- n is the initial index, m is the subsequence length
@@ -174,6 +174,7 @@ with_list_range a l n m as body =
   in (as, s)
 
 
+
 with_disjunction_aux : ! forall a (n m : Nat) -> Vec Qubit n ->
                            (Qubit -> a * Vec Qubit m * Qubit) ->
                            Triple a (Vec Qubit m) (Vec Qubit n)
@@ -183,18 +184,18 @@ with_disjunction_aux qs body =
         let (a, as) = with_ancilla False body
         in T a as VNil
       VCons h t ->
-        let T a has t = with_disjunction_aux t (\ p ->
+        let T a has t' = with_disjunction_aux t (\ p ->
            let T a has p = with_ancilla False (\ q ->
             let T q p h = toT $ ToffoliGate False True q p h
-                (q, p) = CNotGate True q p
+                (q, p) = cnotGate True q p
                 T a as q = toT $ body q
-                (q, p) = CNotGate True q p
+                (q, p) = cnotGate True q p
       	        T q p h = toT $ ToffoliGate False True q p h
             in (T a (VCons h as) p, q) )
            in ((a, has), p) )
             VCons h as = has
-        in T a as (VCons h t)
-              
+        in T a as (VCons h t')
+
 
 with_disjunction : ! forall a (n : Nat) -> Vec Qubit n ->
                        (Qubit -> a * Qubit) -> a * Vec Qubit n
@@ -327,7 +328,7 @@ for_each_map3 xs ys zs s body =
 cnotGate_if : ! (Bool -> Qubit -> Qubit -> Bool -> Qubit * Qubit)
 cnotGate_if cond x y s =
   case cond of
-    True -> CNotGate s x y
+    True -> cnotGate s x y
     False -> (x, y)
 
 twos_complement : ! forall (n : Nat) -> Vec Bool n -> Vec Bool n
@@ -345,7 +346,7 @@ getTwo l = let VCons h1 hs = l
                VNil = hs
             in (h1, h2)
 
-getSix : ! forall a -> Vec a 6 -> Six a a a a a a
+getSix : ! forall a -> Vec a six -> Six a a a a a a
 getSix l = let VCons h1 hs = l
                VCons h2 hs = hs
                VCons h3 hs = hs

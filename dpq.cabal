@@ -1,20 +1,21 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d4f0eb841e9e90632221362b63e241641e8f14891fc6eb9147cbf0a7543f0671
+-- hash: 9d55f705ace40b0d166487feb268cbc187e24daaeb660bafc09fd1f8ed755fa2
+
 
 name:           dpq
-version:        0.0.1.0
+version:        0.0.1.1
 synopsis:       Dependently typed Proto-Quipper (Proto-Quipper-D)
 description:    A linear dependent typed language for quantum circuit programming. Please see the README at <https://gitlab.com/frank-peng-fu/dpq-remake#readme> for more information.
 category:       Programming language
 homepage:       https://gitlab.com/frank-peng-fu/dpq-remake
 author:         Frank (Peng) Fu, Kohei Kishida, Neil J. Ross, Peter Selinger
 maintainer:     peng.frank.fu@gmail.com, selinger@mathstat.dal.ca
-copyright:      2019
+copyright:      2022
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -28,6 +29,7 @@ library
       Dispatch
       Erasure
       Evaluation
+      ModeResolve
       Normalize
       Parser
       Printcircuits
@@ -60,10 +62,14 @@ library
     , haskeline
     , indents
     , mtl
+    , multiset
+    , network
     , nominal
+    , numbers
     , parsec
     , pretty
     , process
+    , syb
     , transformers
   default-language: Haskell2010
 
@@ -84,10 +90,14 @@ executable dpq
     , haskeline
     , indents
     , mtl
+    , multiset
+    , network
     , nominal
+    , numbers
     , parsec
     , pretty
     , process
+    , syb
     , transformers
   default-language: Haskell2010
 
@@ -97,7 +107,7 @@ executable dpqi
       Paths_dpq
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O3
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O3 -fno-full-laziness
   build-depends:
       base >=4.7 && <5
     , containers
@@ -108,10 +118,14 @@ executable dpqi
     , haskeline
     , indents
     , mtl
+    , multiset
+    , network
     , nominal
+    , numbers
     , parsec
     , pretty
     , process
+    , syb
     , transformers
   default-language: Haskell2010
 
@@ -133,9 +147,13 @@ test-suite dpq-test
     , haskeline
     , indents
     , mtl
+    , multiset
+    , network
     , nominal
+    , numbers
     , parsec
     , pretty
     , process
+    , syb
     , transformers
   default-language: Haskell2010

@@ -2,9 +2,9 @@ module Prelude where
 import "lib/Nat.dpq"
 import "lib/Vec.dpq"
 import "lib/Class.dpq"
-import "lib/WithGarbage.dpq"
 import "lib/List.dpq"
 import "lib/State.dpq"
+import "lib/WithGarbage.dpq"
 
 copyT : !(Qubit -> Qubit * Qubit * Qubit)
 copyT q =
@@ -17,6 +17,11 @@ initVec : ! (n : Nat) -> Bool -> Vec Qubit n
 initVec n b = case n of
                 Z -> VNil 
 		S n' -> VCons (initQubit b) (initVec n' b)
+
+nVec : ! forall a -> (Parameter a) => (n : Nat) -> a -> Vec a n
+nVec n b = case n of
+                Z -> VNil 
+		S n' -> VCons b (nVec n' b)
 
 disB : ! forall (n : Nat) -> Vec Bit n -> Unit
 disB l = case l of
@@ -55,7 +60,112 @@ switch f a = swap $ f (swap a)
 boxCirc : ! {a : Type} -> forall (b : Type) -> (Simple a, Simple b) => !(a -> b) -> Circ(a, b)
 boxCirc a f = box a f
 
+controlling : ! {a : Type} -> forall (b s : Type) ->
+              (Simple s, Simple a, Simple b) =>
+                !(a -> b) -> !(a -> s -> b * s)
+controlling a f q s = controlled (box a f) q s                
 -- test : (x : Nat) * Vec Nat x * Bool -- == (x : Nat) * (Vec Nat x * Bool)
 -- test = (0, (VNil, True))
 
+
+withBasisChange : !{a b : Type} -> (Simple a, Simple b) =>
+                      Circ(a, b) -> Circ(b, b) -> Circ(a, a)
+withBasisChange a b circ1 circ2 = 
+  let circ1' = box a (\ x -> (unbox circ1 x, ()))
+      circ2' = box (b * Unit) (\ x -> let (y, z) = x in (unbox circ2 y, z))
+      circ3 = withComputed circ1' circ2'
+  in box a (\ x -> let (r, _) = unbox circ3 (x, ()) in r)
+
+
+-- Warning: noted the result type is not directly related to input.
+class Initialize b a where
+  #NoControl
+  init : b -> a
+
+
+instance Initialize Bool Qubit where
+  init x = initQubit x
+
+instance Initialize Unit Unit where
+  init x = x
+
+
+instance forall a a' b b' -> (Initialize a a', Initialize b b') =>
+             Initialize (a * b) (a' * b') where
+  init x =
+    let (a, b) = x in (init a, init b)
+
+instance forall a a' (n : Nat) -> (Initialize a a') =>
+             Initialize (Vec a n) (Vec a' n) where
+  init x =
+    case x of
+      VNil -> VNil
+      VCons a as -> VCons (init a) (init as)
+
+-- Warning: noted the result type is not directly related to input, which 
+-- means the result type must be annotated.
+-- Also, it does not work with stabilizer formalism, because stabilizer formalism
+-- require all qubits are measured before dynamic lifting. 
+class Measurement a b where
+  #NoModal
+  measure : a -> b
+
+instance Measurement Qubit Bool where
+  measure x = dynlift (meas x)
+
+instance Measurement Unit Unit where
+  measure x = x
+
+
+instance forall a a' b b' -> (Measurement a a', Measurement b b') =>
+             Measurement (a * b) (a' * b') where
+  measure x = let (a, b) = x in (measure a, measure b)
+
+instance forall a a' (n : Nat) -> (Measurement a a') =>
+             Measurement (Vec a n) (Vec a' n) where
+  measure x =
+    case x of
+      VNil -> VNil
+      VCons a as -> VCons (measure a) (measure as)
+
+-- Warning: noted the result type is not directly related to input.
+runCirc : ! forall a b a' b' ->
+             (Simple b, Simple a, Measurement b b', Initialize a' a) =>
+             Circ(a, b) -> a' -> b'
+runCirc circ a =
+  measure $ (unbox circ) (init a)
+
+natToReal : ! {n : Nat} -> Nat -> Real n
+natToReal n m =
+  case m of
+     Z -> cast 0.0
+     S m' -> cast 1.0 + natToReal m'
+
+-- convert a real to nat by rounding. 
+realToNat : ! {n : Nat} -> Real n -> Nat
+realToNat n r =
+  if r < cast 0.0 then 0
+  else if cast 0.0 <= r && r < cast 1.0 then 0
+       else 1 + realToNat (r - cast 1.0)
+
+repeat : ! forall a -> (Parameter a) => a -> (n : Nat) -> Vec a n
+repeat a n =
+  case n of
+    Z -> VNil
+    S n' -> VCons a (repeat a n')
+
+-- inspect idiom 
+data (Parameter a) => Singleton a (x : a) = WithEq (y : a) (Eq a x y)
+
+inspect : ! forall (a : Type) -> (Parameter a) => (x : a) -> Singleton a x
+inspect x = WithEq x refl
+
+filter : ! forall a -> (Parameter a) => !(a -> Bool) -> List a -> List a
+filter p l = case l of
+               Nil -> Nil
+	       Cons x xs ->
+                 let WithEq r e = inspect (p x) 
+               	 in case r of
+		     True -> Cons x (filter p xs) -- e : p x == True
+		     False -> filter p xs -- e : p x == False
 

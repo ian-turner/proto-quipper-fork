@@ -4,11 +4,18 @@ import "lib/Vec.dpq"
 
 data List a = Nil | Cons a (List a)
 
+
 -- appendL : ! forall a  -> List a  -> List a -> List a
+-- appendL l1 l2 =
+--               case l1 of
+--                   Nil -> l2
+--     	          Cons x xs -> Cons x (appendL xs l2)
+
 appendL a . (l1 l2 : List a) =
               case l1 of
                   Nil -> l2
     	          Cons x xs -> Cons x (appendL xs l2)
+
 
 -- mapL : ! forall a b -> !(a -> b) -> List a -> List b
 mapL a b . (f : !(a -> b)) (l : List a) =
@@ -27,11 +34,14 @@ vecToList v =
    case v of
      VNil -> Nil
      VCons x xs -> Cons x (vecToList xs)
-     
+
+
+
 listToVec : ! (x : List Qubit) -> Vec Qubit (toNat x)
 listToVec x = case x of
                 Nil -> VNil
                 Cons y zs -> VCons y (listToVec zs)
+
 
 -- listToVec does no appear to be that useful after all because the conversion is
 -- not really free->
@@ -56,6 +66,21 @@ lengthL l = case l of
 		(Cons x xs', S n)
 
 
+-- lengthL' c . (l : List c) =
+--        case l of
+--                 Nil -> (Nil, Z) 
+-- 	        Cons x xs -> 
+-- 	          let (xs', n) = lengthL' xs in (Cons x xs', S n)
+
+
+lengthL'' : ! forall c -> List c -> List c * Nat
+lengthL'' l =
+       let r = case l of
+                Nil -> (Nil, Z) 
+	        Cons x xs -> 
+	          let (xs', n) = lengthL'' xs in (Cons x xs', S n)
+       in r
+
 lengthL' c . (l : List c) =
        let r = case l of
                 Nil -> (Nil, Z) 
@@ -63,3 +88,4 @@ lengthL' c . (l : List c) =
 	          let (xs', n) = lengthL' xs in (Cons x xs', S n)
        in r
 -- main =  x
+

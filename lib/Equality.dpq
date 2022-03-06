@@ -5,7 +5,8 @@ module Equality where
 data (Parameter a) => Eq a (x : a) (y : a) =
       E (! (p : a -> Type) -> p x -> p y)
 
--- Combinators for manual equality conversion->
+
+-- Combinators for manual equality conversion.
 
 refl : ! forall a -> (Parameter a) => forall (x : a) -> Eq a x x
 refl = E (\ p l -> l)
@@ -14,8 +15,9 @@ refl = E (\ p l -> l)
 sym : ! forall a -> (Parameter a) =>
               forall (y : a) -> (x : a) -> Eq a x y -> Eq a y x
 sym x q = 
-  let E q1 = q in
-    E ( \ p l -> q1 (\ z -> p z -> p x) (\ b -> b) l)
+  let E q1 = q in 
+    E ( \ f l -> q1 (\ z -> f z -> f x) (\ x -> x) l)
+
 
 trans : ! forall a -> (Parameter a) =>
               forall (x y z : a) -> Eq a x y -> Eq a y z -> Eq a x z
@@ -24,13 +26,13 @@ trans p1 p2 =
       E pf2 = p2
   in E (\ p l -> pf2 p (pf1 p l))    
 
-
-cong : ! forall a -> (Parameter a) =>
-           forall (n m : a) -> (f : !(a -> a)) -> Eq a n m -> Eq a (f n) (f m)
-cong f pf =
-  let E pf = pf in
-  E (\ p -> pf (\ n -> p (f n)))
-
 subst : ! forall a -> (Parameter a) =>
              forall (n m : a) -> (p : a -> Type) -> Eq a n m -> p n -> p m
 subst p eq = let E eq = eq in eq p 
+
+cong : ! forall a -> (Parameter a) =>
+           forall (n m : a) -> (f : !(a -> a)) -> Eq a n m -> Eq a (f n) (f m)
+cong f pf = 
+  let E pf = pf in
+  E (\ p -> pf (\ n -> p (f n)))
+

@@ -10,10 +10,10 @@ data WithGarbage a = WG (( n : Nat) * Vec Qubit n) a
 instance Monad WithGarbage where
   return x = WG (Z, VNil) x
   bind wg f = let WG ng r = wg
-                  (n, g) = ng
+                  (a, g) = ng
                   WG mg' r' = f r
                   (m, g') = mg'
-               in WG (add n m, append g g') r'
+               in WG (add a m, append g g') r'
 
 dispose_qubit : !(Qubit -> WithGarbage Unit)
 dispose_qubit q = WG (S Z, VCons q VNil) ()
@@ -36,23 +36,28 @@ instance forall a (n : Nat) -> (Disposable a) => Disposable (Vec a n) where
 
 
 class BooleanLogic a where
-  band : a -> a -> WithGarbage a
-  bor :  a -> a -> WithGarbage a
-  bxor : a -> a -> WithGarbage a
-  bnot : a -> WithGarbage a
-  bif : Qubit -> a -> a -> WithGarbage a
+  #NoControl
+  band  : a -> a -> WithGarbage a
+  #NoControl
+  bor  :  a -> a -> WithGarbage a
+  #NoControl
+  bxor  : a -> a -> WithGarbage a
+  #NoControl
+  bnot  : a -> WithGarbage a
+  #NoControl
+  bif  : Qubit -> a -> a -> WithGarbage a
 
 instance BooleanLogic Qubit where
   -- generate 2 garbage
   band x y =
     let z = initQubit False
-        (z', y', x') =  ToffoliGate True True z y x
+        (z', y', x') =  toffoliGate True True z y x
     in dispose x' >> dispose y' >> return z'
        
   -- generate 2 garbage
   bor x y =
     let z = initQubit True
-        (z', y', x') = ToffoliGate False False z y x
+        (z', y', x') = toffoliGate False False z y x
     in dispose x' >> dispose y' >> return z'
         
 
@@ -64,15 +69,13 @@ instance BooleanLogic Qubit where
        
 
   bnot x =
-    let (r, x') = CNotGate False (Init0 ()) x
+    let (r, x') = cnotGate False (Init0 ()) x
     in dispose x' >> return r
 
   -- generate 3 garbage
   bif q q1 q2 =
-       let (out1, cs) = Not_g (Init0 ()) (q1, q)
-           (q1', q') = cs
-           (out2, cs')  = Not_g out1 (q2, QNot q')
-           (q2', q'') = cs'
+       let (out1, q1', q') = toffoli (Init0 ()) q1 q
+           (out2, q2', q'')  = toffoli out1 q2 (QNot q')
      in  dispose (QNot q'') >> dispose q1' >> dispose q2' >> return out2
 
 instance forall a b -> (BooleanLogic a, BooleanLogic b) => BooleanLogic (a * b) where
@@ -214,7 +217,8 @@ runGarbage comp = let WG x a = comp in let (n, v) = x in (n, (v, a))
 box_garbage : ! (a b : Type) -> (Simple a , Simple b) =>
                !(a -> WithGarbage b) ->  (n : Nat) * Circ(a, Vec Qubit n * b)
 box_garbage a b f =
-  let (n, circ) = existsBox a (\n -> Vec Qubit n * b) (\x -> runGarbage (f x))
+  let (n, circ) =
+         existsBox a (\n -> Vec Qubit n * b) (\x -> runGarbage (f x))
   in (n, circ)
 
 boxGarbage : ! {a b : Type} -> (Simple a , Simple b) =>
