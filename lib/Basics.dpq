@@ -26,7 +26,7 @@ uncurry f x = let (a, b) = x in f a b
 curry : ! forall a b c -> (a * b -> c) -> (a -> b -> c)
 curry f = \ x y -> f (x, y)
 
--- The higher the number is, the lower the priority is->
+-- The higher the number is, the lower the priority is
 infixr 30 $
 
 ($) : ! forall a b -> (a -> b) -> a -> b

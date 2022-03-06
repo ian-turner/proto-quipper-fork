@@ -154,4 +154,18 @@ repeat a n =
     Z -> VNil
     S n' -> VCons a (repeat a n')
 
+-- inspect idiom 
+data (Parameter a) => Singleton a (x : a) = WithEq (y : a) (Eq a x y)
+
+inspect : ! forall (a : Type) -> (Parameter a) => (x : a) -> Singleton a x
+inspect x = WithEq x refl
+
+filter : ! forall a -> (Parameter a) => !(a -> Bool) -> List a -> List a
+filter p l = case l of
+               Nil -> Nil
+	       Cons x xs ->
+                 let WithEq r e = inspect (p x) 
+               	 in case r of
+		     True -> Cons x (filter p xs) -- e : p x == True
+		     False -> filter p xs -- e : p x == False
 

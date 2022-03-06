@@ -1,9 +1,9 @@
 name:                dpq
-version:             0.0.1.0
+version:             0.0.1.1
 license:             BSD3
 author:              "Frank (Peng) Fu, Kohei Kishida, Neil J. Ross, Peter Selinger"
 maintainer:          "peng.frank.fu@gmail.com, selinger@mathstat.dal.ca"
-copyright:           "2019"
+copyright:           "2022"
 
 extra-source-files:
 - README.md
