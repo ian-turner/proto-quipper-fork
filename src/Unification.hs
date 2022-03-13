@@ -389,6 +389,7 @@ dUnify (AppTm t1 t2) (AppTm t3 t4) =
             (substitute sub t4)
        else return a
 
+
 dUnify (Case e1 (B br1)) (Case e2 (B br2)) | br1 == br2 =
   dUnify e1 e2
 dUnify RealNum RealNum = return Success

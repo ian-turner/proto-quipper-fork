@@ -129,7 +129,7 @@ instance Disp TypeError where
     nest 2 (display flag t)
   display flag (NoDef t) =
     text "no definition for the identifier:" $$ nest 2 (display flag t)
-  display flag (UnBoundErr x) = text "unbound variable:" <+> display False x
+  display flag (UnBoundErr x) = text "unbound variable:" <+> display False x 
   display flag (KAppErr ty b a) =
     text "the type:" $$ nest 2 (display flag ty) $$
     text "is expected to have an arrow kind, but it has kind:" $$
