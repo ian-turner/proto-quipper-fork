@@ -639,6 +639,7 @@ proofCheck flag a@(LetPat m bd) goal =
     makeSub a s u = return s
     varDep (Var x) goal = isDpmVar x goal
     varDep _ _ = return False
+
 proofCheck flag a@(Case tm (B brs)) goal = do
   t <- proofInfer flag tm
   let t' = flatten t
@@ -714,15 +715,33 @@ dependentUnif (isDpm, index) head t =
   do head' <- normalize head
      t' <- normalize t
      if not isDpm
-       then if head' == t'
+       then if noModEq head' t'
             then return (Success, Map.empty)
             else return (UnifError, Map.empty)
        else case index of
               Nothing ->
-                if head' == t'
+                if noModEq head' t'
                 then return (Success, Map.empty)
                 else return (UnifError, Map.empty)
-              Just i -> return $ runDUnify head' t'
+              Just i -> 
+                case (flatten head', flatten t') of
+                  (Just (Right h1, args1), Just (Right h2, args2))
+                    | h1 == h2 && length args1 == length args2 ->
+                      let (bs1, a1:as1) = splitAt i args1
+                          (bs2, a2:as2) = splitAt i args2
+                          (r1, subst1) = runDUnify a1 a2
+                      in  
+                        case r1 of
+                          Success ->
+                            let a1' = substitute subst1 a1
+                                a2' = substitute subst1 a2
+                                head' = foldl AppP (Base h1)
+                                               (bs1++a1':as1)
+                                t' = foldl AppP (Base h2) (bs2++a2':as2)
+                            in if noModEq t' head' then return (Success, subst1)
+                               else return (UnifError, Map.empty)
+                          _ -> return (UnifError, Map.empty)
+                  _ -> return (UnifError, Map.empty) 
 
 -- | Check lambda abstractions against a type. The argument /fl/ is to indicate
 -- whether or not to check usage.

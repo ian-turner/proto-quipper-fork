@@ -824,16 +824,16 @@ typeCheck flag a@(LetPair m (Abst xs b)) goal mod = do
 
                 
 typeCheck flag a@(LetPat m (Abst (PApp kid vs) n)) goal mod = do
-  (tt, ann, mode1) <- typeInfer flag m
-  ss <- getSubst
-  let t' = substitute ss tt
+  (t, ann, mode1) <- typeInfer flag m
+  at <- updateWithSubst t
   funPac <- lookupId kid
   let dt = classifier funPac
   semi <- isSemiSimple kid
   (head, axs, ins, kid') <- extendEnv vs dt (Const kid)
-  (unifRes, (sub', bs)) <- patternUnif semi m head t'
+  ss <- getSubst
+  (unifRes, (sub', bs)) <- patternUnif semi m head at
   case unifRes of
-      UnifError -> throwError $ withPosition m (UnifErr head t')
+      UnifError -> throwError $ withPosition m (UnifErr head at)
       Success -> do
         b <- varDep (erasePos m) goal
         sub1 <-
@@ -966,7 +966,7 @@ typeCheck flag a@(Case tm (B brs)) goal mod =
                                            \ r -> return (v, r)) vs
                       updateLocalInst subb
                       -- we need to restore the substitution to ss
-                      -- because subb' may be influenced
+                      -- because subb may be influenced
                       -- by dependent pattern matching.
                       ann2' <- resolveGoals (substitute subb ann2)
                                `catchError` \ e -> return ann2
