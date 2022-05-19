@@ -88,12 +88,12 @@ round1Distill : ! (Unit -> Qubit)
 round1Distill u =
   let input = (prepMixedState (), prepMixedState (), prepMixedState (), prepMixedState (), prepMixedState ())
       (a1, a2, a3, a4, a5) = fiveQubits input
-      a1' = measure a1
-      a2' = measure a2
-      a3' = measure a3
-      a4' = measure a4
+      a1' = dynlift (Meas a1)
+      a2' = dynlift (Meas a2)
+      a3' = dynlift (Meas a3)
+      a4' = dynlift (Meas a4)
   in if a1' || a2' || a3' || a4' then
-     let a = measure a5 : Bool in round1Distill u
+     let a = dynlift (Meas a5) in round1Distill u
      else a5
 
 -- One iteration of distillation
@@ -101,12 +101,12 @@ distill : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Maybe Qubit)
 distill input =
   let 
       (a1, a2, a3, a4, a5) = fiveQubits' input
-      a1' = measure a1
-      a2' = measure a2
-      a3' = measure a3
-      a4' = measure a4
+      a1' = dynlift (Meas a1)
+      a2' = dynlift (Meas a2)
+      a3' = dynlift (Meas a3)
+      a4' = dynlift (Meas a4)
   in if a1' || a2' || a3' || a4' then
-     let a = measure a5 : Bool in Nothing
+     let a = dynlift (Meas a5) in Nothing
      else Just a5
 
 -- n round distillation.  The higher n is, the higher the expense and the higher the precision it will be. 
@@ -125,19 +125,51 @@ distillation n =
        Nothing -> distillation n
        Just q -> q
 
+#NoControl
+gate BitConj : Bit -> Bit -> Bit -> Bit -> Bit
 
-distillation' : ! (Nat -> Maybe Qubit)
-distillation' n =
-  case n of
-    Z -> Just (prepMixedState ())
-    S n' -> 
-     let q1 = distillation n' 
-         q2 = distillation n'
-         q3 = distillation n'
-         q4 = distillation n'
-         q5 = distillation n'
-     in
-     distill (q1, q2, q3, q4, q5) 
+-- distill2 : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Maybe Qubit)
+-- distill2 input =
+--   let 
+--       (a1, a2, a3, a4, a5) = fiveQubits' input
+--       a1' = Meas a1
+--       a2' = Meas a2
+--       a3' = Meas a3
+--       a4' = Meas a4
+--       r = BitConj a1' a2' a3' a4'
+--   in CBit a r
+--      let a = dynlift (Meas a5) in Nothing
+--      else Just a5
+
+-- -- n round distillation.  The higher n is, the higher the expense and the higher the precision it will be. 
+-- distillation2 : ! (Nat -> Qubit)
+-- distillation2 n =
+--   case n of
+--     Z -> prepMixedState ()
+--     S n' -> 
+--      let q1 = distillation n' 
+--          q2 = distillation n'
+--          q3 = distillation n'
+--          q4 = distillation n'
+--          q5 = distillation n'
+--      in
+--      case distill (q1, q2, q3, q4, q5) of
+--        Nothing -> distillation n
+--        Just q -> q
+
+
+-- distillation' : ! (Nat -> Maybe Qubit)
+-- distillation' n =
+--   case n of
+--     Z -> Just (prepMixedState ())
+--     S n' -> 
+--      let q1 = distillation n' 
+--          q2 = distillation n'
+--          q3 = distillation n'
+--          q4 = distillation n'
+--          q5 = distillation n'
+--      in
+--      distill (q1, q2, q3, q4, q5) 
 
 
 
@@ -368,35 +400,52 @@ singleRoundByOneBlock (u : Unit) =
          (q13, q14) = prepMixedState2 ()
      in oneBlock (q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14)
 
-distillation2 : ! (Nat -> Qubit * Qubit)
-distillation2 n =
-  case n of
-    Z -> prepMixedState2 ()
-    S n' -> 
-     let (q1, q2) = distillation2 n' 
-         (q3, q4) = distillation2 n'
-         (q5, q6) = distillation2 n'
-         (q7, q8) = distillation2 n'
-         (q9, q10) = distillation2 n'
-         (q11, q12) = distillation2 n'
-         (q13, q14) = distillation2 n'
-     in
-     case oneBlock (q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14) of
-       Nothing -> distillation2 n
-       Just q -> q
+-- distillation2 : ! (Nat -> Qubit * Qubit)
+-- distillation2 n =
+--   case n of
+--     Z -> prepMixedState2 ()
+--     S n' -> 
+--      let (q1, q2) = distillation2 n' 
+--          (q3, q4) = distillation2 n'
+--          (q5, q6) = distillation2 n'
+--          (q7, q8) = distillation2 n'
+--          (q9, q10) = distillation2 n'
+--          (q11, q12) = distillation2 n'
+--          (q13, q14) = distillation2 n'
+--      in
+--      case oneBlock (q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14) of
+--        Nothing -> distillation2 n
+--        Just q -> q
 
-distillation2' : ! (Nat -> Maybe (Qubit * Qubit))
-distillation2' n =
-  case n of
-    Z -> Just (prepMixedState2 ())
-    S n' -> 
-     let (q1, q2) = distillation2 n' 
-         (q3, q4) = distillation2 n'
-         (q5, q6) = distillation2 n'
-         (q7, q8) = distillation2 n'
-         (q9, q10) = distillation2 n'
-         (q11, q12) = distillation2 n'
-         (q13, q14) = distillation2 n'
-     in
-      oneBlock (q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14) 
+-- distillation2' : ! (Nat -> Maybe (Qubit * Qubit))
+-- distillation2' n =
+--   case n of
+--     Z -> Just (prepMixedState2 ())
+--     S n' -> 
+--      let (q1, q2) = distillation2 n' 
+--          (q3, q4) = distillation2 n'
+--          (q5, q6) = distillation2 n'
+--          (q7, q8) = distillation2 n'
+--          (q9, q10) = distillation2 n'
+--          (q11, q12) = distillation2 n'
+--          (q13, q14) = distillation2 n'
+--      in
+--       oneBlock (q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12, q13, q14) 
      
+
+iXCirc : ! (Qubit -> Qubit * Qubit)
+iXCirc q =
+   let z = TGate (H (Init0 ()))
+       (q, z) = CNot q z
+       (q, z) = CNot q (H z)
+       z = H (TGate z)
+    in (z, q)
+       
+iXRepeat : !(Qubit -> Qubit)
+iXRepeat q =
+  let z = TGate (H (Init0 ()))
+      (q, z) = CNot q z
+      (q, z) = CNot q (H z)
+      z = H (TGate z)
+      r = dynlift (Meas z)
+  in if r then iXRepeat q else q

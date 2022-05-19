@@ -420,6 +420,7 @@ render_gate fs (Gate name [v] ws@(VPair (VLabel w) (VLabel c)) output VStar _ _)
       t3 = render_controldots fs x ys [c']
   in (s2, t2 >> t3)
 
+
 render_gate fs (Gate name [] (VLabel w) output VStar _ _) x ys maxh
   | getName name == "QNot" =
   let ymap w = ys `mapLookup` w
@@ -565,17 +566,23 @@ render_gate fs (Gate name params (VPair (VLabel w) (VLabel c)) output ctrl _ _) 
       t3 = render_controldots fs x ys (c':ctrls)
   in (s2, t2 >> t3)
 
+
 render_gate fs (Gate name [] input outs ctrl _ _) x ys maxh =
   let ymap w = ys `mapLookup` w
       ws1 = getWires input
       cs = getWires ctrl
       ctrls = map positive cs
       s2 = render_controlwire x ys (ws1++cs) ctrls
-      t2 = render_multi_gate fs x ys (getName name) ws1
+      gname = case getName name of
+                 "TGate" -> "T"
+                 '_':xs -> xs
+                 "SGate" -> "S"
+                 "ZGate" -> "Z"
+                 "TGate_Inv" -> "T*"
+                 a -> a
+      t2 = render_multi_gate fs x ys gname ws1
       t3 = render_controldots fs x ys ctrls
   in (s2, t2 >> t3)
-
-
 
 render_gate fs a x ys maxh =
   error $ "printing is not supported for gate:\n" ++ (show $ disp a)
