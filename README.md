@@ -12,7 +12,7 @@ E.g. add `export DPQ=<path-to-dpq-directory>` to your `.bashrc` file.
 
 2. Install via stack: `stack install`. Please see [here](https://docs.haskellstack.org/en/stable/README/#how-to-install) for instructions on installing stack. 
 
-3. Once 2 is done, you should have two executables, i.e., `dpq`,  `dpqi` and `qserver` somewhere in
+3. Once 2 is done, you should have three executables, i.e., `dpq`,  `dpqi` and `qserver` somewhere in
    you computer. Add `<path-to-dpqi>, <path-to-dpq>, <path-to-qserver>` to your `PATH` variable. 
 
 4. Optional: if you are an Emacs user, you may want to add the following to your `.emacs` file
@@ -27,9 +27,9 @@ E.g. add `export DPQ=<path-to-dpq-directory>` to your `.bashrc` file.
 5. Test your installation. Just type `dpqi` in the terminal to invoke
    the interpretor. In the dpqi interpretor, type `:h` to see a list of options.  
 
-6. To use 'dynamic lifting', you have to start qserver daemon `qserver -d` before
+6. To use the ''dynamic lifting'' feature, you have to start qserver daemon `qserver -d` before
    runing the interpretor. The qserver uses port 1901, so make sure it has
-   the permission.
+   the permission. 
 
 
 
