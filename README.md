@@ -1,4 +1,4 @@
-# Dependently Typed Proto-Quipper (Proto-Quipper-D)
+# Proto-Quipper-D/Dyn
 
 
 
@@ -10,21 +10,10 @@ Installation
 1. Set the environment variable DPQ to the dpq project directory.
 E.g. add `export DPQ=<path-to-dpq-directory>` to your `.bashrc` file.
 
+2. Install via stack: `stack install`. Please see [here](https://docs.haskellstack.org/en/stable/README/#how-to-install) for instructions on installing stack. 
 
-2. Install via stack: `stack install`. Please see [here](https://docs.haskellstack.org/en/stable/README/#how-to-install) for instructions on installing stack. We recommend using stack.   
-
-
-2. Or install via cabal (>= 3.0.0.0):
-
-   `cabal v1-sandbox init`
-
-   `cabal v1-install --only-dependencies`
-
-   `cabal v1-build`
-
-3. Once 2 is done, you should have two executables, i.e., `dpq` and `dpqi` somewhere in
-   you computer. Add `<path-to-dpqi>, <path-to-dpq>` to your `PATH` variable. 
-
+3. Once 2 is done, you should have two executables, i.e., `dpq`,  `dpqi` and `qserver` somewhere in
+   you computer. Add `<path-to-dpqi>, <path-to-dpq>, <path-to-qserver>` to your `PATH` variable. 
 
 4. Optional: if you are an Emacs user, you may want to add the following to your `.emacs` file
 
@@ -38,7 +27,9 @@ E.g. add `export DPQ=<path-to-dpq-directory>` to your `.bashrc` file.
 5. Test your installation. Just type `dpqi` in the terminal to invoke
    the interpretor. In the dpqi interpretor, type `:h` to see a list of options.  
 
-
+6. To use 'dynamic lifting', you have to start qserver daemon `qserver -d` before
+   runing the interpretor. The qserver uses port 1901, so make sure it has
+   the permission.
 
 
 
