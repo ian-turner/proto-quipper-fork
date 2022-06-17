@@ -1,4 +1,4 @@
-i# Proto-Quipper-D/Dyn
+# Proto-Quipper-D/Dyn
 
 
 
