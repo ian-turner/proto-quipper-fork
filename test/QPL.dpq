@@ -1,0 +1,58 @@
+module QPL where
+
+
+object Qubit
+object Bit
+
+gate H : Qubit -> Qubit : H
+gate TGate : Qubit -> Qubit : TGate_Inv
+gate SGate : Qubit -> Qubit : SGate_Inv
+gate ZGate : Qubit -> Qubit : ZGate
+gate CNot : Qubit -> Qubit -> Qubit * Qubit : CNot
+#NoControl
+gate Init0 : Unit -> Qubit : Term0 
+#NoControl
+gate Meas : Qubit -> Bit
+#NoControl
+gate Discard : Bit -> Unit
+
+
+data Bool = True | False
+
+
+v : !(Qubit -> Qubit * Bit * Bit)
+v q =
+  let a1 = TGate_Inv (H (Init0 ()))
+      a2 = H (Init0 ())
+      (a1, a2) = CNot a1 a2
+      a1 = Meas (H (TGate a1))
+      q = ZGate (TGate q)
+      (a2, q) = CNot a2 q
+      a2 = H (TGate a2)
+      a2 = Meas a2
+  in (q, a1, a2)
+
+vCirc : Circ(Qubit, Qubit * Bit * Bit)
+vCirc = box Qubit v
+
+v3 : !(Qubit -> Qubit)
+v3 q =
+  let a1 = TGate_Inv (H (Init0 ()))
+      a2 = H (Init0 ())
+      (a1, a2) = CNot a1 a2
+      a1 = H (TGate a1)
+  in if dynlift (Meas a1)
+     then
+       let _ = Discard (Meas a2)
+       in v3 q
+     else let q = ZGate (TGate q)
+              (a2, q) = CNot a2 q
+              a2 = H (TGate a2)
+          in if dynlift (Meas a2)
+             then v3 (ZGate q)
+             else q
+
+-- v3 can't be boxed.
+-- v3Box : Circ(Qubit, Qubit)
+-- v3Box = box Qubit v3
+
