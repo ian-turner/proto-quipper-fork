@@ -41,7 +41,7 @@ logicalAndInv input =
 
 -- test1 = boxCirc logicalAndInv
 
-logicalAndInv' = unbox $ reverse $ boxCirc $ \ x -> uncurry logicalAnd x
+-- logicalAndInv' = unbox $ reverse $ boxCirc $ \ x -> uncurry logicalAnd x
 
 -- ReadWrite  runReadWrite that also  
 leftBlock : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit)
@@ -58,7 +58,7 @@ rightBlock : ! (Qubit * Qubit * Qubit * Qubit ->  Qubit * Qubit * Qubit)
 rightBlock input =
   let (c, i, t, it) = input
       (it, c) = CNot it c
-      (i, t) = logicalAndInv' (i, t, it)
+      (i, t) = logicalAndInv (i, t, it)
       (i, c) = CNot i c
       (t, i) = CNot t i
    in (c, i, t)
@@ -77,8 +77,8 @@ nested c is ts =
       in (VCons i is'', VCons t ts'', c)
 
 
-boxNested (n : Nat) = box (Qubit * Vec Qubit n * Vec Qubit n) $
-                        \ input -> let (c, is, ts) = input in nested c is ts
+-- boxNested (n : Nat) = box (Qubit * Vec Qubit n * Vec Qubit n) $
+--                         \ input -> let (c, is, ts) = input in nested c is ts
 
 test2 : Vec Bool 4 * Vec Bool 4 * Bool
 test2 = measure $ nested (init False) [ Init1 (), Init1 (), Init1 (), Init1 ()] [Init1 (), Init0 (), Init0 (), Init0 ()]

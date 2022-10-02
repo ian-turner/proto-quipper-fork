@@ -1,28 +1,22 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.6.
+-- This file has been generated from package.yaml by hpack version 0.34.7.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 461d992b399222e89a70fffd69ee1325abca01366179fff4a49189cbf66ec743
+-- hash: c89578d0eb00025f2a3e6ac0e810a136f9b365c086109a411854892f318b433c
 
 name:           qserver
-version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/quantum-interaction#readme>
-homepage:       https://github.com/githubuser/quantum-interaction#readme
-bug-reports:    https://github.com/githubuser/quantum-interaction/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2020 Author name here
+version:        0.0.0.1
+description:    Please see README.
+author:         Frank (Peng) Fu, Peter Selinger
+maintainer:     peng.frank.fu@gmail.com, selinger@mathstat.dal.ca
+copyright:      2022
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
-
-source-repository head
-  type: git
-  location: https://github.com/githubuser/quantum-interaction
 
 library
   exposed-modules:

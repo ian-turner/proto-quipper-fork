@@ -20,8 +20,8 @@ gate Discard : Bit -> Unit
 data Bool = True | False
 
 
-v : !(Qubit -> Qubit * Bit * Bit)
-v q =
+circ : !(Qubit -> Qubit * Bit * Bit)
+circ q =
   let a1 = TGate_Inv (H (Init0 ()))
       a2 = H (Init0 ())
       (a1, a2) = CNot a1 a2
@@ -33,7 +33,7 @@ v q =
   in (q, a1, a2)
 
 vCirc : Circ(Qubit, Qubit * Bit * Bit)
-vCirc = box Qubit v
+vCirc = box Qubit circ
 
 v3 : !(Qubit -> Qubit)
 v3 q =
@@ -53,6 +53,6 @@ v3 q =
              else q
 
 -- v3 can't be boxed.
--- v3Box : Circ(Qubit, Qubit)
--- v3Box = box Qubit v3
+v3Box : Circ(Qubit, Qubit)
+v3Box = box Qubit v3
 

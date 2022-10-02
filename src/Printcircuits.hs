@@ -455,7 +455,7 @@ render_gate fs (Gate name [] (VPair (VLabel w) (VLabel c)) output VStar _ _) x y
   let
       c' = positive c
       s2 = render_controlwire x ys ([w]++[c]) [c']
-      t2 = render_multi_gate fs x ys (tail $ getName name) [w]
+      t2 = render_multi_gate fs x ys (removeC $ getName name) [w]
       t3 = render_controldots fs x ys [c']
   in (s2, t2 >> t3)
 
@@ -464,7 +464,7 @@ render_gate fs (Gate name [v] (VPair (VLabel w) (VLabel c)) output VStar _ _) x 
   let
       c' = if toBool v then positive c else negative c
       s2 = render_controlwire x ys ([w]++[c]) [c']
-      t2 = render_multi_gate fs x ys (tail $ getName name) [w]
+      t2 = render_multi_gate fs x ys (removeC $ getName name) [w]
       t3 = render_controldots fs x ys [c']
   in (s2, t2 >> t3)
 
@@ -562,7 +562,9 @@ render_gate fs (Gate name params (VPair (VLabel w) (VLabel c)) output ctrl _ _) 
       cs = getWires ctrl
       ctrls = map positive cs
       s2 = render_controlwire x ys ([w]++[c]) (c':ctrls)
-      t2 = render_multi_gate fs x ys (tail $ getName name) [w]
+      n = getName name 
+      name' = removeC n
+      t2 = render_multi_gate fs x ys name' [w]
       t3 = render_controldots fs x ys (c':ctrls)
   in (s2, t2 >> t3)
 
@@ -587,6 +589,13 @@ render_gate fs (Gate name [] input outs ctrl _ _) x ys maxh =
 render_gate fs a x ys maxh =
   error $ "printing is not supported for gate:\n" ++ (show $ disp a)
 
+-- | remove prefix "C" or "C_"
+removeC :: String -> String
+removeC n =
+  if "C_" `isPrefixOf` n
+  then tail (tail n)
+  else tail n
+  
 -- | A 'Xarity' is a map assigning a starting /x/-coordinate to each
 -- wire id.
 type Xarity = Map Wire X

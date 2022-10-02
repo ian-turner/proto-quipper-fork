@@ -444,6 +444,9 @@ copy p =
       (q5, q6) = CNot in2 q2
   in ((q3, q5), (q4, q6))
 
+adder' : ! (Qubit * Qubit * Qubit -> WithGarbage (Qubit * Qubit))
+adder' = λ x -> let (a, b, c) = x in adder a b c 
+
 -- Box adder' into a reversible circuit.
 adderRev : Circ(Qubit * Qubit * (Qubit * Qubit * Qubit),
                            Qubit * Qubit * (Qubit * Qubit * Qubit))

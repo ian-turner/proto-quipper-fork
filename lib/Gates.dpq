@@ -51,7 +51,7 @@ gate CNot : Qubit -> Qubit -> Qubit * Qubit : CNot
 -- any nontrivial binary control gate have to be prefixed with `C_`, e->g->
 -- the following C_X, C_Z->
 
-gate CX : Qubit -> Bit -> Qubit * Bit : CX
+gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
 
 gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
 
