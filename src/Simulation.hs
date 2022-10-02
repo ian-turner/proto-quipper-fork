@@ -162,6 +162,15 @@ interaction (RW_Write g@(Gate name [VWrapR (MR len r)] (VLabel v) (VLabel w) VSt
              let res = interaction c h map' ls
              fmap (\ (x, y) -> (x, g:y)) res
 
+interaction (RW_Write g@(Gate name [VWrapR (MR len r)] (VLabel v) (VLabel w) VStar _ _) c) h map ls
+          | getName name == "Rot_Inv" =
+          do let (VLabel v') = renameTemp (VLabel v) map
+                 map' = map `Map.union` Map.fromList [(w, v')]
+                 gn = toGateName (getName name)
+             hPutStrLn h (gn ++ " "++ showCReal len (-r) ++ " " ++ labelToNum v')
+             let res = interaction c h map' ls
+             fmap (\ (x, y) -> (x, g:y)) res
+
 interaction (RW_Write g@(Gate name [VWrapR (MR len r), VWrapR (MR len' r')] (VLabel v) (VLabel w) VStar _ _) c) h map ls
           | getName name == "Diag" =
           do let (VLabel v') = renameTemp (VLabel v) map
@@ -224,6 +233,7 @@ toGateName "TGate_Inv" = "T*"
 toGateName "SGate_Inv" = "S*"
 toGateName "Discard" = "D"
 toGateName "Rot" = "ROT"
+toGateName "Rot_Inv" = "ROT"
 toGateName "Diag" = "DIAG"
 toGateName a = 
    E.throw $ userError $ "unsupported gate: " ++ a
