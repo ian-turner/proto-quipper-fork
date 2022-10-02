@@ -1,0 +1,141 @@
+module AE where
+import "lib/Prelude.dpq"
+
+bell00 : !(Unit -> Qubit * Qubit)
+bell00 u =
+  let a = Init0 ()
+      b = Init0 ()
+  in CNot b (H a)
+
+alice1 : !( Qubit -> Qubit -> Bit * Bit)
+alice1 a q =
+  let (a, q) = CNot a q
+      q = H q
+  in (Meas a, Meas q)
+
+bob1 : !( Qubit -> Bit -> Bit -> Qubit)
+bob1 q x y =
+  let (q, x) = C_X q x
+      (q, y) = C_Z q y
+      _ = Discard x
+      _ = Discard y
+  in q
+
+tele1 : !( Qubit -> Qubit)
+tele1 q =
+  let (b, a) = bell00 ()
+      (x, y) = alice1 a q
+      z = bob1 b x y
+  in z
+
+boxTele : Circ(Qubit , Qubit)
+boxTele = box Qubit tele1
+
+
+alice2 : ! (Qubit -> Qubit -> Bool * Bool)
+alice2 a q =
+  let (a, q) = CNot a q
+      q = H q
+  in (dynlift (Meas a), dynlift (Meas q))
+
+
+bob2 : ! (Qubit -> Bool -> Bool -> Qubit)
+bob2 q x y =
+  let q = if x then QNot q else q
+      q = if y then ZGate q else q
+   in q
+
+tele2 : ! (Qubit -> Qubit)
+tele2 q =
+  let (b, a) = bell00 ()
+      (x, y) = alice2 a q
+      z = bob2 b x y
+  in z
+
+test : Bool
+test = dynlift (Meas (tele2 (Init0 ())))
+
+-- Uncomment the following to observe the error message
+-- boxAttempt : Circ(Qubit, Qubit)
+-- boxAttempt = box Qubit tele2
+
+
+
+-- The five qubit error correcting code. 
+fiveQubits : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit)
+fiveQubits input =
+  let (a1, a2, a3, a4, a5) = input
+      (a1, a5) = CZ a1 a5
+      (a2, a5) = CZ a2 a5
+      (a3, a5) = CZ a3 a5
+      (a2, a4) = CZ a2 a4
+      (a3, a4) = CZ a3 a4
+      (a5, a4) = CY a5 a4
+      (a1, a3) = CZ a1 a3
+      (a4, a3) = CZ a4 a3
+      (a5, a3) = CY a5 a3
+      (a1, a2) = CZ a1 a2
+      (a5, a2) = CY a5 a2
+      (a3, a1) = CZ a3 a1
+      (a5, a1) = CNot a5 a1
+    in (H a1, H a2, H a3, H a4, ZGate a5)
+
+prepMixedState : ! (Unit -> Qubit)
+prepMixedState u =
+  Diag ((sqrt 2.00000) @ (cos 0.47766)) ((sqrt 2.00000) @ (sin 0.47766)) (TGate (H (Init0 ())))
+
+distill : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Maybe Qubit)
+distill input =
+  let 
+      (a1, a2, a3, a4, a5) = fiveQubits input
+      a1' = dynlift (Meas a1)
+      a2' = dynlift (Meas a2)
+      a3' = dynlift (Meas a3)
+      a4' = dynlift (Meas a4)
+  in if a1' || a2' || a3' || a4' then
+     let a = dynlift (Meas a5) in Nothing
+     else Just a5
+
+distillation : ! (Nat -> Qubit)
+distillation n =
+  case n of
+    Z -> prepMixedState ()
+    S n' -> 
+     let q1 = distillation n' 
+         q2 = distillation n'
+         q3 = distillation n'
+         q4 = distillation n'
+         q5 = distillation n'
+     in
+     case distill (q1, q2, q3, q4, q5) of
+       Nothing -> distillation n
+       Just q -> q
+
+
+
+
+v3 : !(Qubit -> Qubit)
+v3 q =
+  let a1 = tgate_inv (H (Init0 ()))
+      a2 = H (Init0 ())
+      (a1, a2) = CNot a1 a2
+      a1 = H (TGate a1)
+  in if dynlift (Meas a1)
+     then
+       let _ = Discard (Meas a2)
+       in v3 q
+     else let q = ZGate (TGate q)
+              (a2, q) = CNot a2 q
+              a2 = H (TGate a2)
+          in if dynlift (Meas a2)
+             then v3 (ZGate q)
+             else q
+
+-- Uncomment the following to observe the error message
+-- test2 : Circ(Qubit, Qubit)
+-- test2 = box Qubit v3
+
+          
+
+       
+         
