@@ -1,4 +1,4 @@
-module AE where
+module AE2 where
 import "lib/Prelude.dpq"
 
 bell00 : !(Unit -> Qubit * Qubit)
