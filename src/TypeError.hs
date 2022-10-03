@@ -361,7 +361,7 @@ instance Disp TypeError where
     text "can't resolve modality." $$
     text "when checking" $$ nest 2 (display flag tm) $$
     (text "The type") $$
-    nest 2 (display flag t1) $$
+    nest 2 (display False t1) $$
     (text "indicates that it is") <+> actual <> text "," $$
     (text "but is expected to be") <+> expect $$
     text "expected type:" <+>

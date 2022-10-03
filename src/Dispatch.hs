@@ -73,6 +73,12 @@ dispatch (Type e) = do
   liftIO $ putStrLn ("it has classifier \n" ++ (show $ disp t'))
   return True
 
+dispatch (RawType e) = do
+  e' <- topResolve e 
+  (t', e'') <- topTypeInfer e'
+  liftIO $ putStrLn ("it has classifier \n" ++ (show $ dispRaw t'))
+  return True
+
 dispatch (Eval e) = do
   e' <- topResolve  e
   (t', e'') <- topTypeInfer e'
@@ -217,12 +223,10 @@ dispatch (Annotation e) = do
   let dfs = env
   case Map.lookup id dfs of
     Nothing -> throwError $ Mess (text "undefined constant:" <+> disp id)
-         -- error "from dispatch annotation"
     Just p ->
       case identification p of
         DefinedFunction (Just (a, _, av)) -> do
           liftIO $ putStrLn ("it has annotation \n" ++ (show $ dispRaw a))
-                -- liftIO $ putStrLn ("it has annotated value: \n" ++ (show $ dispRaw av))
           return True
         DefinedMethod a _ -> do
           liftIO $ putStrLn ("it has annotation \n" ++ (show $ dispRaw a))
@@ -233,6 +237,7 @@ dispatch (Annotation e) = do
         _ -> do
           liftIO $ putStrLn ("there is nothing to show \n")
           return True
+
 -- A load command will first initialize the Simple and Parameter class
 -- instances, then proceed to load file.
 dispatch (Load msg file) = do

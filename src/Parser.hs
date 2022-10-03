@@ -129,7 +129,7 @@ parseCommand s st = runIndent $ runParserT command st "" s
 command :: Parser Command
 command = do
   whiteSpace
-  quit <|> help <|> typing <|> reload <|> load <|> printing <|> displaying <|>
+  quit <|> help <|> typing <|> rawType <|> reload <|> load <|> printing <|> displaying <|>
     displayEx <|>
     annotation <|>
     showCirc <|>
@@ -165,6 +165,14 @@ typing = do
   t <- term
   eof
   return $ Type t
+
+-- | Parse the rawtype command
+rawType :: Parser Command
+rawType = do
+  try (reserved ":rawtype") <|> reserved ":rt"
+  t <- term
+  eof
+  return $ RawType t
 
 -- | Parse the print-pdf-to-file command.
 printing :: Parser Command

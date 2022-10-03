@@ -150,6 +150,7 @@ data Command
   | Quit -- ^ Quit.
   | Help -- ^ Print help information.
   | Type Exp -- ^ Print the type or kind information for an expression.
+  | RawType Exp -- ^ Print the raw type or kind information for an expression.
   | Load Bool String
   -- ^ Load a file. The Bool is for showing ``loaded ''
   -- when type checking success. 

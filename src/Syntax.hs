@@ -364,16 +364,24 @@ instance Disp Exp where
       [ dParen flag (precedence a - 1) t <> dispAt flag "AppTm"
       , dParen flag (precedence a) t'
       ]
-  display flag a@(Bang t m) =
+  display flag a@(Bang t m) | flag == True =
     text "!" <> dParen flag (precedence a - 1) t
-    -- display flag m <>
 
-  display flag a@(Arrow t1 t2 m) =
+  display flag a@(Bang t m) | flag == False =
+    text "!" <> display flag m <> dParen flag (precedence a - 1) t
+    
+  display flag a@(Arrow t1 t2 m) | flag == True =
     fsep
       [ dParen flag (precedence a) t1
-      , text "->" --, display flag m
+      , text "->" 
       , dParen flag (precedence a - 1) t2
       ]
+  display flag a@(Arrow t1 t2 m) | flag == False =
+    fsep
+      [ dParen flag (precedence a) t1
+      , text "->" , display flag m
+      , dParen flag (precedence a - 1) t2
+      ]    
   display flag a@(ArrowP t1 t2) =
     fsep
       [ dParen flag (precedence a) t1
@@ -879,9 +887,11 @@ instance Disp BExp where
   display flag (BAnd e1 e2) = display flag e1 <> text "&" <> display flag e2
 
 instance Disp Modality where
+  -- currently we only display the boxability for the sake of
+  -- popl review. 
   display flag (M x y z) = 
-    braces $
-    display flag x <> comma <+> display flag y <> comma <+> display flag z
+    braces $ display flag x
+    -- display flag x <> comma <+> display flag y <> comma <+> display flag z
 
 
 dispBoxable (BConst True) = text "Boxable"

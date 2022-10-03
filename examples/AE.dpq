@@ -55,11 +55,6 @@ tele2 q =
 test : Bool
 test = dynlift (Meas (tele2 (Init0 ())))
 
--- Uncomment the following to observe the error message
--- boxAttempt : Circ(Qubit, Qubit)
--- boxAttempt = box Qubit tele2
-
-
 
 -- The five qubit error correcting code. 
 fiveQubits : ! (Qubit * Qubit * Qubit *  Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit)
