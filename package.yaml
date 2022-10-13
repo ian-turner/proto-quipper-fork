@@ -41,6 +41,7 @@ dependencies:
 - network
 - syb
 - numbers
+- exceptions
 
 library:
   source-dirs: src

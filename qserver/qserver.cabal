@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.7.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: c89578d0eb00025f2a3e6ac0e810a136f9b365c086109a411854892f318b433c
 
 name:           qserver
 version:        0.0.0.1

@@ -23,28 +23,6 @@ import System.IO
 import Text.Parsec
 import Text.PrettyPrint
 
--- | Boilerplate due to the Haskeline lib does not implement enough freaking
--- MonadException instances.
-instance MonadException m => MonadException (StateT s m) where
-  controlIO f =
-    StateT $ \s ->
-      controlIO $ \(RunIO run) ->
-        let run' = RunIO (fmap (StateT . const) . run . flip runStateT s)
-         in fmap (flip runStateT s) $ f run'
-
-instance MonadException m => MonadException (ExceptT e m) where
-  controlIO f =
-    ExceptT $
-    controlIO $ \(RunIO run) ->
-      let run' = RunIO (fmap ExceptT . run . runExceptT)
-       in fmap runExceptT $ f run'
-
-instance MonadException Top where
-  controlIO f =
-    T $
-    controlIO $ \(RunIO run) ->
-      let run' = RunIO (fmap T . run . runT)
-       in fmap runT $ f run'
 
 -- | Parse and dispatch a command.
 -- It is one iteration of the read-eval-print loop. Return False to quit,

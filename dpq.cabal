@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.7.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c93e0ab06f76f906d779add59f6e29af504d3e0c11e7037868a0b81f105ae3eb
+-- hash: fdc8af67f0c5f2e04de7ddf490d7b3859322c994f15d1dd05598f71c3d8a25c9
 
 name:           dpq
 version:        0.0.1.1
@@ -56,6 +56,7 @@ library
     , containers
     , directory
     , easyrender
+    , exceptions
     , filepath
     , haskeline
     , indents
@@ -84,6 +85,7 @@ executable dpq
     , directory
     , dpq
     , easyrender
+    , exceptions
     , filepath
     , haskeline
     , indents
@@ -112,6 +114,7 @@ executable dpqi
     , directory
     , dpq
     , easyrender
+    , exceptions
     , filepath
     , haskeline
     , indents
@@ -141,6 +144,7 @@ test-suite dpq-test
     , directory
     , dpq
     , easyrender
+    , exceptions
     , filepath
     , haskeline
     , indents

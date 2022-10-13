@@ -23,6 +23,7 @@ import SyntacticOperations
 import Nominal
 import qualified Data.MultiSet as S
 import Control.Monad.Except
+import Control.Monad.Catch hiding (catch)
 import Control.Monad.Identity
 import Control.Exception hiding (TypeError)
 import Text.Parsec hiding (count)
@@ -64,7 +65,7 @@ instance Disp Error where
 -- a 'TopState'. 
 newtype Top a = T {runT :: ExceptT Error (StateT TopState IO) a }
               deriving (Monad, Applicative, Functor,
-                        MonadState TopState, MonadError Error, MonadIO)
+                        MonadState TopState, MonadError Error, MonadIO, MonadThrow, MonadCatch, MonadMask)
 
 -- | A 'TopState' contains an interpreter state and a file name. 
 data TopState = TopState {
