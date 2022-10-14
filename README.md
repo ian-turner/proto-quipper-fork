@@ -10,7 +10,7 @@ Installation
 1. Set the environment variable DPQ to the dpq project directory.
 E.g. add `export DPQ=<path-to-dpq-directory>` to your `.bashrc` file.
 
-2. Install via stack: `stack install`. Please see [here](https://docs.haskellstack.org/en/stable/README/#how-to-install) for instructions on installing stack. 
+2. Install via stack: `stack install`. Please see [here](https://docs.haskellstack.org/en/stable/README/#how-to-install) for instructions on installing stack. For Apple M1 user, you may want to check FAQ (4).
 
 3. Once 2 is done, you should have three executables, i.e., `dpq`,  `dpqi` and `qserver` somewhere in
    your computer. Add `<path-to-dpqi>, <path-to-dpq>, <path-to-qserver>` to your `PATH` variable. 
@@ -30,7 +30,6 @@ E.g. add `export DPQ=<path-to-dpq-directory>` to your `.bashrc` file.
 6. To use the ''dynamic lifting'' feature, you have to start a qserver daemon `qserver -d` before
    running the interpreter. The qserver uses port 1901, so make sure it has
    the permission. 
-
 
 
 Upgrading dpq
@@ -66,3 +65,11 @@ FAQ
 
    One possible reason is that you forgot to restart Emacs if you just modified your
    `.emacs` file, or to restart the terminal if you just modified your `.bashrc` file. 
+
+4. On macOS arm64 with ghc 9.0.2 (and several others, until 9.2.3), one gets `fatal error: 'ffitarget_arm64.h' file not found`.
+
+   You may have to run the following instead. 
+   ```
+   $ C_INCLUDE_PATH="`xcrun --show-sdk-path`/usr/include/ffi" stack install
+   ```
+   The workaround is documented at https://gitlab.haskell.org/ghc/ghc/-/issues/20592#note_391266
