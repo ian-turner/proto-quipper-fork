@@ -32,6 +32,7 @@ resolver: lts-19.28
 packages:
 - .
 - qserver
+
 # Dependency packages to be pulled from upstream that are not in the resolver.
 # These entries can reference officially published versions as well as
 # forks / in-progress versions pinned to a git hash. For example:
@@ -43,8 +44,9 @@ packages:
 #
 extra-deps: 
 - easyrender-0.1.1.4
-- nominal-0.2.0.0
-# - /home/frank/softwares/nominal-0.2.0.0
+- nominal-0.3.0.0
+
+
 
 
 # Override default flag values for local packages and extra-deps

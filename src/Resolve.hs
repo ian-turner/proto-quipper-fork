@@ -21,7 +21,7 @@ import ModeResolve (booleanVarElim)
 import qualified ConcreteSyntax as C
 import Syntax
 
-import Prelude hiding ((.), (<>))
+import Prelude hiding ((<>))
 
 import Nominal
 import Nominal.Atom
@@ -183,10 +183,10 @@ resolve d (C.Lam vs m) =
        else helper m' xs
   where helper (Lam bs) xs = 
           open bs $ \ ys m'' ->
-          return (Lam ((xs++ys).m'')) 
+          return (Lam ((xs++ys):.m'')) 
         helper (Pos p e) xs =
           helper e xs >>= \ e' -> return $ Pos p e'
-        helper a xs = return $ Lam (xs.a) 
+        helper a xs = return $ Lam (xs:.a) 
 
 resolve d (C.Forall ((vs, t):vars) m) =
   lscopeVars d vs $ \d' xs ->
@@ -195,9 +195,9 @@ resolve d (C.Forall ((vs, t):vars) m) =
      case m' of
        Forall bd t'' | t'' == t' ->
          open bd $ \ ys b ->
-         return $ (Forall ((xs++ys) . b) t')
+         return $ (Forall ((xs++ys) :. b) t')
        _ ->
-         return $ Forall (xs . m') t'
+         return $ Forall (xs :. m') t'
 
 resolve d (C.Forall [] m) = resolve d m
 
@@ -217,7 +217,7 @@ resolve d (C.Let ((C.BSingle (s, n)):defs) m) =
   lscopeVars d [s] $ \d' (x:[]) -> 
   do n' <- resolve d n
      m' <- resolve d' (C.Let defs m)
-     return (Let n' (x.m'))
+     return (Let n' (x :. m'))
      
 resolve d (C.Let ((C.BPair (ss, m)):defs) n) = 
   lscopeVars d ss $ \d' xs -> 
@@ -270,11 +270,11 @@ resolve d (C.Case t br) = do
                  lscopeVars d args' $ \d' ys -> 
                    if null brs then
                      do t' <- resolve d' t
-                        return $ B (((PApp kid (map Right ys)).t'):[])
+                        return $ B (((PApp kid (map Right ys)):.t'):[])
                    else
                      do t' <- resolve d' t
                         B brs' <- resolveBr d brs
-                        return $ B (((PApp kid (map Right ys)).t'):brs')
+                        return $ B (((PApp kid (map Right ys)):.t'):brs')
             Just a -> throwError $ ConstrErr a
         helper :: C.Exp -> Resolve String            
         helper (C.Var x) = return x
