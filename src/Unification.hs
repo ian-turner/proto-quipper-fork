@@ -45,7 +45,7 @@ data UnifResult = Success
 -- | Unify two expressions. 
 unify :: InEquality -> Exp -> Exp -> State (Subst, BSubst) UnifResult
 unify b Unit Unit = return Success
-unify b Set Set = return Success
+unify b Type Type = return Success
 unify b (Base x) (Base y) | x == y = return Success
                           | otherwise = return UnifError
 unify b (LBase x) (LBase y) | x == y = return Success
@@ -257,7 +257,7 @@ unify b t t' = return UnifError
 -- | Unify two expressions in dependent pattern matching. 
 dUnify :: Exp -> Exp -> State Subst UnifResult
 dUnify Unit Unit = return Success
-dUnify Set Set = return Success
+dUnify Type Type = return Success
 dUnify (Base x) (Base y) | x == y = return Success
                          | otherwise = return DUnifError
 dUnify (LBase x) (LBase y) | x == y = return Success

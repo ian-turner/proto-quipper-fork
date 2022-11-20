@@ -36,101 +36,101 @@ proofCheck :: Bool -> Exp -> Exp -> TCMonad ()
 proofInfer :: Bool -> Exp -> TCMonad Exp
 proofInfer True (LBase kid) = lookupId kid >>= \x -> return $ (classifier x)
 proofInfer True (Base kid) = lookupId kid >>= \x -> return $ (classifier x)
-proofInfer True Unit = return Set
-proofInfer True Set = return Sort
+proofInfer True Unit = return Type
+proofInfer True Type = return Sort
 
 proofInfer True ty@(Arrow t1 t2 mod) = do
   a1 <- proofInfer True t1
   a2 <- proofInfer True t2
   case (a1, a2) of
-    (Set, Set) -> return Set
-    (Set, Sort) -> return Sort
+    (Type, Type) -> return Type
+    (Type, Sort) -> return Sort
     (Sort, Sort) -> return Sort
-    (b1, b2) -> throwError (NotEq ty Set (Arrow b1 b2 mod))
+    (b1, b2) -> throwError (NotEq ty Type (Arrow b1 b2 mod))
 
 proofInfer True ty@(Circ t1 t2 m) = do
   a1 <- proofInfer True t1
   a2 <- proofInfer True t2
   case (a1, a2) of
-    (Set, Set) -> return Set
-    (b1, b2) -> throwError (NotEq ty Set (Circ b1 b2 m))
+    (Type, Type) -> return Type
+    (b1, b2) -> throwError (NotEq ty Type (Circ b1 b2 m))
 
 proofInfer True a@(Imply [] t _) = do
   ty <- proofInfer True t
   case ty of
-    Set -> return Set
-    _ -> throwError (NotEq t Set ty)
+    Type -> return Type
+    _ -> throwError (NotEq t Type ty)
 
 proofInfer True a@(Imply (x:xs) t mod) = do
   ty <- proofInfer True x
   updateParamInfo [x]
   case ty of
-    Set -> proofInfer True (Imply xs t mod)
-    _ -> throwError (NotEq x Set ty)
+    Type -> proofInfer True (Imply xs t mod)
+    _ -> throwError (NotEq x Type ty)
  
 proofInfer True (Bang ty _) = do
   a <- proofInfer True ty
   case a of
-    Set -> return Set
-    b -> throwError (NotEq ty Set b)
+    Type -> return Type
+    b -> throwError (NotEq ty Type b)
 
 proofInfer True ty@(Tensor t1 t2) = do
   a1 <- proofInfer True t1
   a2 <- proofInfer True t2
   case (a1, a2) of
-    (Set, Set) -> return Set
-    (b1, b2) -> throwError (NotEq ty Set (Tensor b1 b2))
+    (Type, Type) -> return Type
+    (b1, b2) -> throwError (NotEq ty Type (Tensor b1 b2))
 proofInfer True ty@(Exists bd t) = do
   a <- proofInfer True t
   case a of
-    Set ->
+    Type ->
       open bd $ \x m -> do
         addVar x t
         tm <- proofInfer True m
         removeVar x
         case tm of
-          Set -> return Set
-          _ -> throwError (NotEq m Set tm)
-    _ -> throwError (NotEq t Set a)
+          Type -> return Type
+          _ -> throwError (NotEq m Type tm)
+    _ -> throwError (NotEq t Type a)
 
 proofInfer True ty@(Pi bd t _) = do
   a <- proofInfer True t
   case a of
-    Set ->
+    Type ->
       open bd $ \xs m -> do
         mapM_ (\x -> addVar x t) xs
         tm <- proofInfer True m
         mapM_ removeVar xs
         case tm of
-          Set -> return Set
-          _ -> throwError (NotEq m Set tm)
+          Type -> return Type
+          _ -> throwError (NotEq m Type tm)
     Sort ->
       open bd $ \xs m -> do
         mapM_ (\x -> addVar x t) xs
         tm <- proofInfer True m
         mapM_ removeVar xs
         case tm of
-          Set -> return Set
-          _ -> throwError (NotEq m Set tm)
-    _ -> throwError (NotEq t Set a)
+          Type -> return Type
+          _ -> throwError (NotEq m Type tm)
+    _ -> throwError (NotEq t Type a)
  
 proofInfer True ty@(Forall bd t) = do
   a <- proofInfer True t
   case a of
-    Set ->
+    Type ->
       open bd $ \xs m -> do
         mapM_ (\x -> addVar x t) xs
         tm <- proofInfer True m
         mapM_ removeVar xs
         case tm of
-          Set -> return Set
+          Type -> return Type
     Sort ->
       open bd $ \xs m -> do
         mapM_ (\x -> addVar x t) xs
         tm <- proofInfer True m
         mapM_ removeVar xs
         case tm of
-          Set -> return Set
+          Type -> return Type
 
 proofInfer flag a@(Var x) = do
   (t, _) <- lookupVar x
@@ -291,7 +291,7 @@ proofInfer flag Reverse =
         simpClass = Id "Simple"
         t1 = Arrow (Circ va vb identityMod) (Circ vb va identityMod) identityMod
         t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1 identityMod
-        ty = Forall (abst [a, b] t1') Set
+        ty = Forall (abst [a, b] t1') Type
      in return ty
 
 proofInfer flag Dynlift =
@@ -311,7 +311,7 @@ proofInfer flag a@(WithComputed) =
                (Circ (Tensor vb vc) (Tensor vb vd) mod2)
                (Circ (Tensor va vc) (Tensor va vd) mod2) identityMod) identityMod
         t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1 identityMod
-        ty = Forall (abst [a, b, c, d, e] t1') Set
+        ty = Forall (abst [a, b, c, d, e] t1') Type
         ty' = abstractMode ty
      in return ty'
 
@@ -333,7 +333,7 @@ proofInfer flag a@(Controlled) =
             , AppP (Base simpClass) vb
             ]
             t1 identityMod
-        ty = Forall (abst [a, b, s'] t1') Set
+        ty = Forall (abst [a, b, s'] t1') Type
         ty' = abstractMode ty
      in return ty'
 
@@ -344,7 +344,7 @@ proofInfer flag UnBox =
         simpClass = Id "Simple"
         t1 = Arrow (Circ va vb identityMod) (Bang (Arrow va vb identityMod) identityMod) identityMod
         t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1 identityMod
-        ty = Forall (abst [a, b] t1') Set
+        ty = Forall (abst [a, b] t1') Type
      in return ty
 proofInfer flag t@(Box) =
   freshNames ["a", "b"] $ \[a, b] -> do
@@ -353,7 +353,7 @@ proofInfer flag t@(Box) =
         simpClass = Id "Simple"
         t1 = Arrow (Bang (Arrow va vb identityMod) identityMod) (Circ va vb identityMod) identityMod
         t1' = Imply [(AppP (Base simpClass) va), (AppP (Base simpClass) vb)] t1 identityMod
-        boxType = Pi (abst [a] (Forall (abst [b] t1') Set)) Set identityMod
+        boxType = Pi (abst [a] (Forall (abst [b] t1') Type)) Type identityMod
     return boxType
     
 proofInfer flag t@(ExBox) =
@@ -362,7 +362,7 @@ proofInfer flag t@(ExBox) =
         vb = Var b
         vp = Var p
         vn = Var n
-        kp = Arrow vb Set identityMod
+        kp = Arrow vb Type identityMod
         simpClass = Id "Simple"
         paramClass = Id "Parameter"
         simpA = AppP (Base simpClass) va
@@ -380,8 +380,8 @@ proofInfer flag t@(ExBox) =
             (abst [a] $
              Forall
                (abst [b] (Imply [simpA, paramB] (Pi (abst [p] beforePi) kp identityMod) identityMod))
-               Set)
-            Set identityMod
+               Type)
+            Type identityMod
     return r
 
 proofInfer flag (Star) = return Unit
@@ -403,7 +403,7 @@ proofInfer flag a@(Pair t1 t2) = do
 
 
 proofInfer flag RealNum = 
-   return (Arrow (Base (Id "Nat")) Set identityMod)
+   return (Arrow (Base (Id "Nat")) Type identityMod)
 
 proofInfer flag a@(WrapR (MR len x)) =
   return (AppP RealNum (toNat len))
@@ -454,7 +454,7 @@ proofInfer flag (Pos p e) =
 proofInfer False (LamAnn ty (Abst xs m)) = do
   if isKind ty
     then proofCheck True ty Sort
-    else proofCheck True ty Set
+    else proofCheck True ty Type
      -- let ty1 = toEigen ty
   mapM_ (\x -> addVar x (erasePos ty)) xs
   ty' <- proofInfer False m
@@ -472,7 +472,7 @@ proofInfer False (LamAnn ty (Abst xs m)) = do
           return (Arrow ty1 ty' identityMod)
 
 proofInfer flag (WithType a t) = do
-  proofCheck True t Set
+  proofCheck True t Type
   proofCheck False a t
   return t
 proofInfer flag e = throwError $ Unhandle e

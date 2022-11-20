@@ -19,7 +19,7 @@ data Exp
   -- ^ Constructors must begin with upper case.
   | Var String
   -- ^ Variables and function identifiers must begin with lower case.
-  | Set -- ^ The kind: @Type@.
+  | Type -- ^ The kind: @Type@.
   | Star -- ^ The term unit: @()@.
   | Unit -- ^ The unit type: @Unit@.
   | Arrow Exp Exp -- ^ Linear arrow type: @T -> T@.
@@ -149,7 +149,7 @@ data Command
   = Eval Exp -- ^ Evaluate an expression.
   | Quit -- ^ Quit.
   | Help -- ^ Print help information.
-  | Type Exp -- ^ Print the type or kind information for an expression.
+  | Typing Exp -- ^ Print the type or kind information for an expression.
   | RawType Exp -- ^ Print the raw type or kind information for an expression.
   | Load Bool String
   -- ^ Load a file. The Bool is for showing ``loaded ''

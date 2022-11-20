@@ -139,7 +139,7 @@ getVars b (Const _) = S.empty
 getVars b (Unit) = S.empty
 getVars b (Star) = S.empty
 getVars b (Sort) = S.empty
-getVars b (Set) = S.empty
+getVars b (Type) = S.empty
 getVars b (UnBox) = S.empty
 getVars b (Reverse) = S.empty
 getVars b (Controlled) = S.empty
@@ -449,7 +449,7 @@ unwindVal a = (a, [])
 -- Note that we allow
 -- dependent kind such as: @(a : Type) -> a -> Type@.
 isKind :: Exp -> Bool
-isKind (Set) = True
+isKind (Type) = True
 isKind (Arrow k1 k2 _) = isKind k2
 isKind (Pi b ty _) = open b $ \ vs b' -> isKind b'
 isKind (Forall b ty) = open b $ \ vs b' -> isKind b'
@@ -460,7 +460,7 @@ isKind _ = False
 erasePos :: Exp -> Exp
 erasePos (Pos _ e) = erasePos e
 erasePos (Unit) = Unit
-erasePos (Set) = Set
+erasePos (Type) = Type
 erasePos (Sort) = Sort
 erasePos Star = Star
 erasePos a@(Var x) = a
@@ -708,7 +708,7 @@ isExplicit s Controlled = False
 isExplicit s WithComputed = False
 isExplicit s Dynlift = False
 isExplicit s Unit = False
-isExplicit s Set = False
+isExplicit s Type = False
 isExplicit s (Base _) = False
 isExplicit s (LBase _) = False
 isExplicit s (Const _) = False
@@ -938,7 +938,7 @@ noModEq (Forall (Abst as x1) x2) (Forall (Abst bs y1) y2) =
   let sub = zip as (map Var bs) 
   in (noModEq (apply sub x1) y1) && (noModEq x2 y2)  
 
-noModEq Set Set = True
+noModEq Type Type = True
 noModEq Unit Unit = True
 noModEq Star Star = True
 noModEq (Lam (Abst xs e1)) (Lam (Abst ys e2)) =

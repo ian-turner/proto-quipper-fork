@@ -20,7 +20,8 @@ import Data.List as List
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Number.CReal
-
+import Text.PrettyPrint
+import Prelude hiding ((<>))
 
 
 
@@ -564,7 +565,9 @@ render_gate fs (Gate name params (VPair (VLabel w) (VLabel c)) output ctrl _ _) 
       s2 = render_controlwire x ys ([w]++[c]) (c':ctrls)
       n = getName name 
       name' = removeC n
-      t2 = render_multi_gate fs x ys name' [w]
+      ps = map disp params
+      name'' = text name' <> (parens (hcat $ punctuate comma ps))
+      t2 = render_multi_gate fs x ys (show name'') [w]
       t3 = render_controldots fs x ys (c':ctrls)
   in (s2, t2 >> t3)
 

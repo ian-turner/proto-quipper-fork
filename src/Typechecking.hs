@@ -51,7 +51,7 @@ typeInfer flag (Pos p e) = do
                   \e -> throwError $ addErrPos p e
   return (ty, (Pos p ann), m)
 
-typeInfer flag Set = return (Sort, Set, identityMod)
+typeInfer flag Type = return (Sort, Type, identityMod)
 
 typeInfer flag a@(Base kid) =
   lookupId kid >>= \x -> return (classifier x, a, identityMod)
@@ -72,7 +72,7 @@ typeInfer flag a@(Var x) = do
       return (t, a, identityMod)
 
 typeInfer flag RealNum = 
-   return (Arrow (Base (Id "Nat")) Set identityMod, RealNum, identityMod)
+   return (Arrow (Base (Id "Nat")) Type identityMod, RealNum, identityMod)
 
 typeInfer flag a@(WrapR (MR len x)) =
   return (AppP RealNum (toNat len), a, identityMod)
@@ -139,7 +139,7 @@ typeInfer False a@(UnBox) =
         t1 = Arrow (Circ va vb boxMode) (Bang (Arrow va vb boxMode) identityMod) identityMod
         t1' = Imply [AppP (Base simpClass) va,
                      AppP (Base simpClass) vb] t1 identityMod
-        ty = Forall (abst [a, b] t1') Set
+        ty = Forall (abst [a, b] t1') Type
         ty' = abstractMode ty
      in return (ty', UnBox, identityMod)
 
@@ -152,7 +152,7 @@ typeInfer False a@(Reverse) =
         t1 = Arrow (Circ va vb boxMode) (Circ vb va boxMode) identityMod
         t1' = Imply [AppP (Base simpClass) va,
                      AppP (Base simpClass) vb] t1 identityMod
-        ty = Forall (abst [a, b] t1') Set
+        ty = Forall (abst [a, b] t1') Type
         ty' = abstractMode ty
      in return (ty', Reverse, identityMod)
 
@@ -173,7 +173,7 @@ typeInfer False a@(Controlled) =
             , AppP (Base simpClass) vb
             ]
             t1 identityMod
-        ty = Forall (abst [a, b, s'] t1') Set
+        ty = Forall (abst [a, b, s'] t1') Type
         ty' = abstractMode ty
      in return (ty', Controlled, identityMod)
 
@@ -201,7 +201,7 @@ typeInfer False a@(WithComputed) =
                (Circ (Tensor vb vc) (Tensor vb vd) mod2)
                (Circ (Tensor va vc) (Tensor va vd) mod2) identityMod) identityMod
         t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1 identityMod
-        ty = Forall (abst [a, b, c, d, e] t1') Set
+        ty = Forall (abst [a, b, c, d, e] t1') Type
         ty' = abstractMode ty
      in return (ty', WithComputed, identityMod)
 
@@ -214,7 +214,7 @@ typeInfer False t@(Box) =
         t1 = Arrow (Bang (Arrow va vb boxMode) identityMod) (Circ va vb boxMode) identityMod
         t1' = Imply [AppP (Base simpClass) va,
                      AppP (Base simpClass) vb] t1 identityMod
-        boxType = Pi (abst [a] (Forall (abst [b] t1') Set)) Set identityMod
+        boxType = Pi (abst [a] (Forall (abst [b] t1') Type)) Type identityMod
         ty' = abstractMode boxType
     return (ty', t, identityMod)
 
@@ -227,7 +227,7 @@ typeInfer False t@(ExBox) =
         vn = Var n
         simpClass = Id "Simple"
         paramClass = Id "Parameter"
-        kp = Arrow vb Set identityMod
+        kp = Arrow vb Type identityMod
         boxMode = M (BConst True) (BVar alpha) (BVar beta)
         simpA = AppP (Base simpClass) va
         paramB = AppP (Base paramClass) vb
@@ -244,13 +244,13 @@ typeInfer False t@(ExBox) =
              Forall
                (abst [b] (Imply [simpA, paramB] 
                      (Pi (abst [p] $ beforePi) kp identityMod) identityMod))
-               Set)
-            Set identityMod
+               Type)
+            Type identityMod
         r' = abstractMode r
     return (r', t, identityMod)
 
 typeInfer flag Star = return (Unit, Star, identityMod)
-typeInfer flag Unit = return (Set, Unit, identityMod)
+typeInfer flag Unit = return (Type, Unit, identityMod)
 
 typeInfer flag a@(Pair t1 t2) = do
   (ty1, ann1, mode1) <- typeInfer flag t1
@@ -263,7 +263,7 @@ typeInfer False a@(LamAnn ty (Abst xs m)) = do
   (_, tyAnn1) <-
     if isKind ty
       then typeCheck True ty Sort identityMod
-      else typeCheck True ty Set identityMod
+      else typeCheck True ty Type identityMod
   mapM_ (\x -> addVar x (erasePos tyAnn1)) xs
   p <- isParam tyAnn1
   (ty', ann, mode) <- typeInfer False m
@@ -280,7 +280,7 @@ typeInfer False a@(LamAnn ty (Abst xs m)) = do
       return (resTy, LamAnn tyAnn1 (abst [x] ann), identityMod)
 
 typeInfer flag (WithType a t) = 
-  do (_, tAnn1) <- typeCheck True t Set identityMod
+  do (_, tAnn1) <- typeCheck True t Type identityMod
      let tAnn' = erasePos tAnn1
      mod <- newNames ["#alpha", "#beta", "#gamma"] >>= newMode
      (tAnn2, ann) <- typeCheck False a tAnn' mod
@@ -314,9 +314,9 @@ typeInfer flag a@(LetPair _ _) =
 typeInfer flag a@(Lam _) = throwError $ LamInferErr a
 
 typeInfer flag (Tensor ty1 ty2) =
-  do (_, ty1') <- typeCheck flag ty1 Set identityMod
-     (_, ty2') <- typeCheck flag ty2 Set identityMod
-     return (Set, Tensor ty1' ty2', identityMod)
+  do (_, ty1') <- typeCheck flag ty1 Type identityMod
+     (_, ty2') <- typeCheck flag ty2 Type identityMod
+     return (Type, Tensor ty1' ty2', identityMod)
   
 typeInfer flag e = throwError $ Unhandle e
 
@@ -328,13 +328,13 @@ typeCheck flag (Pos p e) ty mod = do
 typeCheck flag (Mod (Abst _ e)) ty mod = typeCheck flag e ty mod
 
 -- Sort check
-typeCheck True Set Sort _ = return (Sort, Set)
+typeCheck True Type Sort _ = return (Sort, Type)
 
 typeCheck True (Arrow ty1 ty2 m) Sort mod = do
   (_, ty1') <-
     if isKind ty1
       then typeCheck True ty1 Sort mod
-      else typeCheck True ty1 Set mod
+      else typeCheck True ty1 Type mod
   (_, ty2') <- typeCheck True ty2 Sort mod
   return (Sort, Arrow ty1' ty2' m)
 
@@ -342,7 +342,7 @@ typeCheck True (Pi (Abst xs m) ty mod) Sort cm = do
   (_, ty') <-
     if isKind ty
       then typeCheck True ty Sort cm
-      else typeCheck True ty Set cm
+      else typeCheck True ty Type cm
   mapM_ (\x -> addVar x (erasePos ty')) xs
   (_, ann2) <- typeCheck True m Sort cm
   let res = Pi (abst xs ann2) ty' mod
@@ -350,68 +350,68 @@ typeCheck True (Pi (Abst xs m) ty mod) Sort cm = do
   return (Sort, res)
 
 -- Kind check
-typeCheck True Unit Set _ = return (Set, Unit)
+typeCheck True Unit Type _ = return (Type, Unit)
 
-typeCheck True (Bang ty m) Set mod = do
-  (_, a) <- typeCheck True ty Set mod
-  return (Set, Bang a m)
+typeCheck True (Bang ty m) Type mod = do
+  (_, a) <- typeCheck True ty Type mod
+  return (Type, Bang a m)
 
-typeCheck True (Arrow ty1 ty2 mod) Set cm = do
+typeCheck True (Arrow ty1 ty2 mod) Type cm = do
   (_, ty1') <-
     if isKind ty1
       then typeCheck True ty1 Sort cm
-      else typeCheck True ty1 Set cm
-  (_, ty2') <- typeCheck True ty2 Set cm
-  return (Set, Arrow ty1' ty2' mod)
+      else typeCheck True ty1 Type cm
+  (_, ty2') <- typeCheck True ty2 Type cm
+  return (Type, Arrow ty1' ty2' mod)
 
-typeCheck True (Imply tys ty2 mod) Set m = do
-  res <- mapM (\x -> typeCheck True x Set m) tys
+typeCheck True (Imply tys ty2 mod) Type m = do
+  res <- mapM (\x -> typeCheck True x Type m) tys
   let tys1 = map (\(x, y) -> y) res
   mapM checkClass tys1
   updateParamInfo tys1
   updateSimpleInfo tys1
-  (_, ty2') <- typeCheck True ty2 Set m
-  return (Set, Imply tys1 ty2' mod)
+  (_, ty2') <- typeCheck True ty2 Type m
+  return (Type, Imply tys1 ty2' mod)
 
-typeCheck True (Tensor ty1 ty2) Set m = do
-  (_, ty1') <- typeCheck True ty1 Set m
-  (_, ty2') <- typeCheck True ty2 Set m
-  return (Set, Tensor ty1' ty2')
+typeCheck True (Tensor ty1 ty2) Type m = do
+  (_, ty1') <- typeCheck True ty1 Type m
+  (_, ty2') <- typeCheck True ty2 Type m
+  return (Type, Tensor ty1' ty2')
 
-typeCheck True (Circ t u m) Set mod = do
-  (_, t') <- typeCheck True t Set mod
-  (_, u') <- typeCheck True u Set mod
-  return (Set, Circ t' u' m)
+typeCheck True (Circ t u m) Type mod = do
+  (_, t') <- typeCheck True t Type mod
+  (_, u') <- typeCheck True u Type mod
+  return (Type, Circ t' u' m)
 
-typeCheck True (Pi (Abst xs m) ty mod) Set cm = do
+typeCheck True (Pi (Abst xs m) ty mod) Type cm = do
   (_, tyAnn) <-
     if isKind ty
       then typeCheck True ty Sort cm
-      else typeCheck True ty Set cm
+      else typeCheck True ty Type cm
   mapM_ (\x -> addVar x (erasePos tyAnn)) xs
-  (_, ann2) <- typeCheck True m Set cm
+  (_, ann2) <- typeCheck True m Type cm
   ann2' <- updateWithSubst ann2
   ann2'' <- resolveGoals ann2'
   let res = Pi (abst xs ann2'') tyAnn mod
   mapM_ removeVar xs
-  return (Set, res)
+  return (Type, res)
 
-typeCheck True pty@(PiImp (Abst xs m) ty mod2) Set mod = do
+typeCheck True pty@(PiImp (Abst xs m) ty mod2) Type mod = do
   isP <- isParam ty
   when (not isP) $ throwError $ ForallLinearErr xs ty pty
   (_, tyAnn) <-
     if isKind ty
       then typeCheck True ty Sort mod
-      else typeCheck True ty Set mod
+      else typeCheck True ty Type mod
   mapM_ (\x -> addVar x (erasePos tyAnn)) xs
-  (_, ann2) <- typeCheck True m Set mod
+  (_, ann2) <- typeCheck True m Type mod
   ann2' <- updateWithSubst ann2
   ann2'' <- resolveGoals ann2'
   let res = PiImp (abst xs ann2'') tyAnn mod2
   mapM_ removeVar xs
-  return (Set, res)
+  return (Type, res)
 
-typeCheck True (Forall (Abst xs m) ty) a@(Set) mod
+typeCheck True (Forall (Abst xs m) ty) a@(Type) mod
   | isKind ty = do
     (_, tyAnn) <- typeCheck True ty Sort mod
     mapM_ (\x -> addVar x (erasePos tyAnn)) xs
@@ -422,7 +422,7 @@ typeCheck True (Forall (Abst xs m) ty) a@(Set) mod
     mapM_ (\x -> removeVar x) xs
     return (a, res)
 
-typeCheck True exp@(Forall (Abst xs m) ty) a@(Set) mod
+typeCheck True exp@(Forall (Abst xs m) ty) a@(Type) mod
   | otherwise = do
     p <- isParam ty
     b <- getCheckBound
@@ -436,7 +436,7 @@ typeCheck True exp@(Forall (Abst xs m) ty) a@(Set) mod
     mapM_ removeVar xs
     return (a, res)
 
-typeCheck True (Exists (Abst xs m) ty) a@(Set) mod
+typeCheck True (Exists (Abst xs m) ty) a@(Type) mod
   | not (isKind ty) = do
     (_, ann1) <- typeCheck True ty a mod
     addVar xs (erasePos ann1)

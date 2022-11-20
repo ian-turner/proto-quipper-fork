@@ -265,7 +265,7 @@ isParam t@(App x _) =
       s <-
         mapM
           (\(i, a) ->
-             if i == Set
+             if i == Type
                then isParam a
                else if isKind i
                       then return False
@@ -295,7 +295,7 @@ isParam t@(AppP x _) =
       s <-
         mapM
           (\(i, a) ->
-             if i == Set
+             if i == Type
                then isParam a
                else if isKind i
                       then return False
@@ -349,7 +349,7 @@ isSemiParam t@(App _ _) =
       s <-
         mapM
           (\(i, a) ->
-             if i == Set
+             if i == Type
                then isSemiParam a
                else if isKind i
                       then return False
@@ -955,7 +955,7 @@ updateModality m = do
 deMeta :: [Variable] -> Exp -> TCMonad Exp
 deMeta vars (Pos p e) = Pos p <$> (deMeta vars e)
 deMeta vars (Unit) = return Unit
-deMeta vars (Set) = return Set
+deMeta vars (Type) = return Type
 deMeta vars Star = return Star
 deMeta vars Sort = return Sort
 deMeta vars a@(Var x) = return a

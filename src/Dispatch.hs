@@ -61,26 +61,27 @@ dispatch Help = do
       ":h                      show this list of commands\n" ++
       ":g [gate-name] <expr>   gate count of a boxed circuit\n" ++
       ":tg [gate-name] [<expr>] top level gate count" ++ "\n"
+
 dispatch Reload = do
   f <- getFilename
   case f of
     Nothing -> throwError NoReloadError
     Just file -> dispatch (Load True file)
 
-dispatch (Type e) = do
+dispatch (Typing e) = do
   e' <- topResolve e 
   (t', e'') <- topTypeInfer e'
-  liftIO $ putStrLn ("it has classifier \n" ++ (show $ disp t'))
+  liftIO $ putStrLn $ show (disp e' <+> text ":" <+> disp t')
   return True
 
 dispatch (RawType e) = do
   e' <- topResolve e 
   (t', e'') <- topTypeInfer e'
-  liftIO $ putStrLn ("it has classifier \n" ++ (show $ dispRaw t'))
+  liftIO $ putStrLn $ show (disp e' <+> text ":" <+> dispRaw t')
   return True
 
 dispatch (Eval e) = do
-  e' <- topResolve  e
+  e' <- topResolve e
   (t', e'') <- topTypeInfer e'
   if isKind t'
     then do
@@ -88,7 +89,12 @@ dispatch (Eval e) = do
       n <- tcTop $ normalize e''
       liftIO $ putStrLn ("it normalizes to \n" ++ (show $ disp n))
       return True
-    else do
+    else
+    if t' == Sort then do
+      liftIO $ putStrLn $ show (disp e' <+> text ":" <+> disp t')
+      return True
+    else 
+      do
       ioTop $ putStrLn ("it has type \n" ++ (show $ disp t'))
       v <- evaluation e'' False
       ioTop $ putStrLn ("it has value \n" ++ (show $ dispRaw v))
@@ -182,7 +188,7 @@ dispatch (DisplayEx e) = do
 
 dispatch (ShowCirc Nothing) = do
   gs <- getGates
-  liftIO $ putStrLn ("current gates: \n" ++ (show $ vcat $ map dispRaw gs))
+  liftIO $ putStrLn ("current circuit: \n" ++ (show $ vcat $ map dispRaw gs))
   return True
 
 dispatch (ShowCirc (Just e)) = do
@@ -328,7 +334,7 @@ initializeSimpleClass d = do
              A.Imply
                [A.App s (A.Var a), A.App s (A.Var b)]
                (A.App s $ A.Tensor (A.Var a) (A.Var b)) identityMod)
-            A.Set 
+            A.Type 
   elaborateInstance (BuiltIn (i + 1)) instSimp2 pt []
 
 -- | Initialize instances of SimpParam class for unit and tensor product.
@@ -356,7 +362,7 @@ initializeSimpParam d = do
                (A.App
                   (A.App s $ A.Tensor (A.Var a) (A.Var b))
                   (A.Tensor (A.Var c) (A.Var d))) identityMod)
-            A.Set
+            A.Type
   elaborateInstance (BuiltIn (i + 1)) instSimp2 pt []
 
 -- | Initialze instances of Parameter class for unit, bang type and tensor product.
@@ -383,11 +389,11 @@ initializeParameterClass d = do
              A.Imply
                [A.App s (A.Var a), A.App s (A.Var b)]
                (A.App s $ A.Tensor (A.Var a) (A.Var b)) identityMod)
-            A.Set
+            A.Type
   elaborateInstance (BuiltIn (i + 1)) instP2 pt []
   let pt2 =
         freshNames ["a"] $ \[a] ->
-          A.Forall (abst [a] (A.App s $ A.Bang (A.Var a) identityMod)) A.Set
+          A.Forall (abst [a] (A.App s $ A.Bang (A.Var a) identityMod)) A.Type
   elaborateInstance (BuiltIn (i + 2)) instP3 pt2 []
 
 -- | @'system_pdf_viewer' zoom pdffile@: Call a system-specific PDF
@@ -427,6 +433,6 @@ makeBuiltinClass d n
     let names = map (\i -> "x" ++ show i) $ take n [0 ..]
         dictType =
           freshNames names $ \ns ->
-            A.Forall (abst ns $ foldl A.App (A.Base d) (map A.Var ns)) A.Set
-        kd = foldr (\x y -> A.Arrow A.Set y identityMod) A.Set names
+            A.Forall (abst ns $ foldl A.App (A.Base d) (map A.Var ns)) A.Type
+        kd = foldr (\x y -> A.Arrow A.Type y identityMod) A.Type names
     process (A.Class (BuiltIn (i + 2)) d kd dict dictType [])

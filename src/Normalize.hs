@@ -29,7 +29,7 @@ betaNormalize :: Exp -> TCMonad Exp
 betaNormalize a@(Var x) = return a
 betaNormalize a@(MetaVar x) = return a
 betaNormalize a@(Unit) = return a
-betaNormalize a@(Set) = return a
+betaNormalize a@(Type) = return a
 betaNormalize a@(Sort) = return a
 betaNormalize a@(LBase _) = return a          
 betaNormalize a@(Base _) = return a
@@ -449,7 +449,7 @@ normalize (LetPat m bd) =
         helper [] [] m = m
         helper a b m = error $ "fromhelper:" ++ (show $ sep $ map disp a)
 normalize b@(Unit) = return b
-normalize b@(Set)  = return b
+normalize b@(Type)  = return b
 normalize b@(Sort)  = return b
 normalize b@(Star) = return b
 

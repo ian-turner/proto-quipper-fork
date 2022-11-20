@@ -348,7 +348,7 @@ resolve d (C.WithAnn m ty) =
      m' <- resolve d m
      return $ WithType m' ty'
 
-resolve d C.Set = return Set
+resolve d C.Type = return Type
 
 resolve d (C.WrapR i x) = return $ WrapR (MR i x)
 
@@ -434,7 +434,7 @@ resolveDecl scope (C.Defn p f qs args def isClifford) | not $ null args =
                                   Left _ -> []
                                   Right (vs, _) -> vs
                                   ) args
-         ty = C.Forall [(["#r"], C.Set)] $ C.Bang (toForall qs pi) 
+         ty = C.Forall [(["#r"], C.Type)] $ C.Bang (toForall qs pi) 
      ty' <- resolve lscope' ty
      lscopeVars lscope' args' $ \ d xs ->
        do def' <- resolve d def
@@ -454,7 +454,7 @@ resolveDecl scope (C.Data p d ts vs constrs) =
   do (id, scope') <- addConst p d Base scope
      let tyArgs = map C.Var $ concat $ map fst vs
          head = foldl C.App (C.Base d) tyArgs
-         kd1 = foldr (\ (x, ty) y -> C.Pi x ty y) C.Set vs
+         kd1 = foldr (\ (x, ty) y -> C.Pi x ty y) C.Type vs
          lscope' = toLScope scope'
      kd <- resolve lscope' kd1
      let dKind = removeVacuousPi kd
@@ -482,7 +482,7 @@ resolveDecl scope (C.Data p d ts vs constrs) =
              floatingParam [] vs ty acc =
                foldr (\ (xs, t) y -> C.Forall [(xs, t)] y) (C.Imply acc ty) vs
              floatingParam ts [] ty acc = C.Imply (acc++ts) ty
-             floatingParam (t:ts) ((vars, tyy):vs) ty acc | tyy == C.Set =
+             floatingParam (t:ts) ((vars, tyy):vs) ty acc | tyy == C.Type =
                case removePos t of
                  (C.App (C.Base "Parameter") (C.Var x)) ->
                    case elemIndex x vars of
@@ -505,7 +505,7 @@ resolveDecl scope (C.Class pos c vs mths) =
            tys = map (\ (_, _, t, m) -> (t, m)) mths
            dictType = C.Forall vs
                (foldr (\ (x, m) y -> C.Arrow (C.Bang x) y) head tys) 
-           kd1 = foldr (\ (x, ty) y -> C.Pi x ty y) C.Set vs
+           kd1 = foldr (\ (x, ty) y -> C.Pi x ty y) C.Type vs
            lscope = toLScope scope'
            modes = map (\ (_, _, t, (a,b,c)) -> M (BConst a) (BConst b) (BConst c)) mths
        dictType <- resolve lscope dictType
@@ -586,7 +586,7 @@ resolveDecl scope (C.SimpData pos c args resKind eqs) =
                       mi = findIndex isPattern tArgs'
                       ty = foldr C.Arrow (foldl C.App (C.Base c) tArgs)
                            cArgs
-                      args' = map (\ x -> ([x], C.Set)) args
+                      args' = map (\ x -> ([x], C.Type)) args
                       vars = concat $ map getVars (drop (length args) tArgs)
                       ty' = if null vars then ty else C.Lam vars ty
                       ty'' = if null args then ty' else C.Forall args' ty'

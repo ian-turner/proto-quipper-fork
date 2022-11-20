@@ -55,7 +55,7 @@ process (Class pos d kd dict dictType mths) = do
           }
   tcTop $ addNewId d tp
   tcTop $ checkVacuous pos dictType
-  (_, dictTypeAnn) <- tcTop $ typeChecking True dictType Set identityMod
+  (_, dictTypeAnn) <- tcTop $ typeChecking True dictType Type identityMod
   
   let fp =
         Info
@@ -77,7 +77,7 @@ process (Class pos d kd dict dictType mths) = do
                    (abst (PApp constr (map Right mVars)) (Var $ mVars !! i)))
           tyy = erasePos $ removeVacuousPi mty
       tcTop $ checkVacuous pos tyy
-      (_, tyy') <- tcTop $ typeChecking True tyy Set identityMod
+      (_, tyy') <- tcTop $ typeChecking True tyy Type identityMod
       (tyy'', a) <- tcTop $ do
                       m <- newMode ["a", "b", "c"]
                       typeChecking False (Pos pos mth) tyy' m
@@ -124,7 +124,7 @@ process (Instance pos f ty mths) = do
 
 process (Def pos f' ty' def' isClifford) = do
   tcTop $ checkVacuous pos ty'
-  (_, ty) <- tcTop $ typeChecking True ty' Set identityMod
+  (_, ty) <- tcTop $ typeChecking True ty' Type identityMod
   let ty1 = erasePos $ removeVacuousPi ty
   p <- tcTop $ isParam ty1
   when (not p) $ throwError $ CompileErr $
@@ -193,9 +193,9 @@ process (Defn pos f Nothing def isClifford) = do
 process (Defn pos f (Just tt) def isClifford) = do
   (_, tt') <-
     tcTop $
-    typeChecking True tt Set identityMod `catchError`
+    typeChecking True tt Type identityMod `catchError`
        \e -> throwError $ ErrPos pos e
-  let (Forall (Abst [r] ty') Set) = tt'
+  let (Forall (Abst [r] ty') Type) = tt'
       ty'' = erasePos $ apply [(r, MetaVar r)] ty'
   let info1 = Info {classifier = ty'', identification = DefinedFunction Nothing}
   tcTop $ addNewId f info1
@@ -253,7 +253,7 @@ process (Data pos d kd cons) = do
         Info
           {classifier = kd', identification = DataType dc constructors Nothing}
   tcTop $ addNewId d tp
-  res <- tcTop $ mapM (\t -> typeChecking True (Pos pos t) Set identityMod) types
+  res <- tcTop $ mapM (\t -> typeChecking True (Pos pos t) Type identityMod) types
   let types' = map snd res
   let funcs =
         map
@@ -301,7 +301,7 @@ process (Data pos d kd cons) = do
 process (Object pos id) = do
   let tp =
         Info
-          { classifier = Set
+          { classifier = Type
           , identification = DataType Simple [] (Just (ELBase id))
           }
   tcTop $ addNewId id tp
@@ -328,7 +328,7 @@ process (GateDecl pos id par t inv flag) = do
   tcTop $ mapM_ checkStrictSimple (h : bds')
   when (null bds) $ throwError $ CompileErr (GateErr pos id)
   let ty = Bang (foldr (\ (x, ty) y -> Forall (abst [x] y) ty) (foldr (\ x y -> Arrow x y identityMod) t params) quans) identityMod 
-  (_, tk) <- tcTop $ typeChecking True ty Set identityMod
+  (_, tk) <- tcTop $ typeChecking True ty Type identityMod
   let tk' = erasePos tk
   case inv of
     Nothing ->
@@ -364,7 +364,7 @@ process (SimpData pos d n k0 eqs) = do
     tcTop $
     (typeChecking True k0 Sort identityMod
        `catchError` \e -> throwError $ collapsePos pos e)
-  let k = foldr (\x y -> Arrow Set y identityMod) k2 (take n [0 ..])
+  let k = foldr (\x y -> Arrow Type y identityMod) k2 (take n [0 ..])
   let constructors = map (\(_, _, c, _) -> c) eqs
       pretypes = map (\(_, _, _, t) -> t) eqs
       inds = map (\(_, i, _, _) -> i) eqs
@@ -386,7 +386,7 @@ process (SimpData pos d n k0 eqs) = do
           , identification = DataType (SemiSimple indx) constructors Nothing
           }
   tcTop $ addNewId d tp1
-  p <- tcTop $ mapM (\ty -> typeChecking True ty Set identityMod) tys
+  p <- tcTop $ mapM (\ty -> typeChecking True ty Type identityMod) tys
   let tys' = map snd p
   let funcs =
         map
@@ -403,7 +403,7 @@ process (SimpData pos d n k0 eqs) = do
   let insTy =
         freshNames tvars $ \tvs ->
           freshNames tmvars $ \tmvs ->
-            let env = map (\t -> (t, Set)) tvs ++ (zip tmvs bds)
+            let env = map (\t -> (t, Type)) tvs ++ (zip tmvs bds)
                 pre = map (\x -> App s (Var x)) tvs
                 hd =
                   App s $
@@ -414,7 +414,7 @@ process (SimpData pos d n k0 eqs) = do
   let insTy' =
         freshNames tvars $ \tvs ->
           freshNames tmvars $ \tmvs ->
-            let env = map (\t -> (t, Set)) tvs ++ (zip tmvs bds)
+            let env = map (\t -> (t, Type)) tvs ++ (zip tmvs bds)
                 pre = map (\x -> App s1 (Var x)) tvs
                 hd =
                   App s1 $
@@ -462,7 +462,7 @@ checkOverlap h = do
 
 elaborateInstance :: Position -> Id -> Exp -> [(Position, Id, Exp)] -> Top ()
 elaborateInstance pos f' ty mths = do
-  annTy <- tcTop $ typeChecking' True ty Set identityMod
+  annTy <- tcTop $ typeChecking' True ty Type identityMod
   let (env, ty') = removePrefixes False annTy
       vars =
         map

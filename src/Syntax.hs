@@ -99,7 +99,7 @@ data Exp
   | Dynlift -- ^ Operator for dynamic lifting. 
   | Star -- ^ The unique inhabitant of unit type.
   | Unit -- ^ The unit type.
-  | Set -- ^ The kind for all types.
+  | Type -- ^ The kind for all types.
   | Sort -- ^ The sort for all kinds.
 
   | Pi (Bind [Variable] Exp) Exp Modality -- ^ Linear dependent types, with modalities. 
@@ -395,7 +395,7 @@ instance Disp Exp where
       , text "=>"
       , nest 2 $ display flag t2 -- display flag mod,
       ]
-  display flag Set = text "Type"
+  display flag Type = text "Type"
   display flag Sort = text "Sort"
   display flag Unit = text "Unit"
   display flag Star = text "()"
@@ -503,7 +503,7 @@ instance Disp Exp where
   precedence (UnBox) = 12
   precedence (Reverse) = 12
   precedence (ExBox) = 12
-  precedence (Set) = 12
+  precedence (Type) = 12
   precedence (App _ _) = 10
   precedence (AppP _ _) = 10
   precedence (AppType _ _) = 10
@@ -710,12 +710,14 @@ instance Disp (Map Variable (Value, Int, Int)) where
       (Map.toList l)
 
 instance Disp Morphism where
-  display flag (Morphism ins gs outs) = nest 2 (vcat $ map (display flag) gs)
+  display flag (Morphism ins gs outs) =
+    nest 2 (vcat $ map (display flag) gs)
 
 instance Disp Gate where
   display flag (Gate g params ins outs ctrls b _) =
     display flag g <> comma <+>
-    brackets (hsep $ punctuate comma (map (display flag) params)) <> comma <+>
+    brackets (hsep $ punctuate comma (map (display flag) params))
+    <> comma <+>
     (display flag ins) <> comma <+>
     (display flag outs) <> comma <+>
     (display flag ctrls) <> comma <+> text (show b)
@@ -766,8 +768,7 @@ data Decl
             -- 'May' 'Exp': maybe a partial type,
             -- 'Exp': definition
 
--- | A data structure for the erased expression, all bind variables are annotated
--- with its approximate occurrences. 'ELift' and 'ELamP maintain a list of free variables.
+-- | A data structure for the erased expression.
 data EExp
   = EVar Variable
   | EConst Id
@@ -887,11 +888,9 @@ instance Disp BExp where
   display flag (BAnd e1 e2) = display flag e1 <> text "&" <> display flag e2
 
 instance Disp Modality where
-  -- currently we only display the boxability for the sake of
-  -- popl review. 
-  display flag (M x y z) = 
-    braces $ display flag x
-    -- display flag x <> comma <+> display flag y <> comma <+> display flag z
+  display flag (M x y z) = braces $ 
+    display flag x <> comma <+>
+    display flag y <> comma <+> display flag z
 
 
 dispBoxable (BConst True) = text "Boxable"

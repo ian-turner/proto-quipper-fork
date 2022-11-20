@@ -164,7 +164,7 @@ typing = do
   try (reserved ":type") <|> reserved ":t"
   t <- term
   eof
-  return $ Type t
+  return $ Typing t
 
 -- | Parse the rawtype command
 rawType :: Parser Command
@@ -603,7 +603,7 @@ ann =
 -- | Parse an implicit annotation. E.g. in @List a@, the variable @a@
 -- is parsed to @(a : Type)@.
 impAnn :: Parser ([String], Exp)
-impAnn = var >>= \x -> return ([x], Set)
+impAnn = var >>= \x -> return ([x], Type)
 
 -- | Parse an operator in to expression.
 opExp :: Parser Exp
@@ -809,8 +809,8 @@ circType = do
   return $ Circ t u 
 
 -- | Parse @Type@.
-set :: Parser Exp
-set = reserved "Type" >> return Set
+ty :: Parser Exp
+ty = reserved "Type" >> return Type
 
 -- | Parse a unit.
 unit :: Parser Exp
@@ -965,7 +965,7 @@ appExp =
   where
     headExp =
       wrapPos $
-      try unit <|> try opExp <|> unitTy <|> set <|> boxExp <|> exBoxExp <|>
+      try unit <|> try opExp <|> unitTy <|> ty <|> boxExp <|> exBoxExp <|>
       unBoxExp <|>
       reverseExp <|>
       realOp <|> realPi <|>
@@ -979,7 +979,7 @@ appExp =
         return $ foldl (\x y -> Pair x y) (head tms) (tail tms)
     arg =
       wrapPos $
-      try unit <|> unitTy <|> set <|> realPi <|> dynliftExp <|> reverseExp <|> try varExp <|> 
+      try unit <|> unitTy <|> ty <|> realPi <|> dynliftExp <|> reverseExp <|> try varExp <|> 
       try constExp <|> num <|>
       try vector <|>
       idiomExp <|> do
