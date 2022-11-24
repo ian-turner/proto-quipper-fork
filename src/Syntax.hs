@@ -364,22 +364,13 @@ instance Disp Exp where
       [ dParen flag (precedence a - 1) t <> dispAt flag "AppTm"
       , dParen flag (precedence a) t'
       ]
-  display flag a@(Bang t m) | flag == True =
-    text "!" <> dParen flag (precedence a - 1) t
-
-  display flag a@(Bang t m) | flag == False =
+  display flag a@(Bang t m) =
     text "!" <> display flag m <> dParen flag (precedence a - 1) t
     
-  display flag a@(Arrow t1 t2 m) | flag == True =
+  display flag a@(Arrow t1 t2 m) =
     fsep
       [ dParen flag (precedence a) t1
-      , text "->" 
-      , dParen flag (precedence a - 1) t2
-      ]
-  display flag a@(Arrow t1 t2 m) | flag == False =
-    fsep
-      [ dParen flag (precedence a) t1
-      , text "->" , display flag m
+      , text "->" <> display flag m
       , dParen flag (precedence a - 1) t2
       ]    
   display flag a@(ArrowP t1 t2) =
@@ -392,8 +383,8 @@ instance Disp Exp where
   display flag a@(Imply t1 t2 mod) =
     fsep
       [ parens (fsep $ punctuate comma $ map (display flag) t1)
-      , text "=>"
-      , nest 2 $ display flag t2 -- display flag mod,
+      , text "=>" <> display flag mod
+      , nest 2 $ display flag t2 
       ]
   display flag Type = text "Type"
   display flag Sort = text "Sort"
@@ -410,17 +401,18 @@ instance Disp Exp where
   display flag (Force m) = text "&" <> display flag m
   display flag (ForceP m) = text "&'" <> display flag m
   display flag (Lift m) = text "lift" <+> display flag m
-  display flag (Circ u t m) = -- display flag m <> 
-    text "Circ" <>
+
+  display flag (Circ u t m) = 
+    text "Circ" <>  display flag m <> 
      (parens $ fsep [display flag u <> comma,
-                                      display flag t])
+                                      display flag t])     
   display flag (Pi bd t m) =
     open bd $ \vs b ->
       fsep
         [ parens
             ((hsep $ map (display flag) vs) <+> text ":"
-                     <+> display flag t) <+> text "->"
-        , nest 2 $ display flag b -- display flag m,
+                     <+> display flag t) <+> text "->" <> display flag m 
+        , nest 2 $ display flag b  
         ]
   display flag (PiImp bd t m) =
     open bd $ \vs b ->
@@ -428,8 +420,8 @@ instance Disp Exp where
         [ braces
             ((hsep $ map (display flag) vs) <+> text ":" <+>
                      display flag t) <+>
-          text "->"
-        , nest 2 $ display flag b -- display flag m, 
+          text "->" <> display flag m
+        , nest 2 $ display flag b 
         ]
   display flag (PiInt bd t) =
     open bd $ \vs b ->
@@ -888,9 +880,10 @@ instance Disp BExp where
   display flag (BAnd e1 e2) = display flag e1 <> text "&" <> display flag e2
 
 instance Disp Modality where
-  display flag (M x y z) = braces $ 
-    display flag x <> comma <+>
-    display flag y <> comma <+> display flag z
+  display True _ = text ""
+  display False (M x y z) = braces $ 
+    dispRaw x <> comma <+>
+    dispRaw y <> comma <+> dispRaw z
 
 
 dispBoxable (BConst True) = text "Boxable"
