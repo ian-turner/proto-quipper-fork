@@ -44,10 +44,10 @@ dynliftRW q = RW_Read q (\ans -> return ans)
 
 boxGates :: ReadWrite b -> ([Gate], b)
 boxGates (RW_Return b) = ([], b)
-boxGates (RW_Write x c) = (x:xs, r)
-  where c'= boxGates c
-        r = snd c'
-        xs = fst c'
+boxGates (RW_Write x c) =
+  case boxGates c of
+    (xs, r) -> (x:xs, r)
+
         
 boxGates (RW_Read q c) = error "modality violation, please send bug report"
 

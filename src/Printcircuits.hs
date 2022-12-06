@@ -589,6 +589,18 @@ render_gate fs (Gate name [] input outs ctrl _ _) x ys maxh =
       t3 = render_controldots fs x ys ctrls
   in (s2, t2 >> t3)
 
+render_gate fs (Gate name params input outs ctrl _ _) x ys maxh =
+  let ymap w = ys `mapLookup` w
+      ws1 = getWires input
+      cs = getWires ctrl
+      ctrls = map positive cs
+      s2 = render_controlwire x ys (ws1++cs) ctrls
+      ps = map disp params
+      gname = text (getName name) <> (parens (hcat $ punctuate comma ps))
+      t2 = render_multi_gate fs x ys (show gname) ws1
+      t3 = render_controldots fs x ys ctrls
+  in (s2, t2 >> t3)
+
 render_gate fs a x ys maxh =
   error $ "printing is not supported for gate:\n" ++ (show $ disp a)
 

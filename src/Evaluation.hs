@@ -99,7 +99,6 @@ eval !lenv (EForce m) = do
   m' <- eval lenv m
   case m' of
     VLift (Abst lenv e) -> eval lenv e
-    -- VDynlift -> return $ VForce VDynlift
     w@(VLiftCirc _) -> return w
     v@(VApp VUnBox _) -> return $ VForce v
     a -> error $ "from eval(EForce):" ++ (show $ disp a)
@@ -277,13 +276,12 @@ evalApp (VDynlift) (VLabel v) = do
 -- append gates
 evalApp (VForce (VApp VUnBox (Wired (Abst wires morph)))) w = do
   let binding = makeBinding (input morph) w
-  st <- get
-  let st' = st{labels = labels st ++ wires}
-  put st'
   let morph' = rename morph binding
       gs = gates morph'
       outs = output morph'
   addGates gs
+  let wires' = wires \\ (Map.keys binding)
+  modify (\ st -> st{labels = labels st ++ wires'})
   return outs
 
 evalApp (VApp (VApp (VApp VBox q) _) _) v =
@@ -295,13 +293,13 @@ evalApp (VApp (VApp (VApp VBox q) _) _) v =
   where
     evalBox :: LEnv -> Either Value EExp -> Value -> Eval Value
     evalBox lenv body uv = freshLabels (size uv) $ \vs -> do
-      st <- get
       b <-
         case body of
              Right body' -> eval lenv body'
              Left v -> return v
+      st <- get             
       let uv' = toVal uv vs
-          bgs = boxGates $ runStateT (evalApp b uv') st
+          bgs = boxGates $ runStateT (evalApp b uv') (initES (evalEnv st))
           gs = fst bgs
           res = fst $ snd bgs
           st' = snd $ snd bgs
@@ -343,7 +341,8 @@ evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
         mycirc = Wired (abst ws $ Morphism ins (controlledGates ctrl gs) outs)
         env = Map.fromList [(circ, mycirc)]
         exp =
-          EPair (EApp (EForce $ EApp EUnBox (EVar circ)) (EVar inp)) (EVar ctrl)
+          EPair (EApp (EForce $ EApp EUnBox (EVar circ)) (EVar inp))
+          (EVar ctrl)
     return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
   where
     controlledGates a gs = map (helper a) gs

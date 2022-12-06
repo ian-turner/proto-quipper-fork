@@ -1,39 +1,134 @@
 module Demo where
-import "lib/Prelude.dpq"
 
--- some random annotation test
--- f = withType ! forall a-> a -> a : \ x -> x
+object Qubit
 
--- g = let f = withType ! forall a-> a -> a : \ x -> x in f (f 5)
+object Bit
 
--- g1 = let f = \ (x : Nat) -> x in (f 5)
 
--- -- g2 = let f = \ (x y z : Nat) -> x in (f 5)
--- g3 = let f = (\ a -> \ x -> x) : (a : Type) -> a -> a in (f Nat 5)
--- g4 = let f = \(a b : Type) -> \(x : a) -> x in (f Nat Nat 5) 
+gate Init0 : Unit -> Qubit 
 
-reverseGeneric : ! forall b -> {a : Type} -> (Simple a, Simple b) => !(a -> b) -> !(b -> a)
-reverseGeneric a f = unbox (reverse (box a f))
+gate H : Qubit -> Qubit : H
 
----- x----------------
----- |-----x----------
----- |-----|-----x----
----- Not---Not---Not--
-ands : ! forall (n : Nat)-> Vec Qubit n -> Qubit -> Vec Qubit n * Qubit
-ands v a = case v of
-             VNil -> (VNil, a)
-             VCons x xs ->
-                let (xs', a') = ands xs a
-	            (a'', x') = CNot a' x
-         	 in (VCons x' xs', a'')
+-- Second argument is the control 
+gate CNot : Qubit -> Qubit -> Qubit * Qubit : CNot
 
-test1 = box (Vec Qubit 3 * Qubit) (uncurry ands)
+gate Meas : Qubit -> Bit 
 
-ands' (n : Nat) (v : Vec Qubit n) = let a = Init0 () in ands v a
 
-ands'' (n : Nat) = reverseGeneric (\ x -> ands' n x)
+bell00 : !(Unit -> Qubit * Qubit)
+bell00 u =
+  let a = Init0 ()
+      b = Init0 ()
+  in CNot b (H a)
 
-test2 = boxCirc (\ x -> ands' 3 x)
+-- We can turn the bell00 function into a quantum circuit. 
+bell00Circ : Circ(Unit, Qubit * Qubit)
+bell00Circ = box Unit bell00
 
-test3 = boxCirc (\ x -> ands'' 3 x)
 
+alice : !(Qubit * Qubit -> Bit * Bit)
+alice input =
+ let (x, y) = input
+     (x, y) = CNot x y
+     y = H y
+ in (Meas x, Meas y)
+
+aliceCirc : Circ(Qubit * Qubit, Bit * Bit)
+aliceCirc = box (Qubit * Qubit) alice
+
+gate C_X : Qubit -> Bit -> Qubit * Bit : C_X
+
+gate C_Z : Qubit -> Bit -> Qubit * Bit : C_Z
+
+bob : !(Bit * Bit * Qubit -> Bit * Bit * Qubit)
+bob input =
+  let (x, y, q) = input
+      (q, x) = C_X q x
+      (q, y) = C_Z q y
+  in (x, y, q)
+
+bobCirc : Circ(Bit * Bit * Qubit, Bit * Bit * Qubit)
+bobCirc = box (Bit * Bit * Qubit) bob
+
+tele : !(Qubit -> Bit * Bit * Qubit)
+tele q =
+  let (a, b) = bell00 ()
+      (x, y) = alice (b, q)
+  in bob (x, y, a)
+      
+teleCirc : Circ(Qubit, Bit * Bit * Qubit)
+teleCirc = box Qubit tele
+
+data Bool = True | False
+
+data Nat = Z | S Nat
+
+simple Vec a : Nat -> Type where
+  Vec a Z = VNil
+  Vec a (S n) = VCons a (Vec a n)
+
+-- Second argument is the control
+-- C_R n =
+--  1 0 0 0
+--  0 1 0 0
+--  0 0 1 0
+--  0 0 0 e^{i2pi/2^n}
+
+gate C_R Nat :  Qubit -> Qubit -> Qubit * Qubit : C_R_Inv
+
+gate R Nat :  Qubit -> Qubit : R_Inv
+
+controlled_R : !(Nat -> Qubit -> Qubit -> Qubit * Qubit)
+controlled_R n = controlled (box Qubit (\ x -> R n x))
+-- \ a b -> unbox (box (Qubit * Qubit) (\ x -> let (a, b) = x in C_R n a b)) (a, b)
+
+boxCtrl : Circ(Qubit * Qubit, Qubit * Qubit)
+boxCtrl =
+  box (Qubit * Qubit) (\ x -> let (a, b) = x in controlled_R 10 a b)
+
+rotate : ! forall (n : Nat) -> Nat -> Vec Qubit n -> Qubit -> Vec Qubit n * Qubit
+rotate n v q =
+  case v of
+    VNil -> (VNil, q)
+    VCons x xs ->
+      let (q, x) = C_R n q x
+          (xs, q) = rotate (S n) xs q
+      in (VCons x xs, q)
+
+
+boxRotation : ! (n : Nat) -> Circ(Vec Qubit n * Qubit, Vec Qubit n * Qubit)
+boxRotation n =
+  box (Vec Qubit n * Qubit) (\ input ->
+    let (xs, q) = input in rotate 2 xs q)
+
+
+qft : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
+qft v =
+  case v of
+    VNil -> VNil
+    VCons x xs ->
+      let x = H x
+          (xs, x) = rotate 2 xs x
+          xs = qft xs
+      in VCons x xs
+
+boxQft : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
+boxQft n =
+  box (Vec Qubit n) (\ x -> qft x)
+
+reverseQft : !(n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
+reverseQft n = reverse (boxQft n)
+
+main : Circ(Vec Qubit 8, Vec Qubit 8)
+main = boxQft 8
+
+
+
+
+
+
+
+
+
+
+          

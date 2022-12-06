@@ -2,7 +2,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE PatternSynonyms, ViewPatterns #-}
-{-# LANGUAGE DeriveDataTypeable #-} 
+{-# LANGUAGE DeriveDataTypeable #-}
+
 -- | This module implements various of utility functions. 
 
 module Utils

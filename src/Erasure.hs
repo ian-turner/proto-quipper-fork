@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
-
 -- | This module defines the 'erasure' function, it erases
 -- an annotated expression to a lambda expression without irrelevant annotations.
 module Erasure

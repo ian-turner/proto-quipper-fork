@@ -9,7 +9,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
-
 {-|
 This module describes the abstract syntax of Proto-Quipper-D. 
 We use Peter Selinger's nominal library to handle variable bindings 
@@ -621,7 +620,9 @@ instance Disp Value where
   display flag (VControlled) = text "controlled"
   display flag (VWithComputed) = text "withComputed"
   display flag (VDynlift) = text "dynlift"
-  display flag (Wired (Abst ws m)) = brackets (hsep $ punctuate comma $ map (display flag) ws) $$ display flag m
+  display flag (Wired (Abst ws m)) =
+    brackets (hsep $ punctuate comma $ map (display flag) ws) $$
+    display flag m
   display flag (VLam (Abst _ bd)) = open bd $ \vs b ->
     fsep
         [ text "\\"
