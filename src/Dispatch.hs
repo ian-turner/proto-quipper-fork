@@ -380,7 +380,9 @@ initializeParameterClass d = do
   (instP2, scope'') <- scopeTop $ addConst (BuiltIn (i + 1)) inst2 Const scope'
   (instP3, scope''') <-
     scopeTop $ addConst (BuiltIn (i + 2)) inst3 Const scope''
-  putScope scope'''
+  (instP4, scope4) <-
+    scopeTop $ addConst (BuiltIn (i + 3)) inst4 Const scope'''
+  putScope scope4
   elaborateInstance (BuiltIn i) instP (A.App s A.Unit) []
   let pt =
         freshNames ["a", "b"] $ \[a, b] ->
@@ -395,6 +397,10 @@ initializeParameterClass d = do
         freshNames ["a"] $ \[a] ->
           A.Forall (abst [a] (A.App s $ A.Bang (A.Var a) identityMod)) A.Type
   elaborateInstance (BuiltIn (i + 2)) instP3 pt2 []
+  let pt3 =
+        freshNames ["a", "b"] $ \[a, b] ->
+          A.Forall (abst [a, b] (A.App s (A.Circ (A.Var a) (A.Var b) identityMod))) A.Type
+  elaborateInstance (BuiltIn (i + 3)) instP4 pt3 []
 
 -- | @'system_pdf_viewer' zoom pdffile@: Call a system-specific PDF
 -- viewer on /pdffile/ file. The /zoom/ argument is out of 100 and may
