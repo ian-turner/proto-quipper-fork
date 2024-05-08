@@ -25,7 +25,7 @@ module Syntax
   , EBranches(..)
   , EPattern(..)
   , Gate(..)
-  , Morphism(..)
+  , Circuit(..)
   , LEnv
   , Gates
   , Decl(..)
@@ -539,7 +539,7 @@ data Value
   | VLiftCirc (Bind [Variable] (Bind LEnv EExp))
     -- ^ Circuit binding, [Variable] is like a lambda that handles the parameter arguments
     -- and the control argument, LEnv binds a variable to a circuit value.
-  | Wired (Bind [Label] Morphism)
+  | Wired (Bind [Label] Circuit)
     -- ^ Complete circuit.
   | VApp Value Value
     -- ^ Applicative value, for runtime efficiency, we also
@@ -581,19 +581,23 @@ data Gate =
     , ctrl :: Value
     , ctrlFlag :: Bool
     , inv :: Maybe Id
+    , inputlbs :: [Label]
+    , outputlbs :: [Label]
     }
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 
 -- | A list of gates.
 type Gates = [Gate]
 
--- | Morphism denotes an incomplete circuit, a completion would be
+-- | Circuit denotes an incomplete circuit, a completion would be
 -- using the Wired constructor to bind all the free labels in it.
-data Morphism =
-  Morphism
-    { input :: Value
+data Circuit =
+  Circuit
+    { input :: Value 
     , gates :: Gates
     , output :: Value
+    , inputLabels :: [Label]
+    , outputLabels :: [Label]
     }
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 
@@ -692,7 +696,7 @@ instance Disp (Map Variable Value) where
     vcat $
     map (\(x, y) -> dispRaw x <+> text ":=" <+> display flag y)
       (Map.toList l)
-
+ 
 instance Disp (Map Variable (Value, Int, Int)) where
   display flag l =
     vcat $
@@ -702,12 +706,12 @@ instance Disp (Map Variable (Value, Int, Int)) where
          text ":=" <+> display flag y)
       (Map.toList l)
 
-instance Disp Morphism where
-  display flag (Morphism ins gs outs) =
+instance Disp Circuit where
+  display flag (Circuit _ gs _ _ _) =
     nest 2 (vcat $ map (display flag) gs)
 
 instance Disp Gate where
-  display flag (Gate g params ins outs ctrls b _) =
+  display flag (Gate g params ins outs ctrls b _ _ _) =
     display flag g <> comma <+>
     brackets (hsep $ punctuate comma (map (display flag) params))
     <> comma <+>
@@ -751,7 +755,7 @@ data Decl
              
   | GateDecl Position Id (Maybe Exp) Exp (Maybe (Id, Exp)) Bool
 
-  | CircuitDecl Position Id Exp Morphism
+  | CircuitDecl Position Id Exp Circuit
             -- ^ Gate declaration. 'Id': name, ['Exp']: parameters, 'Exp': input/output.
   | ImportDecl Position String
             -- ^ Importation.

@@ -624,7 +624,7 @@ makeGate id ps t flag inv =
                 inExp' = toVal inExp ins
                 outExp' = toVal outExp outs
                 g = Gate id params inExp' outExp' VStar flag inv
-                morph = Wired $ abst (ins ++ outs) (Morphism inExp' [g] outExp')
+                morph = Wired $ abst (ins ++ outs) (Circuit inExp' [g] outExp')
                 env = Map.fromList [(y, morph)]
                 unbox_morph =
                   ELam $ etaPair y (length inss) (EForce $ EApp EUnBox (EVar y))

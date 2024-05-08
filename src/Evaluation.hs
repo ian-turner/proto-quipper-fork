@@ -44,12 +44,13 @@ type Eval a = StateT EvalState ReadWrite a
 data EvalState =
   ES
     { evalEnv :: Context -- ^ The global evaluation context.
-    , labels :: [Label] -- ^ A list of labels that are generated during evaluation 
+    , labels :: [Label] -- ^ A list of labels that are generated during evaluation
+    , outputs :: [Label] -- ^ A list of output labels
     }
 
 -- | Initialize an EvalState from a global context.
-initES :: Context -> EvalState
-initES gl = ES {evalEnv = gl, labels = []}
+initES :: Context -> [Label] -> EvalState
+initES gl lbs = ES {evalEnv = gl, labels = [], outputs = lbs}
 
 -- | Lifting a label to a boolean. 
 dynamicLift :: Label -> Eval Bool
@@ -276,12 +277,16 @@ evalApp (VDynlift) (VLabel v) = do
 -- append gates
 evalApp (VForce (VApp VUnBox (Wired (Abst wires morph)))) w = do
   let binding = makeBinding (input morph) w
-  let morph' = rename morph binding
+      morph' = rename morph binding
       gs = gates morph'
       outs = output morph'
+      inputlabels = inputLabels morph'
+      outputlabels = outputLabels morph' 
+      sigma = Map.fromList (zip inputlabels outputlabels)
   addGates gs
   let wires' = wires \\ (Map.keys binding)
   modify (\ st -> st{labels = labels st ++ wires'})
+  modify (\ st -> st{outputs = renameLabels (outputs st) sigma })  
   return outs
 
 evalApp (VApp (VApp (VApp VBox q) _) _) v =
@@ -299,12 +304,13 @@ evalApp (VApp (VApp (VApp VBox q) _) _) v =
              Left v -> return v
       st <- get             
       let uv' = toVal uv vs
-          bgs = boxGates $ runStateT (evalApp b uv') (initES (evalEnv st))
+          bgs = boxGates $ runStateT (evalApp b uv') (initES (evalEnv st) vs)
           gs = fst bgs
           res = fst $ snd bgs
           st' = snd $ snd bgs
           vs' = labels st'
-          newMorph = Morphism uv' gs res
+          outs = outputs st'
+          newMorph = Circuit uv' gs res vs outs
           morph' = Wired (abst (vs ++ vs') newMorph)
       return morph'
 
@@ -315,30 +321,33 @@ evalApp (VApp (VApp (VApp (VApp VExBox uv) _) _) _) v =
         st <- get
         b <- eval lenv body
         let uv' = toVal uv vs
-            bgs = boxGates $ runStateT (evalApp b uv') st
+            bgs = boxGates $ runStateT (evalApp b uv') (st{outputs = vs})
             gs = fst bgs
             res = fst $ snd bgs
             n = fstVPair res
             res' = sndVPair res
             st' = snd $ snd bgs
             vs' = labels st'
-            newMorph = Morphism uv' gs res'
+            outlbs' = outputs st'
+            newMorph = Circuit uv' gs res' vs outlbs'
             morph' = Wired (abst (vs ++ vs') newMorph)
         return (VPair n morph')
   where
     fstVPair (VPair a _) = a
     sndVPair (VPair _ b) = b
 
-evalApp (VApp (VApp VReverse _) _) (Wired (Abst ws (Morphism ins gs outs))) = do
+evalApp (VApp (VApp VReverse _) _) (Wired (Abst ws (Circuit ins gs outs inlbs outlbs))) = do
   let gs' = revGates gs
-  return $ Wired (abst ws $ Morphism outs gs' ins)
+  return $ Wired (abst ws $ Circuit outs gs' ins outlbs inlbs)
 
 evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
   freshNames ["#ctrl", "#input", "#circ"] $ \([ctrl, inp, circ]) -> do
     let ins = input m
         gs = gates m
         outs = output m
-        mycirc = Wired (abst ws $ Morphism ins (controlledGates ctrl gs) outs)
+        inlbs = inputLabels m
+        outlbs = outputLabels m
+        mycirc = Wired (abst ws $ Circuit ins (controlledGates ctrl gs) outs)
         env = Map.fromList [(circ, mycirc)]
         exp =
           EPair (EApp (EForce $ EApp EUnBox (EVar circ)) (EVar inp))
@@ -365,7 +374,7 @@ evalApp (VComputed (Wired (Abst ws1 circ1))) (Wired (Abst ws2 circ2)) =
       e = sndVPair $ output circ1
       gs1' = map disableCtrl gs1
       gs1'' = revGates gs1'
-      circ1' = Morphism (VPair b1 e) gs1'' a
+      circ1' = Circuit (VPair b1 e) gs1'' a
       b2 = fstVPair $ input circ2
       binding = makeBinding b2 b1
       circ2' = rename circ2 binding
@@ -381,7 +390,7 @@ evalApp (VComputed (Wired (Abst ws1 circ1))) (Wired (Abst ws2 circ2)) =
         Wired $
         abst
           (ws1 ++ ws2)
-          (Morphism (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d))
+          (Circuit (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d))
   in return res
   where
     disableCtrl (Gate e1 e2 e3 e4 e5 b inv) = Gate e1 e2 e3 e4 e5 False inv
@@ -427,7 +436,7 @@ evalApp v w =
         -- Perform substitution on the variables in a circuit.
     updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, Value)]
     updateCirc sub lenv =
-      let [(x, Wired (Abst wires (Morphism ins gs outs)))] = Map.toList lenv
+      let [(x, Wired (Abst wires (Circuit ins gs outs)))] = Map.toList lenv
           params1 = map params gs
           ctrls = map ctrl gs
           params' = map (\p -> helper p sub) params1
@@ -446,7 +455,7 @@ evalApp v w =
               params'
               ctrls'
               gs
-          circ' = Wired (abst wires (Morphism ins gs' outs))
+          circ' = Wired (abst wires (Circuit ins gs' outs))
        in [(x, circ')]
         -- Perfrom substitution.
     helper :: [Value] -> [(Variable, Value)] -> [Value]
@@ -488,14 +497,16 @@ makeBinding w v =
 revGates :: [Gate] -> [Gate]
 revGates xs = map invertGateName $ reverse xs
   where
-    invertGateName (Gate id params ins outs ctrls flag (Just g)) =
-      Gate g params outs ins ctrls flag (Just id)
-    invertGateName (Gate id params ins outs ctrls flag Nothing) =
+    invertGateName (Gate id params ins outs ctrls flag (Just g) inlbs outlbs) =
+      Gate g params outs ins ctrls flag (Just id) outlbs inlbs 
+    invertGateName (Gate id params ins outs ctrls flag Nothing _ _) =
       error $ "non-invertable gate: " ++ getName id
 
 -- | Obtain a fresh value of type /uv/ using fresh labels draw from /vs/.
 toVal :: Value -> [Label] -> Value
 toVal uv vs = evalState (templateToVal uv) vs
+
+
 
 -- | Obtain a fresh template inhabitant of a simple type, with wirenames
 -- drawn from the state. The input is a simple data type, the output is a
@@ -518,6 +529,16 @@ templateToVal (VTensor e1 e2) = do
   return $ VPair e1' e2'
 templateToVal a =
   error "applying templateToVal function to an ill-formed template"
+
+-- | Convert a simple value of labels to a list of labels, preserving
+-- the order.  
+valToList :: Value -> [Label]
+valToList (VLabel x) = [x]
+valToList (VStar) = []
+valToList (VConst _) = []
+valToList (VPair x y) = valToList x ++ valToList y
+valToList (VApp x y) = valToList x ++ valToList y
+valToList a = error $ "from valToList: " ++ show a
 
 -- | Get the size of a simple data type.
 size :: Value -> Int

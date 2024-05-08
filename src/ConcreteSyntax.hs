@@ -7,7 +7,7 @@ module ConcreteSyntax where
 import Data.Generics
 import Data.List
 import Prelude hiding ((<>))
-import Syntax (Morphism(..))
+import Syntax (Circuit(..))
 import Text.Parsec.Pos
 import Text.PrettyPrint
 import Data.Number.CReal
@@ -74,7 +74,7 @@ data Decl
   -- 'Exp' is  a type expression specifying the input and
   -- output of the gate. 'Maybe String'
   -- is the possible inverse gate.
-  | CircuitDecl Position String Exp Morphism
+  | CircuitDecl Position String Exp Circuit
   | Object Position String
   -- ^  Object declaration for simple types such as @Qubit@ or @Bit@.
   | Def Position String Exp [String] Exp Bool

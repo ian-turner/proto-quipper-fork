@@ -724,7 +724,7 @@ gateCount Nothing (Wired (Abst _ morph)) = length (gates morph)
 gateCount (Just n) (Wired (Abst _ morph)) =
   helper n (gates morph) 0
   where helper n [] m = m
-        helper n (Gate d _ _ _ _ _ _:s) m
+        helper n (Gate d _ _ _ _ _ _ _ _:s) m
           | getName d == n = helper n s (m+1)
           | otherwise = helper n s m
         
@@ -735,46 +735,47 @@ gateCount (Just n) (Wired (Abst _ morph)) =
 -- non-terminal and non-initial gates. It tries to re-use the label
 -- names once a label is terminated, this is reflected in the input ['Label']. 
 
+-- Note that this function currently does not touch the bijection
 refresh_gates :: Map Label Label -> [Gate] -> [Label] ->
                  ([Gate], Map Label Label)
 refresh_gates m [] s = ([], m)
-refresh_gates m (Gate name [] input VStar VStar b inv: gs) s
+refresh_gates m (Gate name [] input VStar VStar b inv [] []: gs) s
   | getName name == "Term0" || getName name == "Term1" =
     let newInput = renameTemp input m
         (gs', newMap') = refresh_gates m gs (getWires newInput ++ s)
-    in (Gate name [] newInput VStar VStar b inv: gs', newMap')
+    in (Gate name [] newInput VStar VStar b inv [] []: gs', newMap')
 
-refresh_gates m (Gate name [] input VStar VStar b inv : gs) s
+refresh_gates m (Gate name [] input VStar VStar b inv [] [] : gs) s
   | getName name == "Discard" =
     let newInput = renameTemp input m
         (gs', newMap') = refresh_gates m gs (getWires newInput ++ s)
-    in (Gate name [] newInput VStar VStar b inv: gs', newMap')
+    in (Gate name [] newInput VStar VStar b inv [] []: gs', newMap')
 
-refresh_gates m (Gate name [] VStar output VStar b inv: gs) []
+refresh_gates m (Gate name [] VStar output VStar b inv [] [] : gs) []
   | getName name == "Init0" || getName name == "Init1" =
     let (gs', newMap') = refresh_gates m gs []
-    in (Gate name [] VStar output VStar b inv : gs', newMap')
+    in (Gate name [] VStar output VStar b inv  [] []: gs', newMap')
 
-refresh_gates m (Gate name [] VStar output VStar b inv : gs) (h:s)
+refresh_gates m (Gate name [] VStar output VStar b inv [] []: gs) (h:s)
   | getName name == "Init0" || getName name == "Init1" =
     let x:[] = getWires output
         m' = m `Map.union` Map.fromList [(x, h)]
         (gs', newMap') = refresh_gates m' gs s
-    in (Gate name [] VStar (VLabel h) VStar b inv : gs', newMap')
+    in (Gate name [] VStar (VLabel h) VStar b inv [] [] : gs', newMap')
 
 -- All the other possible initialization.
-refresh_gates m (Gate name vs VStar output ctrl b inv : gs) s =
+refresh_gates m (Gate name vs VStar output ctrl b inv [] []: gs) s =
   let (gs', newMap') = refresh_gates m gs s
-  in (Gate name vs VStar output ctrl b inv : gs', newMap')
+  in (Gate name vs VStar output ctrl b inv [] [] : gs', newMap')
 
 -- All the other possible termination.
-refresh_gates m (Gate name vs input VStar ctrl b inv : gs) s =
+refresh_gates m (Gate name vs input VStar ctrl b inv [] [] : gs) s =
   let input' = renameTemp input m
       (gs', newMap') = refresh_gates m gs s
-  in (Gate name vs input' VStar ctrl b inv : gs', newMap')
+  in (Gate name vs input' VStar ctrl b inv [] [] : gs', newMap')
 
 
-refresh_gates m (Gate name vs input output ctrl b inv : gs) s =
+refresh_gates m (Gate name vs input output ctrl b inv inputlbs outputlbs : gs) s =
   let newInput = renameTemp input m
       newCtrl = renameTemp ctrl m
       outWires = getWires output
@@ -782,7 +783,7 @@ refresh_gates m (Gate name vs input output ctrl b inv : gs) s =
       ins = getWires newInput
       newMap = m `Map.union` Map.fromList (zip outWires ins)
       (gs', newMap') = refresh_gates newMap gs s
-  in (Gate name vs newInput newOutput newCtrl b inv : gs', newMap')
+  in (Gate name vs newInput newOutput newCtrl b inv inputlbs outputlbs : gs', newMap')
 
 -- | Check whether a value is a boolean constant.
 isBool :: Value -> Bool
@@ -805,15 +806,23 @@ toNum (VApp (VConst s) n) | getName s == "S" =
 
 
 -- | Rename the labels of a morphism according to a binding.
-rename :: Morphism -> Map Label Label -> Morphism            
+rename :: Circuit -> Map Label Label -> Circuit            
 rename morph m =
   let ins = input morph
       outs = output morph
       gs = gates morph
+      inputlabels = inputLabels morph
+      outputlabels = outputLabels morph
       ins' = renameTemp ins m
       outs' = renameTemp outs m
       gs' = renameGs gs m
-  in Morphism ins' gs' outs'
+  in Circuit ins' gs' outs' (renameLabels inputlabels m) (renameLabels outputlabels m)
+
+renameLabels [] m = []
+renameLabels (l:ls) m =
+  case Map.lookup l m of
+    Nothing -> l : renameLabels ls m
+    Just y -> y : renameLabels ls m
 
 -- | Rename a template value according to a binding.
 renameTemp :: Value -> Map Label Label -> Value
@@ -831,10 +840,10 @@ renameTemp a m =
 -- | Rename a list of gates according to a binding.
 renameGs :: [Gate] -> Map Label Label -> [Gate]
 renameGs gs m = map helper gs
-  where helper (Gate id params ins outs ctrls b inv) =
+  where helper (Gate id params ins outs ctrls b inv inputlabels outputlabels) =
           Gate id params (renameTemp ins m) (renameTemp outs m)
-          (renameTemp ctrls m) b inv
-
+          (renameTemp ctrls m) b inv (renameLabels inputlabels m) (renameLabels outputlabels m)
+ 
 -- | Generate a fresh modality.
 freshMode :: [String] -> Modality
 freshMode s =
