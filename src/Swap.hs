@@ -1,6 +1,6 @@
 module Swap (permutation_to_swaps) where
 import Data.List (elemIndex, sortBy, permutations)
-import System.Random
+
 
 -- | A movement contains an index and a movement distant.
 -- The index ranges from 0 - n indexing the list. Movement
@@ -88,28 +88,28 @@ gen_swaps [] = []
 permutation_to_swaps :: (Ord a) => [a] -> [a] -> [(Int, Int)]
 permutation_to_swaps x y = gen_swaps (gen_intersections (gen_movements x y))
 
-
-
-shuffle :: [a] -> IO [a]
-shuffle [] = return []
-shuffle lst = do
-  n <- getIx
-  let (e, rest) = pickElem n
-  r <- shuffle rest
-  return (e:r)
-  where
-    getIx = getStdRandom $ randomR (1, length lst)
-    pickElem n = case splitAt n lst of
-        ([], s) -> error $ "failed at index " ++ show n -- should never match
-        (r, s)  -> (last r, init r ++ s)
+-- Optional test code
+-- import System.Random
+-- shuffle :: [a] -> IO [a]
+-- shuffle [] = return []
+-- shuffle lst = do
+--   n <- getIx
+--   let (e, rest) = pickElem n
+--   r <- shuffle rest
+--   return (e:r)
+--   where
+--     getIx = getStdRandom $ randomR (1, length lst)
+--     pickElem n = case splitAt n lst of
+--         ([], s) -> error $ "failed at index " ++ show n -- should never match
+--         (r, s)  -> (last r, init r ++ s)
   
-test :: IO ()
-test = do
-  let l = [0 .. 9]
-  l1 <- shuffle l
-  putStrLn $ "original list: " ++ show l
-  putStrLn $ "permuted list: " ++ show l1
-  putStrLn $  "swaps: " ++ show (permutation_to_swaps l l1)
+-- test :: IO ()
+-- test = do
+--   let l = [0 .. 9]
+--   l1 <- shuffle l
+--   putStrLn $ "original list: " ++ show l
+--   putStrLn $ "permuted list: " ++ show l1
+--   putStrLn $  "swaps: " ++ show (permutation_to_swaps l l1)
 
 
   

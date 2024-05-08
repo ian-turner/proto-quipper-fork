@@ -34,6 +34,7 @@ module Syntax
   , Modality(..)
   , MyReal(..)
   , identityMod
+  , swapGate
   ) where
 
 import Prelude hiding ((.), (<>))
@@ -586,6 +587,23 @@ data Gate =
     }
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 
+-- | A builtin mechanism for generating swap gate from two
+-- labels. Note that swap gate does not actually swap the wire,
+-- We only use it as visual representation of the swap that happens
+-- in the programming language.
+swapGate :: Label -> Label -> Gate
+swapGate l1 l2 =
+  Gate{ gateName = Id "Swap",
+        params = [],
+        inputVal = VPair (VLabel l1) (VLabel l2),
+        outputVal = VPair (VLabel l1) (VLabel l2),
+        ctrl = VStar,
+        ctrlFlag = True,
+        inv = Just (Id "Swap"),
+        inputlbs = [l1, l2], 
+        outputlbs = [l1, l2]
+        }
+
 -- | A list of gates.
 type Gates = [Gate]
 
@@ -598,6 +616,7 @@ data Circuit =
     , output :: Value
     , inputLabels :: [Label]
     , outputLabels :: [Label]
+    , circCtrl :: Value
     }
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
 
@@ -707,7 +726,7 @@ instance Disp (Map Variable (Value, Int, Int)) where
       (Map.toList l)
 
 instance Disp Circuit where
-  display flag (Circuit _ gs _ _ _) =
+  display flag (Circuit _ gs _ _ _ _) =
     nest 2 (vcat $ map (display flag) gs)
 
 instance Disp Gate where

@@ -16,7 +16,7 @@ import Simulation
 import SyntacticOperations
 import Syntax
 import Utils
-
+import Swap
 import Nominal
 import Control.Exception
 import Control.Monad.State
@@ -310,10 +310,10 @@ evalApp (VApp (VApp (VApp VBox q) _) _) v =
           st' = snd $ snd bgs
           vs' = labels st'
           outs = outputs st'
-          newMorph = Circuit uv' gs res vs outs
+          newMorph = Circuit uv' gs res vs outs VStar
           morph' = Wired (abst (vs ++ vs') newMorph)
       return morph'
-
+ 
 evalApp (VApp (VApp (VApp (VApp VExBox uv) _) _) _) v =
   case v of
     VLift (Abst lenv body) ->
@@ -329,16 +329,16 @@ evalApp (VApp (VApp (VApp (VApp VExBox uv) _) _) _) v =
             st' = snd $ snd bgs
             vs' = labels st'
             outlbs' = outputs st'
-            newMorph = Circuit uv' gs res' vs outlbs'
+            newMorph = Circuit uv' gs res' vs outlbs' VStar
             morph' = Wired (abst (vs ++ vs') newMorph)
         return (VPair n morph')
   where
     fstVPair (VPair a _) = a
     sndVPair (VPair _ b) = b
 
-evalApp (VApp (VApp VReverse _) _) (Wired (Abst ws (Circuit ins gs outs inlbs outlbs))) = do
+evalApp (VApp (VApp VReverse _) _) (Wired (Abst ws (Circuit ins gs outs inlbs outlbs ctrl))) = do
   let gs' = revGates gs
-  return $ Wired (abst ws $ Circuit outs gs' ins outlbs inlbs)
+  return $ Wired (abst ws $ Circuit outs gs' ins outlbs inlbs ctrl)
 
 evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
   freshNames ["#ctrl", "#input", "#circ"] $ \([ctrl, inp, circ]) -> do
@@ -347,7 +347,15 @@ evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
         outs = output m
         inlbs = inputLabels m
         outlbs = outputLabels m
-        mycirc = Wired (abst ws $ Circuit ins (controlledGates ctrl gs) outs)
+        ctrlVal = circCtrl m
+        ctrls = getWires ctrlVal
+        inlbsFromVal = getWires ins
+        outlbsFromVal = getWires outs
+        ps1 = permutation_to_swaps (ctrls++inlbsFromVal) inlbs
+        gs1 = gen_swapGates ps1 inlbsFromVal
+        ps2 = permutation_to_swaps outlbs (ctrls ++ outlbsFromVal)
+        gs2 = gen_swapGates ps2 outlbs
+        mycirc = Wired (abst ws $ Circuit ins (controlledGates ctrl (gs1++gs++gs2)) outs inlbsFromVal outlbsFromVal (VPair ctrlVal (VVar ctrl)))
         env = Map.fromList [(circ, mycirc)]
         exp =
           EPair (EApp (EForce $ EApp EUnBox (EVar circ)) (EVar inp))
@@ -355,11 +363,11 @@ evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
     return $ VLiftCirc (abst [inp, ctrl] $ abst env exp)
   where
     controlledGates a gs = map (helper a) gs
-    helper a (Gate id ps ins outs b False inv) = Gate id ps ins outs b False inv
-    helper a (Gate id ps ins outs VStar flag inv) =
-      Gate id ps ins outs (VVar a) flag inv
-    helper a (Gate id ps ins outs b flag inv) =
-      Gate id ps ins outs (VPair b (VVar a)) flag inv
+    helper a (Gate id ps ins outs b False inv inlbs outlbs) = Gate id ps ins outs b False inv inlbs outlbs
+    helper a (Gate id ps ins outs VStar flag inv inlbs outlbs) =
+      Gate id ps ins outs (VVar a) flag inv inlbs outlbs
+    helper a (Gate id ps ins outs b flag inv inlbs outlbs) =
+      Gate id ps ins outs (VPair b (VVar a)) flag inv inlbs outlbs
 
 evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _) _) _) m =
   return $ VComputed m
@@ -369,12 +377,15 @@ evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _) _) _) m =
 -- can be controlled via circ2 (not circ1). 
 evalApp (VComputed (Wired (Abst ws1 circ1))) (Wired (Abst ws2 circ2)) = 
   let gs1 = gates circ1
+      sigma1 = inputLabels circ1
+      sigma2 = outputLabels circ1
+      ctrls1 = circCtrl circ1
       a = input circ1
-      b1 = fstVPair $ output circ1
+      b1 = fstVPair $ output circ1 
       e = sndVPair $ output circ1
       gs1' = map disableCtrl gs1
       gs1'' = revGates gs1'
-      circ1' = Circuit (VPair b1 e) gs1'' a
+      circ1' = Circuit (VPair b1 e) gs1'' a sigma2 sigma1 ctrls1
       b2 = fstVPair $ input circ2
       binding = makeBinding b2 b1
       circ2' = rename circ2 binding
@@ -386,14 +397,16 @@ evalApp (VComputed (Wired (Abst ws1 circ1))) (Wired (Abst ws2 circ2)) =
       circ3 = rename circ1' binding2
       gs1''' = gates circ3
       a' = output circ3
-      res =
+      sigmaIn = sigma1 ++ (inputLabels circ2' \\ getWires (fstVPair $ input circ2'))
+      sigmaOut = outputLabels circ3 ++ (outputLabels circ2' \\ getWires b3)
+      res = 
         Wired $
         abst
           (ws1 ++ ws2)
-          (Circuit (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d))
+          (Circuit (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d) sigmaIn sigmaOut VStar)
   in return res
   where
-    disableCtrl (Gate e1 e2 e3 e4 e5 b inv) = Gate e1 e2 e3 e4 e5 False inv
+    disableCtrl (Gate e1 e2 e3 e4 e5 b inv ins outs) = Gate e1 e2 e3 e4 e5 False inv ins outs
     fstVPair (VPair a _) = a
     sndVPair (VPair _ b) = b
 
@@ -436,11 +449,11 @@ evalApp v w =
         -- Perform substitution on the variables in a circuit.
     updateCirc :: [(Variable, Value)] -> LEnv -> [(Variable, Value)]
     updateCirc sub lenv =
-      let [(x, Wired (Abst wires (Circuit ins gs outs)))] = Map.toList lenv
+      let [(x, Wired (Abst wires (Circuit ins gs outs inlbs outlbs cctrl)))] = Map.toList lenv
           params1 = map params gs
           ctrls = map ctrl gs
           params' = map (\p -> helper p sub) params1
-          ctrls' = helper ctrls sub
+          (cctrl':ctrls') = helper (cctrl:ctrls) sub
           gs' =
             zipWith3
               (\p c g ->
@@ -451,11 +464,14 @@ evalApp v w =
                    (outputVal g)
                    c
                    (ctrlFlag g)
-                   (inv g))
+                   (inv g)
+                   (inputlbs g)
+                   (outputlbs g)
+              )
               params'
               ctrls'
               gs
-          circ' = Wired (abst wires (Circuit ins gs' outs))
+          circ' = Wired (abst wires (Circuit ins gs' outs inlbs outlbs cctrl'))
        in [(x, circ')]
         -- Perfrom substitution.
     helper :: [Value] -> [(Variable, Value)] -> [Value]
@@ -530,15 +546,6 @@ templateToVal (VTensor e1 e2) = do
 templateToVal a =
   error "applying templateToVal function to an ill-formed template"
 
--- | Convert a simple value of labels to a list of labels, preserving
--- the order.  
-valToList :: Value -> [Label]
-valToList (VLabel x) = [x]
-valToList (VStar) = []
-valToList (VConst _) = []
-valToList (VPair x y) = valToList x ++ valToList y
-valToList (VApp x y) = valToList x ++ valToList y
-valToList a = error $ "from valToList: " ++ show a
 
 -- | Get the size of a simple data type.
 size :: Value -> Int
@@ -567,3 +574,9 @@ toInt (VConst id) =
   else Nothing
 
 toInt _ = Nothing
+
+
+
+-- | Generate a list of swap gates from a list of positions. 
+gen_swapGates :: [(Int, Int)] -> [Label] -> [Gate]
+gen_swapGates s ls = map (\(x, y) -> swapGate (ls!!x) (ls!!y)) s

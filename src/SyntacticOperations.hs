@@ -811,12 +811,13 @@ rename morph m =
   let ins = input morph
       outs = output morph
       gs = gates morph
+      mCtrl = circCtrl morph
       inputlabels = inputLabels morph
       outputlabels = outputLabels morph
       ins' = renameTemp ins m
       outs' = renameTemp outs m
       gs' = renameGs gs m
-  in Circuit ins' gs' outs' (renameLabels inputlabels m) (renameLabels outputlabels m)
+  in Circuit ins' gs' outs' (renameLabels inputlabels m) (renameLabels outputlabels m) (renameTemp mCtrl m)
 
 renameLabels [] m = []
 renameLabels (l:ls) m =

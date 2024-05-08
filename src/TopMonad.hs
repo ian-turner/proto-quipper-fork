@@ -162,7 +162,7 @@ evaluation exp isClifford =
      exp' <- tcTop $ erasure exp
      putGates []
      (res, gs) <- ioTop $ simulate isClifford $
-                  do {r <- runStateT (eval Map.empty exp') (initES gl);
+                  do {r <- runStateT (eval Map.empty exp') (initES gl []);
                       return $ fst r}
      putGates gs
      return res
@@ -173,7 +173,7 @@ evaluation' exp isClifford =
   do gl <- getCxt
      exp' <- tcTop $ erasure exp
      res <- ioTop $ simulate isClifford $
-                  do {r <- runStateT (eval Map.empty exp') (initES gl);
+                  do {r <- runStateT (eval Map.empty exp') (initES gl []);
                       return $ fst r}
      return (snd res)
 
