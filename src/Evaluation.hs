@@ -32,6 +32,7 @@ import qualified Data.Set as S
 import Data.Tuple
 import Debug.Trace
 import Data.Number.CReal
+import Debug.Trace
 
 -- * The Eval monad and eval function.
 
