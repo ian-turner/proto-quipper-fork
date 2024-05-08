@@ -1,0 +1,63 @@
+module NewCtrl where
+import "lib/Prelude.dpq"
+
+
+swapCirc : Circ(Qubit* Qubit , Qubit * Qubit)
+swapCirc = box (Qubit* Qubit) $ \ x -> let (a, b) = x in (b, a)
+
+
+cswap : !(Qubit * Qubit -> Qubit -> Qubit * Qubit * Qubit)
+cswap = controlled swapCirc
+
+cswapCirc : Circ(Qubit* Qubit * Qubit , Qubit * Qubit * Qubit)
+cswapCirc = box (Qubit* Qubit * Qubit) $ \ x -> let (a, b, c) = x in cswap (a, b) c
+
+
+ccswap : !(Qubit * Qubit * Qubit -> Qubit -> Qubit * Qubit * Qubit * Qubit)
+ccswap = controlled cswapCirc
+
+
+ccswapCirc = box (Qubit* Qubit * Qubit * Qubit) $ \ x -> let (a, b, c, d) = x in ccswap (a, b, c) d
+
+
+rotate : ! forall (y : Nat) -> Nat -> Qubit -> Vec Qubit y -> Qubit * Vec Qubit y
+rotate m q v =
+    case v of
+      VNil -> (q, VNil)
+      VCons x xs ->
+        let (q', x') = R m q x
+            (q'', xs') = rotate (S m) q' xs
+        in (q'', VCons x' xs')
+
+qft : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
+qft v =
+  case v of
+    VNil -> VNil
+    VCons q qs ->
+      let q' = H q
+          (q'', qs') = rotate (S (S Z)) q' qs
+          qs'' = qft qs'
+      in VCons q'' qs''
+
+qft' : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n
+qft' n l = reverse_vec (qft l)
+
+qftBox : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n) 
+qftBox n = box (Vec Qubit n) (\ x -> qft x)
+
+qftBox' : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n) 
+qftBox' n = box (Vec Qubit n) (\ x -> qft' n x)
+
+qft_ctrl : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n)
+qft_ctrl n = box (Vec Qubit n * Vec Qubit n) $ \ i ->
+                        let (inputs, c) = i in controlled (qftBox n) inputs c
+
+qft_Box'_ctrl : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n)
+qft_Box'_ctrl n = box (Vec Qubit n * Vec Qubit n) $ \ i ->
+                        let (inputs, c) = i in controlled (qftBox' n) inputs c
+
+
+
+
+
+

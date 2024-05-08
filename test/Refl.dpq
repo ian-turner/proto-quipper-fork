@@ -1,0 +1,24 @@
+module Refl where
+import "lib/Prelude.dpq"
+
+h : Circ(Qubit, Qubit)
+h = box Qubit H
+
+test : Eq (Circ(Qubit, Qubit)) h h
+test = refl
+
+-- test : Eq (!(Qubit -> Qubit)) H H
+-- test = refl
+
+gate U3 : Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit : U3_Inv
+
+
+f : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
+f x y z =
+  let x = H x
+      (y, z) =  CNot y z
+  in U3 y x z
+  
+
+circ : Circ(Qubit * Qubit * Qubit, Qubit * Qubit * Qubit)
+circ = box (Qubit * Qubit * Qubit) (\ input -> let (x, y, z) = input in f x y z)
