@@ -341,7 +341,7 @@ evalApp (VApp (VApp VReverse _) _) (Wired (Abst ws (Circuit ins gs outs inlbs ou
   let gs' = revGates gs
   return $ Wired (abst ws $ Circuit outs gs' ins outlbs inlbs ctrl)
 
-evalApp (VApp (VApp (VApp VControlled _) _) _) (Wired (Abst ws m)) =
+evalApp (VApp (VApp VControlled _) _) (Wired (Abst ws m)) =
   freshNames ["#ctrl", "#input", "#circ"] $ \([ctrl, inp, circ]) -> do
     let ins = input m
         gs = gates m

@@ -9,16 +9,31 @@ swapCirc = box (Qubit* Qubit) $ \ x -> let (a, b) = x in (b, a)
 cswap : !(Qubit * Qubit -> Qubit -> Qubit * Qubit * Qubit)
 cswap = controlled swapCirc
 
+
 cswapCirc : Circ(Qubit* Qubit * Qubit , Qubit * Qubit * Qubit)
 cswapCirc = box (Qubit* Qubit * Qubit) $ \ x -> let (a, b, c) = x in cswap (a, b) c
 
 
 ccswap : !(Qubit * Qubit * Qubit -> Qubit -> Qubit * Qubit * Qubit * Qubit)
-ccswap = controlled cswapCirc
+ccswap x y =
+  let (a, b, c, d) = controlled cswapCirc x y
+  in (a, b, d, c)
 
-
+ccswapCirc : Circ(Qubit* Qubit * Qubit * Qubit, Qubit * Qubit * Qubit * Qubit)
 ccswapCirc = box (Qubit* Qubit * Qubit * Qubit) $ \ x -> let (a, b, c, d) = x in ccswap (a, b, c) d
 
+cccswap : !(Qubit * Qubit * Qubit * Qubit -> Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit)
+cccswap = controlled ccswapCirc
+
+cccswapCirc : Circ(Qubit* Qubit * Qubit * Qubit * Qubit , Qubit * Qubit * Qubit * Qubit * Qubit)
+cccswapCirc = boxCirc $ \ x -> let (a, b, c, d, e) = x in cccswap (a, b, c, d) e
+
+
+cccswap' : !(Qubit * Qubit * Qubit * Qubit -> Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit)
+cccswap' = controlled (reverse ccswapCirc)
+
+cccswapCirc' : Circ(Qubit* Qubit * Qubit * Qubit * Qubit , Qubit * Qubit * Qubit * Qubit * Qubit)
+cccswapCirc' = boxCirc $ \ x -> let (a, b, c, d, e) = x in cccswap' (a, b, c, d) e
 
 rotate : ! forall (y : Nat) -> Nat -> Qubit -> Vec Qubit y -> Qubit * Vec Qubit y
 rotate m q v =
@@ -56,8 +71,16 @@ qft_Box'_ctrl : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec
 qft_Box'_ctrl n = box (Vec Qubit n * Vec Qubit n) $ \ i ->
                         let (inputs, c) = i in controlled (qftBox' n) inputs c
 
+--     (a, C, Sigma1, Sigma2, b) 
+--  when Sigma1 - list(a) , Sigma2 - list(b) 
+
+-- The following will not be type checked. 
+-- f : Circ(Qubit * Bit, Bit * Qubit)
+-- f = box (Qubit * Bit) $ \ x -> let (a, b) = x in (b, a)
 
 
+-- f' : !(Qubit * Bit -> Qubit -> Bit * Qubit * Qubit)
+-- f' = controlled f
 
-
-
+-- fCirc : Circ(Qubit* Bit * Qubit , Bit * Qubit * Qubit)
+-- fCirc = box (Qubit* Bit * Qubit) $ \ x -> let (a, b, c) = x in f' (a, b) c

@@ -454,9 +454,9 @@ adderRev =
    boxGarbage adder' copy
 -- (Qubit * Qubit * Qubit) (Qubit * Qubit) (Qubit * Qubit)
 
-controlling : ! {a : Type} -> forall (b s : Type) ->
-              (Simple s, Simple a, Simple b) =>
-                !(a -> b) -> !(a -> s -> b * s)
+controlling : ! {a : Type} -> forall (s : Type) ->
+              (Simple s, Simple a) =>
+                !(a -> a) -> !(a -> s -> a * s)
 controlling a f = controlled (box a f) 
 
 uncurry : ! forall a b c -> (a -> b -> c) -> (a * b -> c)

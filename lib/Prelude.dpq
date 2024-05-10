@@ -60,9 +60,9 @@ switch f a = swap $ f (swap a)
 boxCirc : ! {a : Type} -> forall (b : Type) -> (Simple a, Simple b) => !(a -> b) -> Circ(a, b)
 boxCirc a f = box a f
 
-controlling : ! {a : Type} -> forall (b s : Type) ->
-              (Simple s, Simple a, Simple b) =>
-                !(a -> b) -> !(a -> s -> b * s)
+controlling : ! {a : Type} -> forall (s : Type) ->
+              (Simple s, Simple a) =>
+                !(a -> a) -> !(a -> s -> a * s)
 controlling a f q s = controlled (box a f) q s                
 -- test : (x : Nat) * Vec Nat x * Bool -- == (x : Nat) * (Vec Nat x * Bool)
 -- test = (0, (VNil, True))
