@@ -387,8 +387,10 @@ evalApp (VComputed c1) c2 =
       binding2 = makeBinding ins' d
       c1'' = rename (Circuit ins' gs' outs' inlbs' outlbs' ctrl') binding2
       newgs = (map disableCtrl gs)++ (gates c2') ++ (map disableCtrl $ gates c1'')
+      newoutput = renameLabels (renameLabels outlbs (Map.fromList (zip (inputLabels c2') (outputLabels c2'))))
+                  $ Map.fromList (zip (inputLabels c1'') (outputLabels c1''))
       res = abst (ws++ws2 ++ ws')
-            (Circuit ins newgs (output c1'') inlbs (outputLabels c1'') VStar)
+            (Circuit ins newgs (output c1'') inlbs newoutput VStar)
     in return (Wired res)   
   where
     disableCtrl (Gate e1 e2 e3 e4 e5 b inv ins outs) = Gate e1 e2 e3 e4 e5 False inv ins outs
