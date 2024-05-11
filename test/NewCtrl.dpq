@@ -14,6 +14,12 @@ cswap : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit)
 cswap x = uncurry (controlled swapCirc) x
 
 
+mycnot : Circ(Qubit * Qubit , Qubit * Qubit)
+mycnot = -- boxCirc $ \ x -> let (a, b) = x in CNot b a
+boxCirc $ \ x -> let (a, b) = x in let (x, y) = (CNot b a) in CNot y x
+
+cmycnot : Circ(Qubit * Qubit * Qubit , Qubit * Qubit  * Qubit)
+cmycnot = boxCirc $ \ x -> let (a, b, c) = x in controlled mycnot (a, b) c
 
 cswapCirc : Circ(Qubit* Qubit * Qubit , Qubit * Qubit * Qubit)
 cswapCirc = box (Qubit* Qubit * Qubit) cswap
@@ -89,6 +95,12 @@ qft' n l = (qft (reverse_vec l))
 qftBox : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n) 
 qftBox n = box (Vec Qubit n) (\ x -> qft x)
 
+qftBoxRev : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n) 
+qftBoxRev n = reverse $ box (Vec Qubit n) (\ x -> qft (reverse_vec x))
+
+qftBoxRevC : ! (n : Nat) -> Circ(Vec Qubit n * Qubit, Vec Qubit n * Qubit) 
+qftBoxRevC n = boxCirc (\ x -> let (a, b) = x in controlled (qftBoxRev n) a b )
+
 qftBox' : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n) 
 qftBox' n = box (Vec Qubit n) (\ x -> qft' n x)
 
@@ -121,7 +133,7 @@ qft_adder as bs = case bs of
 		             (VCons c cs', VCons b' bs')
 
 
-adderBox : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n) 
+adderBox : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n) -- reverse_vec 
 adderBox n = box (Vec Qubit n * Vec Qubit n) $ \ x -> let (a, b) = x in let (as, bs) = qft_adder a b in (as, reverse_vec bs)
 
 ctrl_adderBox : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n * Qubit, Vec Qubit n * Vec Qubit n * Qubit)
@@ -136,11 +148,26 @@ extendWires n circ = box (Vec Qubit n * Vec Qubit n) $
 
 qft_adder_inplace : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n)
 qft_adder_inplace n =
-    withBasisChange (extendWires n $ qftBox n) (adderBox n)
+    withComputed (extendWires n $ qftBox n) (adderBox n)
+
+qft_adder_manual : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n)
+qft_adder_manual n =
+                 boxCirc $ \ x -> unbox (reverse (extendWires n $ qftBox n)) ((unbox (adderBox n)) (unbox (extendWires n $ qftBox n) x)) 
+
 
 ctrl_add : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n * Qubit, Vec Qubit n * Vec Qubit n * Qubit)
 ctrl_add n =
   box (Vec Qubit n * Vec Qubit n * Qubit) $ \ x -> let (a, b, c) = x in controlled (qft_adder_inplace n) (a, b) c
+
+ctrl_add' : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n * Qubit, Vec Qubit n * Vec Qubit n * Qubit)
+ctrl_add' n =
+  box (Vec Qubit n * Vec Qubit n * Qubit) $ \ x -> let (a, b, c) = x in controlled (qft_adder_manual n) (a, b) c
+
+
+
+-- ctrl_add' : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n * Qubit * Qubit, Vec Qubit n * Vec Qubit n * Qubit * Qubit)
+-- ctrl_add' n =
+--   box (Vec Qubit n * Vec Qubit n * Qubit * Qubit) $ \ x -> let (a, b, c, d) = x in controlled (ctrl_add n) (a, b, c) d
 
 
 

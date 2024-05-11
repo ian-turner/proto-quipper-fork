@@ -730,8 +730,14 @@ instance Disp (Map Variable (Value, Int, Int)) where
       (Map.toList l)
 
 instance Disp Circuit where
-  display flag (Circuit _ gs _ _ _ _) =
+  display flag (Circuit a gs b ins outs _) =
+    display flag ins
+    $$
+    display flag a 
+    $$
     nest 2 (vcat $ map (display flag) gs)
+    $$ display flag outs
+    $$ display flag b
 
 instance Disp Gate where
   display flag (Gate g params ins outs ctrls b _ insl outsl) =

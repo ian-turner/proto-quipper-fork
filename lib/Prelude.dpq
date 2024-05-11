@@ -68,13 +68,13 @@ controlling a f q s = controlled (box a f) q s
 -- test = (0, (VNil, True))
 
 
-withBasisChange : !{a b : Type} -> (Simple a, Simple b) =>
-                      Circ(a, b) -> Circ(b, b) -> Circ(a, a)
-withBasisChange a b circ1 circ2 = 
-  let circ1' = box a (\ x -> (unbox circ1 x, ()))
-      circ2' = box (b * Unit) (\ x -> let (y, z) = x in (unbox circ2 y, z))
-      circ3 = withComputed circ1' circ2'
-  in box a (\ x -> let (r, _) = unbox circ3 (x, ()) in r)
+-- withBasisChange : !{a b : Type} -> (Simple a, Simple b) =>
+--                       Circ(a, b) -> Circ(b, b) -> Circ(a, a)
+-- withBasisChange a b circ1 circ2 = 
+--   let circ1' = box a (\ x -> (unbox circ1 x, ()))
+--       circ2' = box (b * Unit) (\ x -> let (y, z) = x in (unbox circ2 y, z))
+--       circ3 = withComputed circ1' circ2'
+--   in box a (\ x -> let (r, _) = unbox circ3 (x, ()) in r)
 
 
 -- Warning: noted the result type is not directly related to input.

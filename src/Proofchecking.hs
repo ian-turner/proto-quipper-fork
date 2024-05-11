@@ -299,19 +299,19 @@ proofInfer flag Dynlift =
   in return ty
 
 proofInfer flag a@(WithComputed) =
-  freshNames ["a", "b", "c", "d", "e", "x", "y"] $ \xs@[a, b, c, d, e, x, y] ->
-    let vxs@[va, vb, vc, vd, ve, vx, vy] = map Var xs
+  freshNames ["a", "b", "x", "y"] $ \xs@[a, b, x, y] ->
+    let vxs@[va, vb, vx, vy] = map Var xs
         simpClass = Id "Simple"
         mod1 = M (BConst True) (BConst False) (BConst True)
         mod2 = M (BConst True) (BVar x) (BVar y)
         t1 =
           Arrow
-            (Circ va (Tensor vb ve) mod1)
+            (Circ va vb mod1)
             (Arrow
-               (Circ (Tensor vb vc) (Tensor vb vd) mod2)
-               (Circ (Tensor va vc) (Tensor va vd) mod2) identityMod) identityMod
-        t1' = Imply (map (AppP (Base simpClass)) (take 5 vxs)) t1 identityMod
-        ty = Forall (abst [a, b, c, d, e] t1') Type
+               (Circ vb vb mod2)
+               (Circ va va mod2) identityMod) identityMod
+        t1' = Imply (map (AppP (Base simpClass)) (take 2 vxs)) t1 identityMod
+        ty = Forall (abst [a, b] t1') Type
         ty' = abstractMode ty
      in return ty'
 

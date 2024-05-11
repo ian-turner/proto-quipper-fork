@@ -370,46 +370,29 @@ evalApp (VApp (VApp VControlled _) _) (Wired (Abst ws m)) =
     helper a (Gate id ps ins outs b flag inv inlbs outlbs) =
       Gate id ps ins outs (VPair b (VVar a)) flag inv inlbs outlbs
 
-evalApp (VApp (VApp (VApp (VApp (VApp VWithComputed _) _) _) _) _) m =
+evalApp (VApp (VApp VWithComputed _) _) m =
   return $ VComputed m
 
--- Congugate the circ1 : Circ(a, b*e) to circ2 : Circ(b * c, b * d),
--- return a circuit of type Circ(a*c, a*d). The resulting circuit
+-- Congugate the circ1 : Circ(a, b) to circ2 : Circ(b, b),
+-- return a circuit of type Circ(a, a). The resulting circuit
 -- can be controlled via circ2 (not circ1). 
-evalApp (VComputed (Wired (Abst ws1 circ1))) (Wired (Abst ws2 circ2)) = 
-  let gs1 = gates circ1
-      sigma1 = inputLabels circ1
-      sigma2 = outputLabels circ1
-      ctrls1 = circCtrl circ1
-      a = input circ1
-      b1 = fstVPair $ output circ1 
-      e = sndVPair $ output circ1
-      gs1' = map disableCtrl gs1
-      gs1'' = revGates gs1'
-      circ1' = Circuit (VPair b1 e) gs1'' a sigma2 sigma1 ctrls1
-      b2 = fstVPair $ input circ2
-      binding = makeBinding b2 b1
-      circ2' = rename circ2 binding
-      gs2 = gates circ2'
-      c = sndVPair $ input circ2'
-      b3 = fstVPair $ output circ2'
-      d = sndVPair $ output circ2'
-      binding2 = makeBinding b1 b3
-      circ3 = rename circ1' binding2
-      gs1''' = gates circ3
-      a' = output circ3
-      sigmaIn = sigma1 ++ (inputLabels circ2' \\ getWires (fstVPair $ input circ2'))
-      sigmaOut = outputLabels circ3 ++ (outputLabels circ2' \\ getWires b3)
-      res = 
-        Wired $
-        abst
-          (ws1 ++ ws2)
-          (Circuit (VPair a c) (gs1' ++ gs2 ++ gs1''') (VPair a' d) sigmaIn sigmaOut VStar)
-  in return res
+evalApp (VComputed c1) c2 = 
+  let (Wired (Abst ws (Circuit ins gs outs inlbs outlbs ctrl))) = c1
+      (Wired (Abst ws2 (Circuit ins2 gs2 outs2 inlbs2 outlbs2 ctrl2))) = c2 
+      (Wired (Abst ws' (Circuit ins' gs' outs' inlbs' outlbs' ctrl'))) =
+        Wired (abst ws $ Circuit outs (revGates gs) ins outlbs inlbs ctrl)
+      binding = makeBinding ins2 outs
+      c2' = rename (Circuit ins2 gs2 outs2 inlbs2 outlbs2 ctrl2) binding
+      d = output c2'
+      binding2 = makeBinding ins' d
+      c1'' = rename (Circuit ins' gs' outs' inlbs' outlbs' ctrl') binding2
+      newgs = (map disableCtrl gs)++ (gates c2') ++ (map disableCtrl $ gates c1'')
+      res = abst (ws++ws2 ++ ws')
+            (Circuit ins newgs (output c1'') inlbs (outputLabels c1'') VStar)
+    in return (Wired res)   
   where
     disableCtrl (Gate e1 e2 e3 e4 e5 b inv ins outs) = Gate e1 e2 e3 e4 e5 False inv ins outs
-    fstVPair (VPair a _) = a
-    sndVPair (VPair _ b) = b
+
 
 evalApp a@(Wired _) w = return a
 
