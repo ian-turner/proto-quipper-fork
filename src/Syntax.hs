@@ -715,7 +715,11 @@ instance Disp (Map Variable Value) where
     vcat $
     map (\(x, y) -> dispRaw x <+> text ":=" <+> display flag y)
       (Map.toList l)
- 
+
+instance Disp [Label] where
+  display flag ls =
+    brackets (hsep $ punctuate comma (map (display flag) ls))
+    
 instance Disp (Map Variable (Value, Int, Int)) where
   display flag l =
     vcat $
@@ -730,13 +734,13 @@ instance Disp Circuit where
     nest 2 (vcat $ map (display flag) gs)
 
 instance Disp Gate where
-  display flag (Gate g params ins outs ctrls b _ _ _) =
+  display flag (Gate g params ins outs ctrls b _ insl outsl) =
     display flag g <> comma <+>
     brackets (hsep $ punctuate comma (map (display flag) params))
     <> comma <+>
     (display flag ins) <> comma <+>
     (display flag outs) <> comma <+>
-    (display flag ctrls) <> comma <+> text (show b)
+    (display flag ctrls) <> comma <+> text (show b) <+> (display flag insl <+> display flag outsl)
 
 -- | Convert a /basic value/ from the value domain to an expression,
 -- so that the type checker can take advantage of cbv.

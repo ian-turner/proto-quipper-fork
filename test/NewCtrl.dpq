@@ -2,16 +2,45 @@ module NewCtrl where
 import "lib/Prelude.dpq"
 
 
+swap' : !(Qubit* Qubit -> Qubit* Qubit)
+swap' x =
+  let (a, b) = x in (b, a)
+
 swapCirc : Circ(Qubit* Qubit , Qubit * Qubit)
-swapCirc = box (Qubit* Qubit) $ \ x -> let (a, b) = x in (b, a)
+swapCirc = box (Qubit* Qubit) swap'
 
 
-cswap : !(Qubit * Qubit -> Qubit -> Qubit * Qubit * Qubit)
-cswap = controlled swapCirc
+cswap : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit)
+cswap x = uncurry (controlled swapCirc) x
+
 
 
 cswapCirc : Circ(Qubit* Qubit * Qubit , Qubit * Qubit * Qubit)
-cswapCirc = box (Qubit* Qubit * Qubit) $ \ x -> let (a, b, c) = x in cswap (a, b) c
+cswapCirc = box (Qubit* Qubit * Qubit) cswap
+
+
+g : !(Qubit * Qubit -> Qubit * Qubit)
+g x =
+  let (a, b) = x
+      _ = Term0 a
+      _ = Term0 b
+  in (Init0 (), Init0 ())
+
+gCirc = boxCirc g
+
+-- g' : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit)
+-- g' x = uncurry (controlled gCirc) x
+
+-- The following will not be type checked. 
+-- f : Circ(Qubit * Bit, Bit * Qubit)
+-- f = box (Qubit * Bit) $ \ x -> let (a, b) = x in (b, a)
+
+
+-- f' : !(Qubit * Bit * Qubit -> Bit * Qubit * Qubit)
+-- f' x = uncurry (controlled f) x
+
+-- fCirc : Circ(Qubit* Bit * Qubit , Bit * Qubit * Qubit)
+-- fCirc = box (Qubit* Bit * Qubit) $ \ x -> let (a, b, c) = x in f' (a, b) c
 
 
 ccswap : !(Qubit * Qubit * Qubit -> Qubit -> Qubit * Qubit * Qubit * Qubit)
@@ -55,7 +84,7 @@ qft v =
       in VCons q'' qs''
 
 qft' : ! (n : Nat) -> Vec Qubit n -> Vec Qubit n
-qft' n l = reverse_vec (qft l)
+qft' n l = (qft (reverse_vec l))
 
 qftBox : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n) 
 qftBox n = box (Vec Qubit n) (\ x -> qft x)
@@ -71,16 +100,50 @@ qft_Box'_ctrl : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec
 qft_Box'_ctrl n = box (Vec Qubit n * Vec Qubit n) $ \ i ->
                         let (inputs, c) = i in controlled (qftBox' n) inputs c
 
+
+qft_adder_h : ! forall (m : Nat) -> Nat -> Qubit -> Vec Qubit m -> Vec Qubit m * Qubit
+qft_adder_h n b l = case l of
+       	     	        VNil -> (VNil, b)
+                        VCons q' qs' ->
+            		    let (b', c) = R n b q'
+			    	(res, b'') = qft_adder_h (S n) b' qs'
+		            in (VCons c res, b'')
+		    
+
+qft_adder : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n -> Vec Qubit n * Vec Qubit n
+qft_adder as bs = case bs of
+                      VNil -> (as, VNil)
+                      VCons b bs ->
+		         let (as', b') = qft_adder_h (S Z) b as in
+  			 case as' of
+			  VCons c cs -> 
+		            let (cs', bs') = qft_adder cs bs in
+		             (VCons c cs', VCons b' bs')
+
+
+adderBox : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n) 
+adderBox n = box (Vec Qubit n * Vec Qubit n) $ \ x -> let (a, b) = x in let (as, bs) = qft_adder a b in (as, reverse_vec bs)
+
+ctrl_adderBox : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n * Qubit, Vec Qubit n * Vec Qubit n * Qubit)
+ctrl_adderBox n =
+  box (Vec Qubit n * Vec Qubit n * Qubit) $ \ x -> let (a, b, c) = x in controlled (adderBox n) (a, b) c
+
+extendWires : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n) ->
+               Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n)
+extendWires n circ = box (Vec Qubit n * Vec Qubit n) $
+                       \ x -> let (a, b) = x in (a, (unbox circ) b)
+
+
+qft_adder_inplace : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n)
+qft_adder_inplace n =
+    withBasisChange (extendWires n $ qftBox n) (adderBox n)
+
+ctrl_add : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n * Qubit, Vec Qubit n * Vec Qubit n * Qubit)
+ctrl_add n =
+  box (Vec Qubit n * Vec Qubit n * Qubit) $ \ x -> let (a, b, c) = x in controlled (qft_adder_inplace n) (a, b) c
+
+
+
 --     (a, C, Sigma1, Sigma2, b) 
 --  when Sigma1 - list(a) , Sigma2 - list(b) 
 
--- The following will not be type checked. 
--- f : Circ(Qubit * Bit, Bit * Qubit)
--- f = box (Qubit * Bit) $ \ x -> let (a, b) = x in (b, a)
-
-
--- f' : !(Qubit * Bit -> Qubit -> Bit * Qubit * Qubit)
--- f' = controlled f
-
--- fCirc : Circ(Qubit* Bit * Qubit , Bit * Qubit * Qubit)
--- fCirc = box (Qubit* Bit * Qubit) $ \ x -> let (a, b, c) = x in f' (a, b) c

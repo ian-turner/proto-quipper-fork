@@ -739,40 +739,42 @@ gateCount (Just n) (Wired (Abst _ morph)) =
 refresh_gates :: Map Label Label -> [Gate] -> [Label] ->
                  ([Gate], Map Label Label)
 refresh_gates m [] s = ([], m)
-refresh_gates m (Gate name [] input VStar VStar b inv [] []: gs) s
+refresh_gates m (Gate name [] input VStar VStar b inv inls []: gs) s
   | getName name == "Term0" || getName name == "Term1" =
     let newInput = renameTemp input m
+        newls = renameLabels inls m
         (gs', newMap') = refresh_gates m gs (getWires newInput ++ s)
-    in (Gate name [] newInput VStar VStar b inv [] []: gs', newMap')
+    in (Gate name [] newInput VStar VStar b inv newls []: gs', newMap')
 
-refresh_gates m (Gate name [] input VStar VStar b inv [] [] : gs) s
+refresh_gates m (Gate name [] input VStar VStar b inv inls [] : gs) s
   | getName name == "Discard" =
     let newInput = renameTemp input m
+        newls = renameLabels inls m
         (gs', newMap') = refresh_gates m gs (getWires newInput ++ s)
-    in (Gate name [] newInput VStar VStar b inv [] []: gs', newMap')
+    in (Gate name [] newInput VStar VStar b inv inls []: gs', newMap')
 
-refresh_gates m (Gate name [] VStar output VStar b inv [] [] : gs) []
+refresh_gates m (Gate name [] VStar output VStar b inv [] outls : gs) []
   | getName name == "Init0" || getName name == "Init1" =
     let (gs', newMap') = refresh_gates m gs []
-    in (Gate name [] VStar output VStar b inv  [] []: gs', newMap')
+    in (Gate name [] VStar output VStar b inv [] outls: gs', newMap')
 
-refresh_gates m (Gate name [] VStar output VStar b inv [] []: gs) (h:s)
+refresh_gates m (Gate name [] VStar output VStar b inv [] outls: gs) (h:s)
   | getName name == "Init0" || getName name == "Init1" =
     let x:[] = getWires output
         m' = m `Map.union` Map.fromList [(x, h)]
         (gs', newMap') = refresh_gates m' gs s
-    in (Gate name [] VStar (VLabel h) VStar b inv [] [] : gs', newMap')
+    in (Gate name [] VStar (VLabel h) VStar b inv [] [h] : gs', newMap')
 
 -- All the other possible initialization.
-refresh_gates m (Gate name vs VStar output ctrl b inv [] []: gs) s =
+refresh_gates m (Gate name vs VStar output ctrl b inv inls outls: gs) s =
   let (gs', newMap') = refresh_gates m gs s
-  in (Gate name vs VStar output ctrl b inv [] [] : gs', newMap')
+  in (Gate name vs VStar output ctrl b inv inls outls : gs', newMap')
 
 -- All the other possible termination.
-refresh_gates m (Gate name vs input VStar ctrl b inv [] [] : gs) s =
+refresh_gates m (Gate name vs input VStar ctrl b inv inls outls : gs) s =
   let input' = renameTemp input m
       (gs', newMap') = refresh_gates m gs s
-  in (Gate name vs input' VStar ctrl b inv [] [] : gs', newMap')
+  in (Gate name vs input' VStar ctrl b inv inls outls : gs', newMap')
 
 
 refresh_gates m (Gate name vs input output ctrl b inv inputlbs outputlbs : gs) s =
