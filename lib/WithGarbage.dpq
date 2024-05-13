@@ -225,10 +225,10 @@ boxGarbage : ! {a b : Type} -> (Simple a , Simple b) =>
                !(a -> WithGarbage b) -> (n : Nat) * Circ(a, Vec Qubit n * b)
 boxGarbage a b f = box_garbage a b f
 
-with_computed : ! forall c ->  (a b : Type) -> (Simple a, Simple b) =>
+with_computed_e : ! forall c ->  (a b : Type) -> (Simple a, Simple b) =>
                        !(a -> (n : Nat) * Vec Qubit n * b) ->
                        (b -> c * b) -> (a -> c * a)
-with_computed a b ex g = \ input ->
+with_computed_e a b ex g = \ input ->
   let (_, h_circ) = existsBox a (\ x -> Vec Qubit x * b) ex
       h' = unbox h_circ
       (v, r) = h' input
@@ -241,16 +241,16 @@ with_computed a b ex g = \ input ->
 without_garbage : ! forall c -> (a b : Type) -> (Simple a , Simple b) =>
                !(a -> WithGarbage b) -> (b -> c * b) -> (a -> c * a)
 without_garbage a b f g =
-   with_computed a b (\ x -> runGarbage (f x)) g    
+   with_computed_e a b (\ x -> runGarbage (f x)) g    
 
 withoutGarbage : ! forall c -> {a b : Type} -> (Simple a , Simple b) =>
                !(a -> WithGarbage b) -> (b -> c * b) -> (a -> c * a)
 withoutGarbage a b f g = without_garbage a b f g
 
-with_computed2 : ! forall c d ->  (a b : Type) -> (Simple a, Simple b) =>
+with_computed_e2 : ! forall c d ->  (a b : Type) -> (Simple a, Simple b) =>
                        !(a ->  (n : Nat) * Vec Qubit n * b) ->
                        (b * d -> b * c) -> (a * d -> a * c)
-with_computed2 x y ex g = \ input ->
+with_computed_e2 x y ex g = \ input ->
   let (_, h_circ) = existsBox x (\ z -> Vec Qubit z * y) ex
       h' = unbox h_circ
       (a, d) = input
@@ -263,7 +263,7 @@ with_computed2 x y ex g = \ input ->
 without_garbage2 : ! forall c d -> (a b : Type) -> (Simple a , Simple b) =>
                !(a -> WithGarbage b) -> (b * d -> b * c) -> (a * d -> a * c)
 without_garbage2 a b f g y =
-  with_computed2 a b (\ x -> runGarbage (f x)) g y   
+  with_computed_e2 a b (\ x -> runGarbage (f x)) g y   
 
 
 

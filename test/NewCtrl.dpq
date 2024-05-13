@@ -174,3 +174,14 @@ ctrl_add' n =
 --     (a, C, Sigma1, Sigma2, b) 
 --  when Sigma1 - list(a) , Sigma2 - list(b) 
 
+phase : Circ(Unit, Unit)
+phase = withComputed (boxCirc Init0) (boxCirc ZGate)
+
+cphase : Circ(Qubit, Qubit)
+cphase = boxCirc $ \ x -> let (_, x) = controlled phase () x in x
+
+mynot : Circ(Qubit, Qubit)
+mynot = withComputed (boxCirc $ \ x -> (Init1 (), x)) (boxCirc $ \ x -> let (a, b) = x in CNot a b)
+
+cmynot : Circ(Qubit * Qubit, Qubit * Qubit)
+cmynot = boxCirc $ \ x -> let (a, b) = x in controlled mynot a b

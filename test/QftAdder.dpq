@@ -35,8 +35,8 @@ extendWires : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n) ->
 extendWires n circ = box (Vec Qubit n * Vec Qubit n) $
                        \ x -> let (a, b) = x in (a, (unbox circ) b)
 
-withComputed' : ! {a b : Type} -> (Simple a, Simple b) => Circ(a, b) -> Circ(b, b) -> (a -> a)
-withComputed' a b circ c = unbox $ withBasisChange circ c
+-- withComputed' : ! {a b : Type} -> (Simple a, Simple b) => Circ(a, b) -> Circ(b, b) -> (a -> a)
+-- withComputed' a b circ c = unbox $ withBasisChange circ c
   -- let circ_rev = unbox (reverse circ)
   --     c' = unbox c
   --     circ' = unbox circ
@@ -45,8 +45,8 @@ withComputed' a b circ c = unbox $ withBasisChange circ c
 
 qft_adder_inplace : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n)
 qft_adder_inplace n =
-  box (Vec Qubit n * Vec Qubit n) $ \ x -> 
-    (withComputed' (extendWires n $ qft_little_headian_Box n) (adderBox n)) x
+--  box (Vec Qubit n * Vec Qubit n) $ \ x -> 
+    withComputed (extendWires n $ qft_little_headian_Box n) (adderBox n)
 
 -- qft_adder_inplace_t1 = qft_adder_inplace four
 

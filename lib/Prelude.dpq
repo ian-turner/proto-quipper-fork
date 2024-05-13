@@ -68,14 +68,12 @@ controlling a f q s = controlled (box a f) q s
 -- test = (0, (VNil, True))
 
 
--- withBasisChange : !{a b : Type} -> (Simple a, Simple b) =>
---                       Circ(a, b) -> Circ(b, b) -> Circ(a, a)
--- withBasisChange a b circ1 circ2 = 
---   let circ1' = box a (\ x -> (unbox circ1 x, ()))
---       circ2' = box (b * Unit) (\ x -> let (y, z) = x in (unbox circ2 y, z))
---       circ3 = withComputed circ1' circ2'
---   in box a (\ x -> let (r, _) = unbox circ3 (x, ()) in r)
-
+with_computed : ! (a b c d : Type) -> (Simple a, Simple b, Simple c, Simple d) =>
+                   !(a -> d * b) -> !(b * c -> b * c) -> !(a * c -> a * c)
+with_computed a b c d f g x =
+  let fCirc = box (a * c) $ \ x -> let (u1, u2) = x in (f u1, u2)
+      gCirc = box (d * b * c) $ \ x -> let (u1, u2, u3) = x in let (u2, u3) = g (u2, u3) in (u1, u2, u3)
+  in unbox (withComputed fCirc gCirc) x
 
 -- Warning: noted the result type is not directly related to input.
 class Initialize b a where
