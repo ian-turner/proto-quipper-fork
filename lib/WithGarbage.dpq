@@ -238,6 +238,7 @@ with_computed_e a b ex g = \ input ->
   in (c, res)
 
 
+
 without_garbage : ! forall c -> (a b : Type) -> (Simple a , Simple b) =>
                !(a -> WithGarbage b) -> (b -> c * b) -> (a -> c * a)
 without_garbage a b f g =

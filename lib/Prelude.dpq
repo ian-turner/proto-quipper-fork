@@ -67,6 +67,10 @@ controlling a f q s = controlled (box a f) q s
 -- test : (x : Nat) * Vec Nat x * Bool -- == (x : Nat) * (Vec Nat x * Bool)
 -- test = (0, (VNil, True))
 
+control : ! {a s : Type} ->
+            (Simple s, Simple a) => Circ(a, a) -> Circ(a * s, a * s)
+control a s c = boxCirc $ \ x -> (uncurry $ controlled c) x
+
 
 with_computed : ! (a b c d : Type) -> (Simple a, Simple b, Simple c, Simple d) =>
                    !(a -> d * b) -> !(b * c -> b * c) -> !(a * c -> a * c)

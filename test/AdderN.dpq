@@ -51,6 +51,25 @@ nAdder n carry_in as bs =
   	   return (VCons s res, carry_out')
 
 
+
+with_computed_c : ! {a b c d : Type} -> (Simple a, Simple b, Simple c, Simple d) =>
+                   Circ(a, d * b) -> Circ(b * c, b * c) -> Circ(a * c, a * c)
+with_computed_c a b c d f g =
+  let fCirc = box (a * c) (\ x -> let (u1, u2) = x in (unbox f u1, u2))
+      gCirc = box (d * b * c) (\ x -> let (u1, u2, u3) = x in let (u2, u3) = unbox g (u2, u3) in (u1, u2, u3))
+  in withComputed fCirc gCirc
+
+with_computed_g : !{a b c : Type} ->
+                    (Simple a, Simple b, Simple c) =>
+                    !(a -> WithGarbage b) ->
+                    !(b * c -> b * c) -> Circ(a * c, a * c)
+with_computed_g a b c f g =
+  let (_, circ) = existsBox a (λx -> Vec Qubit x * b) (λz -> runGarbage (f z))
+      gCirc = box (b * c) g 
+      h = with_computed_c circ gCirc
+  in h
+
+
 nAdderRev : ! (n : Nat) -> Circ(Qubit * Vec Qubit n * Vec Qubit n,
                                    Vec Qubit n * Qubit *
 				     (Qubit * Vec Qubit n * Vec Qubit n))
@@ -62,22 +81,68 @@ nAdderRev n = box (Qubit * Vec Qubit n * Vec Qubit n) $ \ x ->
             copy 
   in c x
 
--- nAdderRev : ! (n : Nat) -> Circ(Qubit * Vec Qubit n * Vec Qubit n,
---                                    Vec Qubit n * Qubit *
--- 				     (Qubit * Vec Qubit n * Vec Qubit n))
+nAdderRev' : ! (n : Nat) -> Circ(Qubit * Vec Qubit n * Vec Qubit n * (Vec Qubit n * Qubit),
+                                   Qubit * Vec Qubit n * Vec Qubit n * (Vec Qubit n * Qubit))
+nAdderRev' n =
+  with_computed_g (\ x -> let (q, as, bs) = x in uncurry (uncurry (nAdder n)) (q,  as, bs))
+   (\ x -> let (a, b, c) = x
+               (c, ab) = cnots c (a, b)
+               (a, b) = ab
+           in (a, b, c)
+          )
 
-nAdderRev' (n : Nat) = boxCirc $ \ x ->
-  let c = withoutGarbage
-            (\ x -> let (carry_in, a, b) = x in nAdder n carry_in a b) 
-            copy 
-  in c x
+nAdderRev'' : ! (n : Nat) -> Circ(Qubit * Vec Qubit n * Vec Qubit n * (Vec Qubit n * Qubit),
+                                   Qubit * Vec Qubit n * Vec Qubit n * (Vec Qubit n * Qubit))
+nAdderRev'' n =
+  boxCirc $
+    \ x -> let (c, as, bs, outs) = x
+               (ss, cout) = outs
+               (c, as, bs, outs) = unbox (nAdderRev' n) (c, reverse_vec as, reverse_vec bs, (reverse_vec ss, cout))
+               (ss', cout) = outs
+           in (c, reverse_vec as, reverse_vec bs, (reverse_vec ss', cout))
+           
+c_adderRev' : ! (n : Nat) -> Circ(Qubit * Vec Qubit n * Vec Qubit n * (Vec Qubit n * Qubit) * Qubit,
+                               Qubit * Vec Qubit n * Vec Qubit n * (Vec Qubit n * Qubit) * Qubit)
+c_adderRev' n = boxCirc $ \ x -> let (a, b, c, d, e) = x in controlled (nAdderRev'' n) (a, b, c, d) e
+
+extendWires : ! {a b: Type} -> (c : Type) -> (Simple a, Simple b, Simple c) => Circ(a, b) -> Circ(a * c, b * c)
+extendWires a b c circ =
+  box (a * c) $ \ z -> let (x, y) = z in ((unbox circ) x, y)
+
+nAdderR : ! (n : Nat) -> Circ(Qubit * Vec Qubit n * Vec Qubit n * (Vec Qubit n * Qubit),
+                                   Qubit * Vec Qubit n * Vec Qubit n * (Vec Qubit n * Qubit))
+nAdderR n =
+  let (m, circ) = boxGarbage (\ x -> uncurry (uncurry (nAdder n)) x) -- circ : Circ(Q * V n * V n, V m * V n * Q)
+      circ' = extendWires (Vec Qubit n * Qubit) circ
+      cp = box (Vec Qubit m * (Vec Qubit n * Qubit) * (Vec Qubit n * Qubit)) $
+               \ x -> let (gs, vq, r) = x
+                          (v, q) = vq
+                          (v', q') = r
+                          (v', v) = cnots v' v
+                          (q', q) = cnots q' q
+                      in (gs, (v, q), (v', q'))
+  in withComputed circ' cp
+
+
+c_adderR : ! (n : Nat) -> Circ(Qubit * Vec Qubit n * Vec Qubit n * (Vec Qubit n * Qubit) * Qubit,
+                               Qubit * Vec Qubit n * Vec Qubit n * (Vec Qubit n * Qubit) * Qubit)
+c_adderR n = boxCirc $ \ x -> let (a, b, c, d, e) = x in controlled (nAdderR n) (a, b, c, d) e
+
+
+
+
+-- boxCirc $ \ x ->
+--   let c = withoutGarbage
+--             (\ x -> let (carry_in, a, b) = x in nAdder n carry_in a b) 
+--             copy 
+--   in c x
 
 
 -- nAdderRev_test1 : Circ(Qubit * Vec Qubit 4 * Vec Qubit 4,
 --                                    -- Vec Qubit 4 * Qubit *
 -- 				   --   (Qubit * Vec Qubit 4 * Vec Qubit 4))
 
-nAdderRev_test1 = nAdderRev nine
+-- nAdderRev_test1 = nAdderRev' nine
 
 -- main = nAdderRev_test1
 -- nAdderRev_test2 = nAdderRev nine
@@ -98,8 +163,8 @@ adding = (False, repeat True nine, repeat False nine)
 -- Moreover, we don't want to turn type class into
 -- full blown prolog.
 
-main :  (Vec Bool nine * Bool * (Bool * Vec Bool nine * Vec Bool nine))
-main = runCirc nAdderRev_test1 adding
+main :  (Bool * Vec Bool 3 * Vec Bool 3) * (Vec Bool 3 * Bool)
+main = runCirc (nAdderRev'' 3)  (False, [False, True, True], [False, False, True], ([False, False, False], False))
 
 -- main = nAdderRev_test1 
 

@@ -28,6 +28,8 @@ gate Init1 : Unit -> Qubit : Term1
 gate WGate : Qubit -> Qubit -> Qubit * Qubit : WGateInverse
 -- gate WGate : Qubit -> Qubit -> Qubit * Qubit : WGate
 
+gate Swap : Qubit -> Qubit -> Qubit * Qubit : Swap
+
 -- gate {1,1,1} WGateInverse : Qubit -> Qubit -> Qubit * Qubit
 gate H : Qubit -> Qubit : H
 
