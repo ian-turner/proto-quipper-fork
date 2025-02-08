@@ -1,0 +1,53 @@
+module CCZ where
+import "lib/Prelude.dpq"
+
+-- Toffoli gate construction.
+
+cnot_circuit : !(Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit)
+cnot_circuit input =
+  let (x, y, z) = input
+      t0 = Init0 ()
+      t1 = Init0 ()
+      t2 = Init0 ()
+      t3 = Init0 ()
+      (t0, y) = CNot t0 y
+      (t0, x) = CNot t0 x
+      (t1, z) = CNot t1 z
+      (t1, x) = CNot t1 x
+      (t2, z) = CNot t2 z
+      (t2, y) = CNot t2 y
+      (t3, t2) = CNot t3 t2
+      (t3, x) = CNot t3 x
+  in (x, y, z, t0, t1, t2, t3)
+
+box_cnot_circuit = boxCirc cnot_circuit
+
+parallel_T : !(Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit)
+parallel_T input =
+  let (a0, a1, a2, a3, a4, a5, a6) = input
+  in (TGate a0, TGate a1, TGate a2, TGate_Inv a3, TGate_Inv a4, TGate_Inv a5, TGate a6)
+
+box_parallel_T = boxCirc parallel_T
+
+my_ccz : Circ(Qubit * Qubit * Qubit, Qubit * Qubit * Qubit)
+my_ccz =
+   withComputed (box_cnot_circuit) (box_parallel_T)
+
+ctrl_ccz : Circ(Qubit * (Qubit * Qubit * Qubit), Qubit * (Qubit * Qubit * Qubit))
+ctrl_ccz = control my_ccz
+
+cnot_circuit_rev : !(Qubit * Qubit * Qubit * Qubit * Qubit * Qubit * Qubit -> Qubit * Qubit * Qubit)
+cnot_circuit_rev = unbox (reverse (boxCirc cnot_circuit))
+
+my_ccz' : Circ(Qubit * Qubit * Qubit, Qubit * Qubit * Qubit)
+my_ccz' =
+  boxCirc $ \ input -> 
+              cnot_circuit_rev (parallel_T (cnot_circuit input))
+
+-- The following gives rise to a typing error.
+-- ctrl_my_ccz' : Circ(Qubit * (Qubit * Qubit * Qubit), Qubit * (Qubit * Qubit * Qubit))
+-- ctrl_my_ccz' = control my_ccz'
+
+                
+
+
