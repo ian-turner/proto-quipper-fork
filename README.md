@@ -1,5 +1,9 @@
-# Proto-Quipper-D/Dyn
+# An implementation of Proto-Quipper 
 
+This is an implementation of Proto-Quipper with
+reversing, control, dynamic lifting.
+We also provide an implementation of dependent
+types, but it is an experimental feature. 
 
 
 
