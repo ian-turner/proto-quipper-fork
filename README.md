@@ -1,8 +1,8 @@
 # An implementation of Proto-Quipper 
 
 This is an implementation of Proto-Quipper with
-reversing, control, dynamic lifting.
-We also provide an implementation of dependent
+reversing, control and dynamic lifting.
+We also provide an integration with dependent
 types, but it is an experimental feature. 
 
 
