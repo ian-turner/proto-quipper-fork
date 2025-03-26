@@ -278,6 +278,21 @@ gateRot r (ctxt, qvec) n = (ctxt, extend_linearly f qvec)
           ((fromDyadic $ to_dyadic $ (realToFrac (cos r) :: Rational)) + i * (fromDyadic $ to_dyadic $ (realToFrac (sin r) :: Rational))) 
       | otherwise = Map.singleton vec 1
 
+-- | Apply a controlled-/Rotation/-gate to the given pair of qubits. It implements the
+-- following matrix, where r is the parameter. 
+-- [1, 0     ]
+-- [0, e^{i*r}]
+gateCRot :: Double -> QState -> Register -> Register -> QState
+gateCRot r (ctxt, qvec) x y = (ctxt, extend_linearly f qvec)
+  where
+    f vec
+      | readbit (ctxt, vec) x == True
+      && readbit (ctxt, vec) y == True =
+          Map.singleton vec
+          ((fromDyadic $ to_dyadic $ (realToFrac (cos r) :: Rational)) + i * (fromDyadic $ to_dyadic $ (realToFrac (sin r) :: Rational))) 
+      | otherwise = Map.singleton vec 1
+
+
 -- | Apply a /T/-gate to the given qubit.
 gateT :: QState -> Register -> QState
 gateT (ctxt, qvec) n = (ctxt, extend_linearly f qvec)
@@ -694,6 +709,10 @@ interpret_command (SInv x xs) st =
 interpret_command (CNOT x y xs) st = 
   case run (binary_gate gateCNOT x y xs) st of
     (st', ()) -> return (Just st', OK)
+interpret_command (CRot r x y xs) st =
+  case run (binary_gate (gateCRot r) x y xs) st of
+    (st', ()) -> return (Just st', OK)
+    
 interpret_command (TOF x y z xs) st = 
   case run (ternary_gate gateTOF x y z xs) st of
     (st', ()) -> return (Just st', OK)    

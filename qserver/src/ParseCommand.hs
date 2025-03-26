@@ -27,6 +27,8 @@ data Command =
   | S Register [Ctrl]
   | T Register [Ctrl]
   | Rot Double Register [Ctrl]
+  | CRot Double Register Register [Ctrl]
+
   | Diag Double Double Register [Ctrl]
   | TInv Register [Ctrl]
   | SInv Register [Ctrl]
@@ -96,6 +98,10 @@ parse_command s = aux (words s) where
   aux ("T" : _) = throw (ParseError s "Command T* requires at least one argument")
   aux ("ROT" : r : y : ctrls) = Rot (read r) (parse_reg y) (map parse_ctrl ctrls)
   aux ("ROT" : _) = throw (ParseError s "Command ROT requires at least one argument")
+
+  aux ("CROT" : r : x : y : ctrls) = CRot (read r) (parse_reg x) (parse_reg y) (map parse_ctrl ctrls)
+  aux ("CROT" : _) = throw (ParseError s "Command CROT requires at least one argument")
+  
   aux ("DIAG" : a : b : y : ctrls) = Diag (read a) (read b) (parse_reg y) (map parse_ctrl ctrls)
   aux ("DIAG" : _) = throw (ParseError s "Command DIAG requires at least one argument")
 

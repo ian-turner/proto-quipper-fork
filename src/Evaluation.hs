@@ -546,21 +546,6 @@ size (VPair e1 e2) = size e1 + size e2
 size a =
   error $ "applying size function to an ill-formed template:" ++ (show $ disp a)
 
--- | Convert applicative natural number into the haskell int type.
-toInt :: Value -> Maybe Int
-toInt (VApp (VConst id) t') =
-  if getName id == "S" then
-    do n <- toInt t'
-       return $ 1+ n
-  else Nothing
-
-toInt (VConst id) = 
-  if getName id == "Z" then
-    return 0
-  else Nothing
-
-toInt _ = Nothing
-
 
 
 -- | Generate a list of swap gates from a list of positions. 

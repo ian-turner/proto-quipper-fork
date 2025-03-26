@@ -190,6 +190,34 @@ interaction (RW_Write g@(Gate name [] (VLabel v) (VLabel w) VStar _ _ _ _) c) h 
              fmap (\ (x, y) -> (x, g:y)) res
              
 -- binary unitary gate
+interaction (RW_Write g@(Gate name [n] v@(VPair (VLabel _) (VLabel _))
+                         w@(VPair _ _) VStar _ _ _ _) cs) h map ls
+  | getName name == "R" =
+          do let (VPair (VLabel a) (VLabel b)) = renameTemp v map
+                 (VPair (VLabel c) (VLabel d)) = w
+                 map' = map `Map.union` Map.fromList [(c, a), (d, b)]
+                 gn = toGateName (getName name)
+                 Just n' = toInt n
+                 r = (2 * pi) / (2 ^ n') -- e^(2pi i /2^n)
+                 len = 100
+             hPutStrLn h (gn++ " "++ showCReal len r ++ " "++ labelToNum a ++ " " ++ labelToNum b)
+             let res = interaction cs h map' ls
+             fmap (\ (x, y) -> (x, g:y)) res
+
+interaction (RW_Write g@(Gate name [n] v@(VPair (VLabel _) (VLabel _))
+                         w@(VPair _ _) VStar _ _ _ _) cs) h map ls
+  | getName name == "R_Inv" =
+          do let (VPair (VLabel a) (VLabel b)) = renameTemp v map
+                 (VPair (VLabel c) (VLabel d)) = w
+                 map' = map `Map.union` Map.fromList [(c, a), (d, b)]
+                 gn = toGateName (getName name)
+                 Just n' = toInt n
+                 len = 100
+                 r = (2 * pi) / (2 ^ n') -- e^(2pi i /2^n)
+             hPutStrLn h (gn++ " "++ showCReal len (-r) ++ " "++ labelToNum a ++ " " ++ labelToNum b)
+             let res = interaction cs h map' ls
+             fmap (\ (x, y) -> (x, g:y)) res
+
 interaction (RW_Write g@(Gate name [] v@(VPair (VLabel _) (VLabel _))
                          w@(VPair _ _) VStar _ _ _ _) cs) h map ls =
           do let (VPair (VLabel a) (VLabel b)) = renameTemp v map
@@ -217,6 +245,7 @@ interaction (RW_Write g res) h map ls =
 
                                                    
 toGateName "CNot" = "CNOT"
+
 toGateName "CY" = "CY"
 toGateName "CZ" = "CZ"
 toGateName "Meas" = "M"
@@ -234,6 +263,8 @@ toGateName "SGate_Inv" = "S*"
 toGateName "Discard" = "D"
 toGateName "Rot" = "ROT"
 toGateName "Rot_Inv" = "ROT"
+toGateName "R" = "CROT"
+toGateName "R_Inv" = "CROT"
 toGateName "Diag" = "DIAG"
 toGateName a = 
    E.throw $ userError $ "unsupported gate: " ++ a
@@ -253,3 +284,19 @@ runTCPClient host port client = withSocketsDo $ do
 
 labelToNum l =
   let r = tail (show l) in if null r then "0" else r
+
+
+-- | Convert applicative natural number into the haskell int type.
+toInt :: Value -> Maybe Int
+toInt (VApp (VConst id) t') =
+  if getName id == "S" then
+    do n <- toInt t'
+       return $ 1+ n
+  else Nothing
+
+toInt (VConst id) = 
+  if getName id == "Z" then
+    return 0
+  else Nothing
+
+toInt _ = Nothing

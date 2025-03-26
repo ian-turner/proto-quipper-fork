@@ -23,6 +23,7 @@ dependencies:
 - random
 - time
 - pretty
+- numbers
 
 library:
   source-dirs: src
