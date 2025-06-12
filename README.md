@@ -28,10 +28,17 @@ E.g. add `export DPQ=<path-to-dpq-directory>` to your `.bashrc` file.
    ```
    You should now be able to use `C-c C-l` to type check your dpq file.
 
-5. Test your installation. Just type `dpqi` in the terminal to invoke
+5. Optional: if you are a Vim user, you can add the vim syntax highlighting plugin by copying
+   `dpq.vim` to your `.vim/syntax` folder and adding the following line to your `vimrc` file
+
+   ```
+   autocmd BufNewFile,BufRead *.dpq setfiletype dpq
+   ```
+
+6. Test your installation. Just type `dpqi` in the terminal to invoke
    the interpreter. In the dpqi interpreter, type `:h` to see a list of options.  
 
-6. To use the ''dynamic lifting'' feature, you have to start a qserver daemon `qserver -d` before
+7. To use the ''dynamic lifting'' feature, you have to start a qserver daemon `qserver -d` before
    running the interpreter. The qserver uses port 1901, so make sure it has
    the permission. 
 
