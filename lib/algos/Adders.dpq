@@ -1,0 +1,79 @@
+module Adder where
+import "lib/Prelude.dpq"
+
+
+maj : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
+maj a b c =
+  let (b, c) = CNot b c
+      (a, c) = CNot a c
+      (c, a, b) = Toffoli c a b
+  in (a, b, c)
+
+
+maj_circ : Circ(Qubit * Qubit * Qubit, Qubit * Qubit * Qubit)
+maj_circ =
+  box (Qubit * Qubit * Qubit) (\ x -> uncurry (uncurry maj) x)
+
+
+unmaj : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
+unmaj a b c =
+  let (c, a, b) = Toffoli c a b
+      (a, c) = CNot a c
+      (b, a)= CNot b a
+  in (a, b, c)
+
+
+cuccaro_adder : ! forall (n : Nat) ->
+                  Vec Qubit n -> Vec Qubit n
+                  -> Qubit -> Qubit ->
+                  Vec Qubit n * Vec Qubit n * Qubit * Qubit
+cuccaro_adder as bs c z =
+  case as of
+    VNil ->
+      case bs of
+        VNil ->
+           let (z, c) = CNot z c
+           in (VNil, VNil, c, z)
+    VCons a as' ->
+      case bs of
+        VCons b bs' ->
+          let (a, b, c) = maj a b c
+              (as', ss, c, z) = cuccaro_adder as' bs' c z
+              (a, s, c) = unmaj a b c
+          in (VCons a as', VCons s ss, c, z)
+
+cuccaro_adder_circ : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n * Qubit * Qubit, Vec Qubit n * Vec Qubit n * Qubit * Qubit)
+cuccaro_adder_circ n = boxCirc (\ x -> let (as, bs, c, z) = x in cuccaro_adder as bs c z)
+
+
+rotate_by_bs : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n ->
+                  Vec Qubit n * Vec Qubit n
+rotate_by_bs bs as =
+  case bs of
+    VNil ->
+      case as of
+        VNil -> (VNil, VNil)
+    VCons b bs ->
+       case as of
+         VCons a as ->
+           let (a, bs') = crotates 1 a (VCons b bs)
+               VCons b bs = bs'
+               (bs, as) = rotate_by_bs bs as
+           in (VCons b bs, VCons a as)
+            
+
+rotate_by_bs_circ : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n)
+rotate_by_bs_circ n = boxCirc (\ x -> let (bs, as) = x in rotate_by_bs bs as)
+
+
+qft_adder_circ : ! (n : Nat) -> Circ(Vec Qubit n * Vec Qubit n, Vec Qubit n * Vec Qubit n)
+qft_adder_circ n =
+  withComputed (boxCirc (\ x -> let (bs , as) = x in (bs, qft as)))
+    (rotate_by_bs_circ n)
+
+
+test_adder : ! (n : Nat) -> Vec Bool n -> Vec Bool n -> Vec Bool n * Vec Bool n
+test_adder n bs as =
+   let as = init as
+       bs = init bs
+   in measure $ unbox (qft_adder_circ n) (bs, as)

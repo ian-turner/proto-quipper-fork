@@ -1,0 +1,59 @@
+module SimBench where
+import "lib/algos/QFT.dpq"
+import "lib/algos/Adders.dpq"
+
+
+-- Helper function to convert binary to natural number
+
+binary_to_nat : ! forall (n : Nat) -> Vec Bool n -> Nat
+binary_to_nat v =
+  case v of
+    VNil -> Z
+    VCons x xs ->
+      case x of
+        True -> S (mul two (binary_to_nat xs))
+	False -> mul two (binary_to_nat xs)
+
+
+-- Recursive helper function to convert natural number to binary
+
+nat_to_binary_rec : ! (n : Nat) -> Nat -> Vec Bool n
+nat_to_binary_rec n inp =
+    case n of
+        Z -> VNil
+        S n' -> VCons (if ((mod inp 2) == 0) then False else True) (nat_to_binary_rec n' (div inp 2))
+
+nat_to_binary : ! (n : Nat) -> Nat -> Vec Bool n
+nat_to_binary n inp = reverse_vec (nat_to_binary_rec n inp)
+
+
+-- Initializes n qubits in the given boolean states
+
+init_n : ! (n : Nat) -> Vec Qubit n
+init_n n =
+    case n of
+        Z -> VNil
+        S n' -> let q = (Init0 ())
+                    qs = init_n n'
+                in (VCons q qs)
+
+
+-- Runs QFT in n qubits initialized in the |0> state and measures the result
+
+qft_test : ! (n : Nat) -> Vec Bool n
+qft_test n =
+    let qs = init_n n
+        qs' =  qft qs
+    in (measure qs')
+
+
+-- Converts input numbers to binary, runs adder, and returns the result as binary
+
+adder_test : ! (n : Nat) -> Nat -> Nat -> Vec Bool n
+adder_test n a b =
+    snd (test_adder n (nat_to_binary n a) (nat_to_binary n b))
+
+
+--adder_test : ! Nat -> Nat -> Nat -> Nat
+--adder_test n a b =
+--    binary_to_nat (reverse_vec (snd (test_adder n (nat_to_binary n a) (nat_to_binary n b))))

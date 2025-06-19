@@ -1,0 +1,31 @@
+module QFT where
+import "lib/Prelude.dpq"
+
+crotates : ! forall (m : Nat) ->
+                  Nat -> Qubit -> Vec Qubit m ->
+                   Qubit * Vec Qubit m
+crotates n q xs =
+  case xs of
+     VNil -> (q, VNil)
+     VCons x xs' ->
+       let (q, x) = R n q x
+           (q, xs') = crotates (S n) q xs'
+       in (q, VCons x xs')
+
+
+phi : ! forall (n : Nat) -> Qubit -> Vec Qubit n -> Qubit * Vec Qubit n
+phi q xs = crotates 2 (H q) xs
+
+
+qft : ! forall (n : Nat) -> Vec Qubit n -> Vec Qubit n
+qft xs =
+  case xs of
+    VNil -> VNil
+    VCons x xs' ->
+      let (x, xs') = phi x xs'
+          xs' = qft xs'
+      in VCons x xs'
+
+
+qft_circ : ! (n : Nat) -> Circ(Vec Qubit n, Vec Qubit n)
+qft_circ n = boxCirc (\ x -> qft x)
