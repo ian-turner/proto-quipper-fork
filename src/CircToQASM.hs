@@ -41,19 +41,23 @@ toQASMGate "Rot" = "rz"
 -- Init gates
 gateToQASM (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
     | gateName == "Init0" =
-    "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";"
+        "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";"
 
 gateToQASM (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
     | gateName == "Init1" =
-    "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";\nx " ++ (show l) ++ ";"
+        "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";\nx " ++ (show l) ++ ";"
 
 -- Single qubit gates
+gateToQASM (Gate (Id gateName) _ (VLabel l) output ctrl _ _ _ _)
+    | (gateName == "Meas" || gateName == "Discard") =
+        "bit b_" ++ (show l) ++ ";\nb_" ++ (show l) ++ " = measure " ++ (show l) ++ ";"
+    
 gateToQASM (Gate (Id gateName) _ (VLabel l) output ctrl _ _ _ _) =
     (toQASMGate gateName) ++ " " ++ (show l) ++ ";"
 
 -- Two qubit gates
 gateToQASM (Gate (Id gateName) _ (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
-    (toQASMGate gateName) ++ " " ++ (show l1) ++ ", " ++ (show l2) ++ ";"
+    (toQASMGate gateName) ++ " " ++ (show l2) ++ ", " ++ (show l1) ++ ";"
 
 
 joinStrings :: [String] -> String -> String
@@ -64,7 +68,7 @@ joinStrings (x:xs) s = x ++ s ++ (joinStrings xs s)
 
 -- Converts `Wired` circuit objects to QASM circuits
 saveCircAsQASM (Wired circ) s =
-    open circ $ \ ws morph ->
+    open circ $ \ _ morph ->
         let q1 = input morph
             ocirc = gates morph
             (gs, _) = refresh_gates Map.empty ocirc []
@@ -72,5 +76,5 @@ saveCircAsQASM (Wired circ) s =
             h <- openFile s WriteMode
             hPutStrLn h "OPENQASM 2.0;"
             hPutStrLn h "include \"qelib1.inc\";"
-            hPutStrLn h $ joinStrings (map gateToQASM gs) "\n"
+            hPutStr h $ joinStrings (map gateToQASM gs) "\n"
             hClose h
