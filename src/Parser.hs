@@ -203,7 +203,7 @@ displayEx = do
 -- | Parse the OpenQASM command
 compileOpenQASM :: Parser Command
 compileOpenQASM = do
-  try (reserved ":c") <|> reserved ":compile"
+  reserved ":qasm"
   t <- term
   path <- stringLiteral
   eof
