@@ -158,6 +158,7 @@ data Command
   | Print Exp String -- ^ Print a circuit expression to a file.
   | Display Exp -- ^ Display a circuit expression in system pdf.
   | DisplayEx Exp -- ^ Displaying existential circuit.
+  | ToQASM Exp String -- ^ Compile a circuit to OpenQASM and save to file
   | Annotation Exp -- ^ Print the fully annotated program.
   | GateCount (Maybe String) Exp
   | TopGateCount (Maybe String) (Maybe Exp)

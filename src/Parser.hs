@@ -135,6 +135,7 @@ command = do
     showCirc <|>
     gateC <|>
     topGateC <|>
+    compileOpenQASM <|>
     eval
 
 -- | Parse quit command.
@@ -198,6 +199,15 @@ displayEx = do
   t <- term
   eof
   return $ DisplayEx t
+
+-- | Parse the OpenQASM command
+compileOpenQASM :: Parser Command
+compileOpenQASM = do
+  try (reserved ":c") <|> reserved ":compile"
+  t <- term
+  path <- stringLiteral
+  eof
+  return $ ToQASM t path
 
 -- | Parse the show annotation command.
 annotation :: Parser Command
