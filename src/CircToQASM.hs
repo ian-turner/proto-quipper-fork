@@ -33,21 +33,27 @@ toQASMGate "S*" = "sdg"
 toQASMGate "T" = "t"
 toQASMGate "T*" = "tdg"
 toQASMGate "CNot" = "cx"
+toQASMGate "Rot" = "rz"
 
 
 -- Converts gate to QASM format
 
 -- Init gates
-gateToQASM (Gate (Id name) _ (VStar) (VLabel l) _ _ _ _ _) =
-    "qubit " ++ (show l) ++ ";"
+gateToQASM (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
+    | gateName == "Init0" =
+    "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";"
+
+gateToQASM (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
+    | gateName == "Init1" =
+    "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";\nx " ++ (show l) ++ ";"
 
 -- Single qubit gates
-gateToQASM (Gate (Id name) _ (VLabel l) output ctrl _ _ _ _) =
-    (toQASMGate name) ++ " " ++ (show l) ++ ";"
+gateToQASM (Gate (Id gateName) _ (VLabel l) output ctrl _ _ _ _) =
+    (toQASMGate gateName) ++ " " ++ (show l) ++ ";"
 
 -- Two qubit gates
-gateToQASM (Gate (Id name) _ (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
-    (toQASMGate name) ++ " " ++ (show l1) ++ ", " ++ (show l2) ++ ";"
+gateToQASM (Gate (Id gateName) _ (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
+    (toQASMGate gateName) ++ " " ++ (show l1) ++ ", " ++ (show l2) ++ ";"
 
 
 joinStrings :: [String] -> String -> String
