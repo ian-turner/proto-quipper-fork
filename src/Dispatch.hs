@@ -18,6 +18,7 @@ import TCMonad
 import TopMonad
 import TypeError
 import Utils
+import CircToQASM
 
 import Graphics.EasyRender
 import Nominal
@@ -147,6 +148,18 @@ dispatch (Print e file) = do
          -> do
           liftIO $ printCirc circ file
           return True
+    ty -> do
+      liftIO $ print (text "not a circuit")
+      return True
+
+dispatch (ToQASM e file) = do
+  e' <- topResolve e
+  (t', et) <- topTypeInfer e'
+  case t' of
+    A.Circ _ _ _ -> do
+      res <- evaluation et False
+      liftIO $ saveCircAsQASM res file
+      return True
     ty -> do
       liftIO $ print (text "not a circuit")
       return True
