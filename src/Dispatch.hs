@@ -158,7 +158,7 @@ dispatch (ToQASM e file) = do
   case t' of
     A.Circ _ _ _ -> do
       res <- evaluation et False
-      liftIO $ saveCircAsQASM res file
+      liftIO $ save_circ_as_qasm res file
       return True
     ty -> do
       liftIO $ print (text "not a circuit")
