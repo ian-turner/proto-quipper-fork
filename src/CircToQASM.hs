@@ -26,55 +26,61 @@ wirelist (Gate _ _ input output ctrl _ _ _ _: gs) =
 
 
 -- Converts Quipper gate Ids to OpenQASM gate names
-toQASMGate :: String -> String
-toQASMGate "H" = "h"
-toQASMGate "S" = "s"
-toQASMGate "S*" = "sdg"
-toQASMGate "T" = "t"
-toQASMGate "T*" = "tdg"
-toQASMGate "CNot" = "cx"
-toQASMGate "Rot" = "rz"
+to_qasm_gate :: String -> String
+to_qasm_gate "H" = "h"
+to_qasm_gate "S" = "s"
+to_qasm_gate "S*" = "sdg"
+to_qasm_gate "T" = "t"
+to_qasm_gate "T*" = "tdg"
+to_qasm_gate "CNot" = "cx"
+to_qasm_gate "Rot" = "rz"
 
 
 -- Converts gate to QASM format
 
 -- Init gates
-gateToQASM (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
+gate_to_qasm (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
     | gateName == "Init0" =
         "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";"
 
-gateToQASM (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
+gate_to_qasm (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
     | gateName == "Init1" =
         "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";\nx " ++ (show l) ++ ";"
 
 -- Single qubit gates
-gateToQASM (Gate (Id gateName) _ (VLabel l) output ctrl _ _ _ _)
+gate_to_qasm (Gate (Id gateName) _ (VLabel l) output ctrl _ _ _ _)
     | (gateName == "Meas" || gateName == "Discard") =
         "bit b_" ++ (show l) ++ ";\nb_" ++ (show l) ++ " = measure " ++ (show l) ++ ";"
     
-gateToQASM (Gate (Id gateName) _ (VLabel l) output ctrl _ _ _ _) =
-    (toQASMGate gateName) ++ " " ++ (show l) ++ ";"
+gate_to_qasm (Gate (Id gateName) _ (VLabel l) output ctrl _ _ _ _) =
+    (to_qasm_gate gateName) ++ " " ++ (show l) ++ ";"
 
 -- Two qubit gates
-gateToQASM (Gate (Id gateName) _ (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
-    (toQASMGate gateName) ++ " " ++ (show l2) ++ ", " ++ (show l1) ++ ";"
+gate_to_qasm (Gate (Id gateName) _ (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
+    (to_qasm_gate gateName) ++ " " ++ (show l2) ++ ", " ++ (show l1) ++ ";"
 
 
-joinStrings :: [String] -> String -> String
-joinStrings [] s = ""
-joinStrings (x:[]) s = x
-joinStrings (x:xs) s = x ++ s ++ (joinStrings xs s)
+string_join :: String -> [String] -> String
+string_join s [] = ""
+string_join s (x:[]) = x
+string_join s (x:xs) = x ++ s ++ (string_join s xs)
 
 
--- Converts `Wired` circuit objects to QASM circuits
-saveCircAsQASM (Wired circ) s =
+-- Converts `Wired` circuit objects to QASM circuit
+circ_to_qasm circ =
     open circ $ \ _ morph ->
         let q1 = input morph
             ocirc = gates morph
             (gs, _) = refresh_gates Map.empty ocirc []
-        in do
-            h <- openFile s WriteMode
-            hPutStrLn h "OPENQASM 2.0;"
-            hPutStrLn h "include \"qelib1.inc\";"
-            hPutStr h $ joinStrings (map gateToQASM gs) "\n"
-            hClose h
+            ws = getWires q1 `List.union` wirelist gs
+            num_qubits = fromIntegral $ List.length ws
+            gates_qasm = map gate_to_qasm gs
+        in (string_join "\n" ("OPENQASM 3.0;" : "include \"qelib1.inc\";" : gates_qasm))
+
+
+-- Runs the OpenQASM converter and stores result to text file
+save_circ_as_qasm (Wired circ) s =
+    do
+        h <- openFile s WriteMode
+        hPutStr h (circ_to_qasm circ)
+        hClose h
