@@ -1,2 +1,6 @@
 /**/.DS_Store
 /**/dpq-histfile.txt
+/**/.stack-work
+/**/.ipynb_checkpoints
+/**/stack.yaml.lock
+tmp

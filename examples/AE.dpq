@@ -5,7 +5,7 @@ bell00 : !(Unit -> Qubit * Qubit)
 bell00 u =
   let a = Init0 ()
       b = Init0 ()
-  in CNot b (H b)
+  in CNot b (H a)
 
 alice1 : !( Qubit -> Qubit -> Bit * Bit)
 alice1 a q =
