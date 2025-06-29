@@ -6,6 +6,7 @@ import SyntacticOperations
 import Nominal
 import Simulation
 
+import Data.Number.CReal
 import System.IO
 import Text.PrettyPrint
 import Data.Map.Strict (Map)
@@ -72,16 +73,17 @@ gate_to_qasm (Gate (Id gateName) _ (VLabel l) output _ _ _ _ _)
 gate_to_qasm (Gate (Id gateName) [] (VLabel l) output ctrl _ _ _ _) =
     (to_qasm_gate gateName) ++ " " ++ (show l) ++ ";"
     
--- Single qubit gates - with params
-gate_to_qasm (Gate (Id gateName) params (VLabel l) output ctrl _ _ _ _) =
-    (to_qasm_gate gateName) ++ "(" ++ (show params) ++ ") " ++ (show l) ++ ";"
+-- Single qubit rotation gate
+gate_to_qasm (Gate (Id gateName) [VWrapR (MR len r)] (VLabel l) output ctrl _ _ _ _)
+    | gateName == "Rot" =
+        "rz(" ++ (showCReal len r) ++ ") " ++ (show l) ++ ";"
 
 -- Two qubit gates - no params
 gate_to_qasm (Gate (Id gateName) [] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
     (to_qasm_gate gateName) ++ " " ++ (show l2) ++ ", "
         ++ (show l1) ++ ";"
 
--- Two qubit gates - with params
+-- Controlled rotation gate
 gate_to_qasm (Gate (Id gateName) [a] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _)
     | gateName == "R" =
         -- Parsing input param as int
