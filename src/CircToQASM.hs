@@ -4,6 +4,7 @@ import Syntax
 import Utils
 import SyntacticOperations
 import Nominal
+import Simulation
 
 import System.IO
 import Text.PrettyPrint
@@ -28,14 +29,20 @@ wirelist (Gate _ _ input output ctrl _ _ _ _: gs) =
 -- Converts Quipper gate Ids to OpenQASM gate names
 to_qasm_gate :: String -> String
 to_qasm_gate "H" = "h"
-to_qasm_gate "S" = "s"
-to_qasm_gate "S*" = "sdg"
-to_qasm_gate "T" = "t"
-to_qasm_gate "T*" = "tdg"
-to_qasm_gate "CNot" = "cx"
+to_qasm_gate "SGate" = "s"
+to_qasm_gate "SGate_Inv" = "sdg"
+to_qasm_gate "TGate" = "t"
+to_qasm_gate "TGate_Inv" = "tdg"
+to_qasm_gate "QNot" = "x"
+to_qasm_gate "ZGate" = "z"
+to_qasm_gate "YGate" = "y"
 to_qasm_gate "Rot" = "rz"
+to_qasm_gate "Toffoli" = "ccx"
+to_qasm_gate "CNot" = "cx"
+to_qasm_gate "CZ" = "cz"
+to_qasm_gate "CY" = "cy"
 
-qasm_header = "OPENQASM 3.0;\ninclude \"qelib1.inc\";"
+qasm_header = "OPENQASM 3.0;\ninclude \"stdgates.inc\";"
 
 
 -- Query map object for qubit label
@@ -48,26 +55,41 @@ label_to_qubit m l =
 -- Converts gate to QASM format
 
 -- Init gates
-gate_to_qasm qubit_map (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
+gate_to_qasm (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
     | gateName == "Init0" =
         "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";"
 
-gate_to_qasm qubit_map (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
+gate_to_qasm (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
     | gateName == "Init1" =
         "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";\nx " ++ (show l) ++ ";"
 
--- Single qubit gates
-gate_to_qasm qubit_map (Gate (Id gateName) _ (VLabel l) output ctrl _ _ _ _)
+-- Measurement and discard gates
+gate_to_qasm (Gate (Id gateName) _ (VLabel l) output _ _ _ _ _)
     | (gateName == "Meas" || gateName == "Discard") =
         "bit b_" ++ (show l) ++ ";\nb_" ++ (show l) ++ " = measure " ++ (show l) ++ ";"
     
-gate_to_qasm qubit_map (Gate (Id gateName) _ (VLabel l) output ctrl _ _ _ _) =
-    (to_qasm_gate gateName) ++ " " ++ (label_to_qubit qubit_map l) ++ ";"
+-- Single qubit gates - no params
+gate_to_qasm (Gate (Id gateName) [] (VLabel l) output ctrl _ _ _ _) =
+    (to_qasm_gate gateName) ++ " " ++ (show l) ++ ";"
+    
+-- Single qubit gates - with params
+gate_to_qasm (Gate (Id gateName) params (VLabel l) output ctrl _ _ _ _) =
+    (to_qasm_gate gateName) ++ "(" ++ (show params) ++ ") " ++ (show l) ++ ";"
 
--- Two qubit gates
-gate_to_qasm qubit_map (Gate (Id gateName) _ (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
-    (to_qasm_gate gateName) ++ " " ++ (label_to_qubit qubit_map l2) ++ ", "
-        ++ (label_to_qubit qubit_map l1) ++ ";"
+-- Two qubit gates - no params
+gate_to_qasm (Gate (Id gateName) [] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
+    (to_qasm_gate gateName) ++ " " ++ (show l2) ++ ", "
+        ++ (show l1) ++ ";"
+
+-- Two qubit gates - with params
+gate_to_qasm (Gate (Id gateName) [a] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _)
+    | gateName == "R" =
+        -- Parsing input param as int
+        case (toInt a) of
+            Nothing -> error "Error parsing R gate during QASM conversion"
+            Just n ->
+                "ctrl @ rz(" ++ (show n) ++ ") " ++ (show l2) ++ ", "
+                        ++ (show l1) ++ ";"
 
 
 string_join :: String -> [String] -> String
@@ -84,15 +106,12 @@ circ_to_qasm circ =
             ocirc = gates morph
             (gs, _) = refresh_gates Map.empty ocirc []
             ws = getWires q1 `List.union` wirelist gs
-            num_qubits = fromIntegral $ List.length ws
-            qubit_map = Map.fromList $ zip ws [0..(num_qubits-1)]
 
             -- Mapping over gates to convert each to qasm
-            gates_qasm = map (gate_to_qasm qubit_map) gs
-            qreg_init = "qreg qubits[" ++ (show num_qubits) ++ "];"
+            gates_qasm = map gate_to_qasm gs
 
         -- Joining all gate strings together with header
-        in (string_join "\n" (qasm_header : qreg_init : gates_qasm))
+        in (string_join "\n" (qasm_header : gates_qasm))
 
 
 -- Runs the OpenQASM converter and stores result to text file
