@@ -42,16 +42,27 @@ to_qasm_gate "Toffoli" = "ccx"
 to_qasm_gate "CNot" = "cx"
 to_qasm_gate "CZ" = "cz"
 to_qasm_gate "CY" = "cy"
+to_qasm_gate "C_Z" = "z"
+to_qasm_gate "C_Y" = "y"
+to_qasm_gate "C_X" = "x"
 
-qasm_header = "OPENQASM 3.0;\ninclude \"stdgates.inc\";"
+qasm_header = "OPENQASM 3.0; \n\
+              \include \"stdgates.inc\";"
 
 
--- Query map object for qubit label
-label_to_qubit m l =
-    case Map.lookup l m of
-        Nothing -> error "QASM converter error"
-        Just y -> "qubits[" ++ (show y) ++ "]"
-        
+-- Determines number of qubit and bit registers needed for circuit
+get_resource_count [] curr_bits curr_qubits max_bits max_qubits =
+    (curr_bits, curr_qubits, max_bits, max_qubits)
+get_resource_count (g:gs) curr_bits curr_qubits max_bits max_qubits =
+    case g of
+        (Gate (Id gateName) _ _ _ _ _ _ _ _) | (gateName == "Init0" || gateName == "Init1") ->
+            get_resource_count gs curr_bits (curr_qubits + 1) max_bits (max max_qubits (curr_qubits + 1))
+        (Gate (Id gateName) _ _ _ _ _ _ _ _) | (gateName == "Meas") ->
+            get_resource_count gs (curr_bits + 1) (curr_qubits - 1) (max max_bits (curr_bits + 1)) max_qubits
+        (Gate (Id gateName) _ _ _ _ _ _ _ _) | (gateName == "Discard") ->
+            get_resource_count gs (curr_bits - 1) curr_qubits max_bits max_qubits
+        _ -> get_resource_count gs curr_bits curr_qubits max_bits max_qubits
+
 
 -- Converts gate to QASM format
 
@@ -78,6 +89,11 @@ gate_to_qasm (Gate (Id gateName) [VWrapR (MR len r)] (VLabel l) output ctrl _ _ 
     | gateName == "Rot" =
         "rz(" ++ (showCReal len r) ++ ") " ++ (show l) ++ ";"
 
+-- Classical controlled X and Y gates
+gate_to_qasm (Gate (Id gateName) [] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _)
+    | (gateName == "C_X" || gateName == "C_Z" || gateName == "C_Y") =
+        "if (b_" ++ (show l2) ++ ") " ++ (to_qasm_gate gateName) ++ " " ++ (show l1) ++ ";"
+
 -- Two qubit gates - no params
 gate_to_qasm (Gate (Id gateName) [] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
     (to_qasm_gate gateName) ++ " " ++ (show l2) ++ ", "
@@ -103,17 +119,20 @@ string_join s (x:xs) = x ++ s ++ (string_join s xs)
 -- Converts `Wired` circuit objects to QASM circuit
 circ_to_qasm circ =
     open circ $ \ _ morph ->
-        let q1 = input morph
-            -- Parsing circuit object to extract gates
-            ocirc = gates morph
-            (gs, _) = refresh_gates Map.empty ocirc []
-            ws = getWires q1 `List.union` wirelist gs
+        -- let q1 = input morph
+        --     -- Parsing circuit object to extract gates
+        --     ocirc = gates morph
+        --     (gs, _) = refresh_gates Map.empty ocirc []
+        --     ws = getWires q1 `List.union` wirelist gs
 
-            -- Mapping over gates to convert each to qasm
-            gates_qasm = map gate_to_qasm gs
+        --     -- Mapping over gates to convert each to qasm
+        --     gates_qasm = map gate_to_qasm gs
 
-        -- Joining all gate strings together with header
-        in (string_join "\n" (qasm_header : gates_qasm))
+        -- -- Joining all gate strings together with header
+        -- in (string_join "\n" (qasm_header : gates_qasm))
+        let gs = gates morph
+            (_, _, bits, qubits) = get_resource_count gs 0 0 0 0
+        in (show (bits, qubits))
 
 
 -- Runs the OpenQASM converter and stores result to text file
