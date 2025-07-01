@@ -12,6 +12,20 @@ import Text.PrettyPrint
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.List as List
+import Text.Printf
+
+
+-- ----------------------------------------------------------------------
+-- * Auxiliary functions
+
+-- | An unsafe version of 'Map.lookup'. This should only be used for
+-- keys that are guaranteed to be in the map. It is an error to call
+-- this function otherwise.
+
+mapLookup :: (Ord a, Disp a) => Map a b -> a -> b
+mapLookup ds x = case Map.lookup x ds of
+                      Nothing -> error $ "can't find " ++ show (disp x)
+                      Just v -> v
 
 
 -- | A wire in a circuit is the same thing as a label in
@@ -28,7 +42,6 @@ wirelist (Gate _ _ input output ctrl _ _ _ _: gs) =
 
 
 -- Converts Quipper gate Ids to OpenQASM gate names
-to_qasm_gate :: String -> String
 to_qasm_gate "H" = "h"
 to_qasm_gate "SGate" = "s"
 to_qasm_gate "SGate_Inv" = "sdg"
@@ -51,17 +64,19 @@ qasm_header = "OPENQASM 3.0; \n\
 
 
 -- Determines number of qubit and bit registers needed for circuit
-get_resource_count [] curr_bits curr_qubits max_bits max_qubits =
-    (curr_bits, curr_qubits, max_bits, max_qubits)
-get_resource_count (g:gs) curr_bits curr_qubits max_bits max_qubits =
+get_resource_count_rec [] curr_bits curr_qubits max_bits max_qubits =
+    (max_bits, max_qubits)
+get_resource_count_rec (g:gs) curr_bits curr_qubits max_bits max_qubits =
     case g of
         (Gate (Id gateName) _ _ _ _ _ _ _ _) | (gateName == "Init0" || gateName == "Init1") ->
-            get_resource_count gs curr_bits (curr_qubits + 1) max_bits (max max_qubits (curr_qubits + 1))
+            get_resource_count_rec gs curr_bits (curr_qubits + 1) max_bits (max max_qubits (curr_qubits + 1))
         (Gate (Id gateName) _ _ _ _ _ _ _ _) | (gateName == "Meas") ->
-            get_resource_count gs (curr_bits + 1) (curr_qubits - 1) (max max_bits (curr_bits + 1)) max_qubits
+            get_resource_count_rec gs (curr_bits + 1) (curr_qubits - 1) (max max_bits (curr_bits + 1)) max_qubits
         (Gate (Id gateName) _ _ _ _ _ _ _ _) | (gateName == "Discard") ->
-            get_resource_count gs (curr_bits - 1) curr_qubits max_bits max_qubits
-        _ -> get_resource_count gs curr_bits curr_qubits max_bits max_qubits
+            get_resource_count_rec gs (curr_bits - 1) curr_qubits max_bits max_qubits
+        _ -> get_resource_count_rec gs curr_bits curr_qubits max_bits max_qubits
+
+get_resource_count gs = get_resource_count_rec gs 0 0 0 0
 
 
 -- Converts gate to QASM format
@@ -77,8 +92,11 @@ gate_to_qasm (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
 
 -- Measurement and discard gates
 gate_to_qasm (Gate (Id gateName) _ (VLabel l) output _ _ _ _ _)
-    | (gateName == "Meas" || gateName == "Discard") =
+    | (gateName == "Meas") =
         "bit b_" ++ (show l) ++ ";\nb_" ++ (show l) ++ " = measure " ++ (show l) ++ ";"
+
+gate_to_qasm (Gate (Id gateName) _ (VLabel l) output _ _ _ _ _)
+    | (gateName == "Discard") = ""
     
 -- Single qubit gates - no params
 gate_to_qasm (Gate (Id gateName) [] (VLabel l) output ctrl _ _ _ _) =
@@ -96,8 +114,7 @@ gate_to_qasm (Gate (Id gateName) [] (VPair (VLabel l1) (VLabel l2)) output ctrl 
 
 -- Two qubit gates - no params
 gate_to_qasm (Gate (Id gateName) [] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
-    (to_qasm_gate gateName) ++ " " ++ (show l2) ++ ", "
-        ++ (show l1) ++ ";"
+    (to_qasm_gate gateName) ++ " " ++ (show l2) ++ ", " ++ (show l1) ++ ";"
 
 -- Controlled rotation gate
 gate_to_qasm (Gate (Id gateName) [a] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _)
@@ -107,7 +124,23 @@ gate_to_qasm (Gate (Id gateName) [a] (VPair (VLabel l1) (VLabel l2)) output ctrl
             Nothing -> error "Error parsing R gate during QASM conversion"
             Just n ->
                 "ctrl @ rz(" ++ (show n) ++ ") " ++ (show l2) ++ ", "
-                        ++ (show l1) ++ ";"
+                    ++ (show l1) ++ ";"
+
+
+-- Recursive function that maps list of gates to their QASM representation
+gates_to_qasm [] _ _ _ _ = []
+gates_to_qasm (g:gs) free_bits free_qubits bits qubits =
+    case g of
+        -- Init gates
+        (Gate (Id gateName) _ _ (VLabel l) _ _ _ _ _) | gateName == "Init0" ->
+            let (fq:fqs) = free_qubits
+                new_qubits = Map.insert l fq qubits
+            in (("reset qubits[" ++ (show fq) ++ "];") : (gates_to_qasm gs free_bits fqs bits new_qubits))
+        (Gate (Id gateName) _ _ (VLabel l) _ _ _ _ _) | gateName == "Init1" ->
+            let (fq:fqs) = free_qubits
+                new_qubits = Map.insert l fq qubits
+            in (("reset qubits[" ++ (show fq) ++ "];\nx qubits[" ++ (show fq) ++ "];") :
+                (gates_to_qasm gs free_bits fqs bits new_qubits))
 
 
 string_join :: String -> [String] -> String
@@ -130,9 +163,22 @@ circ_to_qasm circ =
 
         -- -- Joining all gate strings together with header
         -- in (string_join "\n" (qasm_header : gates_qasm))
+
+        -- Getting gates from circuit
         let gs = gates morph
-            (_, _, bits, qubits) = get_resource_count gs 0 0 0 0
-        in (show (bits, qubits))
+            -- Calculating how many bit and qubit register to use
+            (nbits, nqubits) = get_resource_count gs
+
+            -- Initializing registers
+            reg_init = "qreg qubits[" ++ (show nqubits) ++ "]; \n\
+                       \creg bits[" ++ (show nbits) ++ "];"
+
+            -- Converting gates to qasm
+            free_bits = [0..(nbits-1)]
+            free_qubits = [0..(nqubits-1)]
+            gates_qasm = gates_to_qasm gs free_bits free_qubits Map.empty Map.empty
+
+        in (string_join "\n" (qasm_header : reg_init : gates_qasm))
 
 
 -- Runs the OpenQASM converter and stores result to text file
