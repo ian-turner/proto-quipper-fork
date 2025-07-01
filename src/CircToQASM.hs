@@ -81,50 +81,50 @@ get_resource_count gs = get_resource_count_rec gs 0 0 0 0
 
 -- Converts gate to QASM format
 
--- Init gates
-gate_to_qasm (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
-    | gateName == "Init0" =
-        "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";"
+-- -- Init gates
+-- gate_to_qasm (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
+--     | gateName == "Init0" =
+--         "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";"
 
-gate_to_qasm (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
-    | gateName == "Init1" =
-        "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";\nx " ++ (show l) ++ ";"
+-- gate_to_qasm (Gate (Id gateName) _ (VStar) (VLabel l) _ _ _ _ _)
+--     | gateName == "Init1" =
+--         "qubit " ++ (show l) ++ ";\nreset " ++ (show l) ++ ";\nx " ++ (show l) ++ ";"
 
--- Measurement and discard gates
-gate_to_qasm (Gate (Id gateName) _ (VLabel l) output _ _ _ _ _)
-    | (gateName == "Meas") =
-        "bit b_" ++ (show l) ++ ";\nb_" ++ (show l) ++ " = measure " ++ (show l) ++ ";"
+-- -- Measurement and discard gates
+-- gate_to_qasm (Gate (Id gateName) _ (VLabel l) output _ _ _ _ _)
+--     | (gateName == "Meas") =
+--         "bit b_" ++ (show l) ++ ";\nb_" ++ (show l) ++ " = measure " ++ (show l) ++ ";"
 
-gate_to_qasm (Gate (Id gateName) _ (VLabel l) output _ _ _ _ _)
-    | (gateName == "Discard") = ""
+-- gate_to_qasm (Gate (Id gateName) _ (VLabel l) output _ _ _ _ _)
+--     | (gateName == "Discard") = ""
     
--- Single qubit gates - no params
-gate_to_qasm (Gate (Id gateName) [] (VLabel l) output ctrl _ _ _ _) =
-    (to_qasm_gate gateName) ++ " " ++ (show l) ++ ";"
+-- -- Single qubit gates - no params
+-- gate_to_qasm (Gate (Id gateName) [] (VLabel l) output ctrl _ _ _ _) =
+--     (to_qasm_gate gateName) ++ " " ++ (show l) ++ ";"
     
--- Single qubit rotation gate
-gate_to_qasm (Gate (Id gateName) [VWrapR (MR len r)] (VLabel l) output ctrl _ _ _ _)
-    | gateName == "Rot" =
-        "rz(" ++ (showCReal len r) ++ ") " ++ (show l) ++ ";"
+-- -- Single qubit rotation gate
+-- gate_to_qasm (Gate (Id gateName) [VWrapR (MR len r)] (VLabel l) output ctrl _ _ _ _)
+--     | gateName == "Rot" =
+--         "rz(" ++ (showCReal len r) ++ ") " ++ (show l) ++ ";"
 
--- Classical controlled X and Y gates
-gate_to_qasm (Gate (Id gateName) [] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _)
-    | (gateName == "C_X" || gateName == "C_Z" || gateName == "C_Y") =
-        "if (b_" ++ (show l2) ++ ") " ++ (to_qasm_gate gateName) ++ " " ++ (show l1) ++ ";"
+-- -- Classical controlled X and Y gates
+-- gate_to_qasm (Gate (Id gateName) [] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _)
+--     | (gateName == "C_X" || gateName == "C_Z" || gateName == "C_Y") =
+--         "if (b_" ++ (show l2) ++ ") " ++ (to_qasm_gate gateName) ++ " " ++ (show l1) ++ ";"
 
--- Two qubit gates - no params
-gate_to_qasm (Gate (Id gateName) [] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
-    (to_qasm_gate gateName) ++ " " ++ (show l2) ++ ", " ++ (show l1) ++ ";"
+-- -- Two qubit gates - no params
+-- gate_to_qasm (Gate (Id gateName) [] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _) =
+--     (to_qasm_gate gateName) ++ " " ++ (show l2) ++ ", " ++ (show l1) ++ ";"
 
--- Controlled rotation gate
-gate_to_qasm (Gate (Id gateName) [a] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _)
-    | gateName == "R" =
-        -- Parsing input param as int
-        case (toInt a) of
-            Nothing -> error "Error parsing R gate during QASM conversion"
-            Just n ->
-                "ctrl @ rz(" ++ (show n) ++ ") " ++ (show l2) ++ ", "
-                    ++ (show l1) ++ ";"
+-- -- Controlled rotation gate
+-- gate_to_qasm (Gate (Id gateName) [a] (VPair (VLabel l1) (VLabel l2)) output ctrl _ _ _ _)
+--     | gateName == "R" =
+--         -- Parsing input param as int
+--         case (toInt a) of
+--             Nothing -> error "Error parsing R gate during QASM conversion"
+--             Just n ->
+--                 "ctrl @ rz(" ++ (show n) ++ ") " ++ (show l2) ++ ", "
+--                     ++ (show l1) ++ ";"
 
 
 -- Recursive function that maps list of gates to their QASM representation
@@ -143,15 +143,20 @@ gates_to_qasm (g:gs) free_bits free_qubits bits qubits =
             in (("reset qubits[" ++ (show fq) ++ "];\nx qubits[" ++ (show fq) ++ "];") :
                 (gates_to_qasm gs free_bits fqs bits new_qubits))
 
-        -- Measurement gates
+        -- Measurement gate
         (Gate (Id gateName) _ (VLabel li) (VLabel lo) _ _ _ _ _) | gateName == "Meas" ->
             let (fb:fbs) = free_bits
                 qubit = qubits `mapLookup` li
                 new_bits = Map.insert lo fb bits
-                new_qubits = Map.delete li qubits
                 new_free_qubits = (qubit:free_qubits)
             in (("bits[" ++ (show fb) ++ "] = measure qubits[" ++ (show qubit) ++ "];") :
-                (gates_to_qasm gs fbs new_free_qubits new_bits new_qubits))
+                (gates_to_qasm gs fbs new_free_qubits new_bits qubits))
+
+        -- Discard gate
+        (Gate (Id gateName) _ (VLabel l) _ _ _ _ _ _) | gateName == "Discard" ->
+            let bit = bits `mapLookup` l
+                new_free_bits = (bit:free_bits)
+            in (gates_to_qasm gs new_free_bits free_qubits bits qubits)
 
 
 string_join :: String -> [String] -> String
