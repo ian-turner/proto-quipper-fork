@@ -136,11 +136,22 @@ gates_to_qasm (g:gs) free_bits free_qubits bits qubits =
             let (fq:fqs) = free_qubits
                 new_qubits = Map.insert l fq qubits
             in (("reset qubits[" ++ (show fq) ++ "];") : (gates_to_qasm gs free_bits fqs bits new_qubits))
+
         (Gate (Id gateName) _ _ (VLabel l) _ _ _ _ _) | gateName == "Init1" ->
             let (fq:fqs) = free_qubits
                 new_qubits = Map.insert l fq qubits
             in (("reset qubits[" ++ (show fq) ++ "];\nx qubits[" ++ (show fq) ++ "];") :
                 (gates_to_qasm gs free_bits fqs bits new_qubits))
+
+        -- Measurement gates
+        (Gate (Id gateName) _ (VLabel li) (VLabel lo) _ _ _ _ _) | gateName == "Meas" ->
+            let (fb:fbs) = free_bits
+                qubit = qubits `mapLookup` li
+                new_bits = Map.insert lo fb bits
+                new_qubits = Map.delete li qubits
+                new_free_qubits = (qubit:free_qubits)
+            in (("bits[" ++ (show fb) ++ "] = measure qubits[" ++ (show qubit) ++ "];") :
+                (gates_to_qasm gs fbs new_free_qubits new_bits new_qubits))
 
 
 string_join :: String -> [String] -> String
