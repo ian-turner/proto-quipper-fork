@@ -28,19 +28,6 @@ mapLookup ds x = case Map.lookup x ds of
                       Just v -> v
 
 
--- | A wire in a circuit is the same thing as a label in
--- Proto-Quipper.
-type Wire = Label
-
-
--- | Compute the set of all gates in a circuit (but do not necessarily
--- delete duplicates).
-wirelist :: [Gate] -> [Wire]
-wirelist [] = []
-wirelist (Gate _ _ input output ctrl _ _ _ _: gs) =
-    (getWires input) ++ (getWires output) ++ (getWires ctrl) ++ (wirelist gs)
-
-
 -- Converts Quipper gate Ids to OpenQASM gate names
 to_qasm_gate "H" = "h"
 to_qasm_gate "SGate" = "s"
@@ -135,13 +122,14 @@ gates_to_qasm (g:gs) free_bits free_qubits bits qubits =
         (Gate (Id gateName) _ _ (VLabel l) _ _ _ _ _) | gateName == "Init0" ->
             let (fq:fqs) = free_qubits
                 new_qubits = Map.insert l fq qubits
-            in (("reset qubits[" ++ (show fq) ++ "];") : (gates_to_qasm gs free_bits fqs bits new_qubits))
+                qasm_str = "reset qubits[" ++ (show fq) ++ "];"
+            in (qasm_str : (gates_to_qasm gs free_bits fqs bits new_qubits))
 
         (Gate (Id gateName) _ _ (VLabel l) _ _ _ _ _) | gateName == "Init1" ->
             let (fq:fqs) = free_qubits
                 new_qubits = Map.insert l fq qubits
-            in (("reset qubits[" ++ (show fq) ++ "];\nx qubits[" ++ (show fq) ++ "];") :
-                (gates_to_qasm gs free_bits fqs bits new_qubits))
+                qasm_str = "reset qubits[" ++ (show fq) ++ "];\nx qubits[" ++ (show fq) ++ "];"
+            in (qasm_str : (gates_to_qasm gs free_bits fqs bits new_qubits))
 
         -- Measurement gate
         (Gate (Id gateName) _ (VLabel li) (VLabel lo) _ _ _ _ _) | gateName == "Meas" ->
@@ -149,14 +137,49 @@ gates_to_qasm (g:gs) free_bits free_qubits bits qubits =
                 qubit = qubits `mapLookup` li
                 new_bits = Map.insert lo fb bits
                 new_free_qubits = (qubit:free_qubits)
-            in (("bits[" ++ (show fb) ++ "] = measure qubits[" ++ (show qubit) ++ "];") :
-                (gates_to_qasm gs fbs new_free_qubits new_bits qubits))
+                qasm_str = "bits[" ++ (show fb) ++ "] = measure qubits[" ++ (show qubit) ++ "];"
+            in (qasm_str : (gates_to_qasm gs fbs new_free_qubits new_bits qubits))
 
         -- Discard gate
         (Gate (Id gateName) _ (VLabel l) _ _ _ _ _ _) | gateName == "Discard" ->
             let bit = bits `mapLookup` l
                 new_free_bits = (bit:free_bits)
             in (gates_to_qasm gs new_free_bits free_qubits bits qubits)
+
+        -- Single qubit gate - no params
+        (Gate (Id gateName) [] (VLabel li) (VLabel lo) ctrls _ _ _ _) ->
+            let qubit = qubits `mapLookup` li
+                new_qubits = Map.insert lo qubit qubits
+                qasm_str = (to_qasm_gate gateName) ++ " qubits[" ++ (show qubit) ++ "];"
+            in (qasm_str : (gates_to_qasm gs free_bits free_qubits bits new_qubits))
+
+        -- Single qubit rotation gates
+        (Gate (Id gateName) [VWrapR (MR len r)] (VLabel li) (VLabel lo) ctrs _ _ _ _) | gateName == "Rot" ->
+            let qubit = qubits `mapLookup` li
+                new_qubits = Map.insert lo qubit qubits
+                qasm_str = "rz(" ++ (showCReal len r) ++ ") qubits[" ++ (show qubit) ++ "];"
+            in (qasm_str : (gates_to_qasm gs free_bits free_qubits bits new_qubits))
+
+        -- Classically controlled X, Y, Z gates
+        (Gate (Id gateName) [] (VPair (VLabel l1i) (VLabel l2i)) (VPair (VLabel l1o) (VLabel l2o)) ctrls _ _ _ _)
+            | (gateName == "C_X" || gateName == "C_Y" || gateName == "C_Z") ->
+                let qubit = qubits `mapLookup` l1i
+                    new_qubits = Map.insert l1o qubit qubits
+                    bit = bits `mapLookup` l2i
+                    new_bits = Map.insert l2o bit bits
+                    qasm_str = "if (bits[" ++ (show bit) ++ "]) " ++ (to_qasm_gate gateName)
+                        ++ " qubits[" ++ (show qubit) ++ "];"
+                in (qasm_str : (gates_to_qasm gs free_bits free_qubits new_bits new_qubits))
+        
+        -- CNot gates
+        (Gate (Id gateName) [] (VPair (VLabel l1i) (VLabel l2i)) (VPair (VLabel l1o) (VLabel l2o)) ctrls _ _ _ _)
+            | gateName == "CNot" ->
+                let q1 = qubits `mapLookup` l1i
+                    q2 = qubits `mapLookup` l2i
+                    new_qubits = Map.insert l1o q1 qubits
+                    new_qubits' = Map.insert l2o q2 new_qubits
+                    qasm_str = "cx qubits[" ++ (show q2) ++ "], qubits[" ++ (show q1) ++ "];"
+                in (qasm_str : (gates_to_qasm gs free_bits free_qubits bits new_qubits'))
 
 
 string_join :: String -> [String] -> String
@@ -168,18 +191,6 @@ string_join s (x:xs) = x ++ s ++ (string_join s xs)
 -- Converts `Wired` circuit objects to QASM circuit
 circ_to_qasm circ =
     open circ $ \ _ morph ->
-        -- let q1 = input morph
-        --     -- Parsing circuit object to extract gates
-        --     ocirc = gates morph
-        --     (gs, _) = refresh_gates Map.empty ocirc []
-        --     ws = getWires q1 `List.union` wirelist gs
-
-        --     -- Mapping over gates to convert each to qasm
-        --     gates_qasm = map gate_to_qasm gs
-
-        -- -- Joining all gate strings together with header
-        -- in (string_join "\n" (qasm_header : gates_qasm))
-
         -- Getting gates from circuit
         let gs = gates morph
             -- Calculating how many bit and qubit register to use
