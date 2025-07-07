@@ -151,7 +151,8 @@ gates_to_qasm (g:gs) free_bits free_qubits bits qubits =
                             q2 = qubits `mapLookup` l2i
                             new_qubits = Map.insert l1o q1 qubits
                             new_qubits' = Map.insert l2o q2 new_qubits
-                            qasm_str = "ctrl @ rz(" ++ (show n) ++ ") qubits[" ++ (show q1) ++ "], qubits[" ++ (show q2) ++ "];"
+                            qasm_str = "ctrl @ rz(" ++ (show (pi / (2^n))) ++ ") qubits["
+                                ++ (show q2) ++ "], qubits[" ++ (show q1) ++ "];"
                             (gates_rec, bits', qubits') = gates_to_qasm gs free_bits free_qubits bits new_qubits'
                         in ((qasm_str : gates_rec), bits', qubits')
         
