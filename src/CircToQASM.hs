@@ -59,6 +59,8 @@ get_resource_count_rec (g:gs) curr_bits curr_qubits max_bits max_qubits =
             get_resource_count_rec gs curr_bits (curr_qubits + 1) max_bits (max max_qubits (curr_qubits + 1))
         (Gate (Id gateName) _ _ _ _ _ _ _ _) | (gateName == "Meas") ->
             get_resource_count_rec gs (curr_bits + 1) (curr_qubits - 1) (max max_bits (curr_bits + 1)) max_qubits
+        (Gate (Id gateName) _ _ _ _ _ _ _ _) | (gateName == "Term0") ->
+            get_resource_count_rec gs curr_bits (curr_qubits - 1) max_bits max_qubits
         (Gate (Id gateName) _ _ _ _ _ _ _ _) | (gateName == "Discard") ->
             get_resource_count_rec gs (curr_bits - 1) curr_qubits max_bits max_qubits
         _ -> get_resource_count_rec gs curr_bits curr_qubits max_bits max_qubits
@@ -94,6 +96,13 @@ gates_to_qasm (g:gs) free_bits free_qubits bits qubits =
                 qasm_str = "bits[" ++ (show fb) ++ "] = measure qubits[" ++ (show qubit) ++ "];"
                 (gates_rec, bits', qubits') = gates_to_qasm gs fbs new_free_qubits new_bits qubits
             in ((qasm_str : gates_rec), bits', qubits')
+
+        -- Term gates
+        (Gate (Id gateName) _ (VLabel li) VStar _ _ _ _ _) | gateName == "Term0" ->
+            let qubit = qubits `mapLookup` li
+                new_free_qubits = (qubit:free_qubits)
+                (gates_rec, bits', qubits') = gates_to_qasm gs free_bits new_free_qubits bits qubits
+            in (gates_rec, bits', qubits')
 
         -- Discard gate
         (Gate (Id gateName) _ (VLabel l) _ _ _ _ _ _) | gateName == "Discard" ->
