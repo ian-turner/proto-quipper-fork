@@ -1038,6 +1038,7 @@ deMeta vars (Imply e1 e2 m) =
 
 deMeta vars (Bang e m) = Bang <$> (deMeta vars e) <*> return m
 deMeta vars (UnBox) = return UnBox
+deMeta vars (RunCirc) = return RunCirc
 deMeta vars (Reverse) = return Reverse
 deMeta vars (Controlled) = return Controlled
 deMeta vars (WithComputed) = return WithComputed

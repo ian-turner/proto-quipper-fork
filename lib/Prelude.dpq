@@ -131,11 +131,11 @@ instance forall a a' (n : Nat) -> (Measurement a a') =>
       VCons a as -> VCons (measure a) (measure as)
 
 -- Warning: noted the result type is not directly related to input.
-runCirc : ! forall a b a' b' ->
-             (Simple b, Simple a, Measurement b b', Initialize a' a) =>
-             Circ(a, b) -> a' -> b'
-runCirc circ a =
-  measure $ (unbox circ) (init a)
+-- runCirc : ! forall a b a' b' ->
+--              (Simple b, Simple a, Measurement b b', Initialize a' a) =>
+--              Circ(a, b) -> a' -> b'
+-- runCirc circ a =
+--   measure $ (unbox circ) (init a)
 
 natToReal : ! {n : Nat} -> Nat -> Real n
 natToReal n m =

@@ -125,6 +125,7 @@ substitute s (Force t) = Force (substitute s t)
 substitute s (ForceP t) = ForceP (substitute s t)
 substitute s (Lift t) = Lift (substitute s t)
 substitute s (UnBox) = UnBox
+substitute s (RunCirc) = RunCirc
 substitute s (Reverse) = Reverse
 substitute s (Controlled) = Controlled
 substitute s (WithComputed) = WithComputed

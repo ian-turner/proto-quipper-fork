@@ -92,6 +92,7 @@ data Exp
   | Box -- ^ Circuit boxing operator.
   | ExBox -- ^ Existential circuit boxing operator.
   | UnBox -- ^ Circuit unboxing operator.
+  | RunCirc -- ^ Run boxed circuit.
   | Reverse -- ^ Operator for taking the adjoint of a circuit.
   | Controlled -- ^ Operator for obtaining the controlled version of a circuit.
   | WithComputed -- ^ Operator for circuit conjugation. 
@@ -441,6 +442,7 @@ instance Disp Exp where
   display flag (Box) = text "box"
   display flag (ExBox) = text "existsBox"
   display flag (UnBox) = text "unbox"
+  display flag (RunCirc) = text "runCirc"
   display flag (Reverse) = text "reverse"
   display flag (Controlled) = text "controlled"
   display flag (WithComputed) = text "withComputed"
@@ -493,6 +495,7 @@ instance Disp Exp where
   precedence (Star) = 12
   precedence (Box) = 12
   precedence (UnBox) = 12
+  precedence (RunCirc) = 12
   precedence (Reverse) = 12
   precedence (ExBox) = 12
   precedence (Type) = 12
@@ -550,6 +553,7 @@ data Value
   | VBox -- ^ Value version of 'Box'.
   | VExBox -- ^ Value version of 'ExBox'.
   | VUnBox -- ^ Value version of 'UnBox'.
+  | VRunCirc -- ^ Value version of 'RunCirc'.
   | VReverse -- ^ Value version of 'Reverse'.
   | VControlled -- ^ Value version of 'Controlled'.
   | VWithComputed
@@ -639,6 +643,7 @@ instance Disp Value where
   display flag (VBox) = text "box"
   display flag (VExBox) = text "existsBox"
   display flag (VUnBox) = text "unbox"
+  display flag (VRunCirc) = text "runCirc"
   display flag (VReverse) = text "reverse"
   display flag (VControlled) = text "controlled"
   display flag (VWithComputed) = text "withComputed"
@@ -808,6 +813,7 @@ data EExp
   | ELift EExp
   | EForce EExp
   | EUnBox
+  | ERunCirc
   | EReverse
   | EControlled
   | EWithComputed
@@ -851,6 +857,7 @@ instance Disp EExp where
 
   display flag (EExBox) = text "existsBox"
   display flag (EUnBox) = text "unbox"
+  display flag (ERunCirc) = text "runCirc"
   display flag (EReverse) = text "reverse"
   display flag (EControlled) = text "controlled"
   display flag (EWithComputed) = text "withComputed"

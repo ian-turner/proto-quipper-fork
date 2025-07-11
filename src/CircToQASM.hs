@@ -165,7 +165,8 @@ gates_to_qasm (g:gs) free_bits free_qubits bits qubits =
                             (gates_rec, bits', qubits') = gates_to_qasm gs free_bits free_qubits bits new_qubits'
                         in ((qasm_str : gates_rec), bits', qubits')
         
-        -- Diagonal gates
+        -- Diagonal gates (not currently supported)
+        -- TODO: add support for Diagonal gates
         (Gate (Id gateName) [VWrapR (MR len r), VWrapR (MR len' r')] (VLabel li) (VLabel lo) VStar _ _ _ _)
             | gateName == "Diag" -> error "Diagonal gates not currently supported for QASM conversion"
 

@@ -143,6 +143,19 @@ typeInfer False a@(UnBox) =
         ty' = abstractMode ty
      in return (ty', UnBox, identityMod)
 
+typeInfer False a@(RunCirc) = 
+  freshNames ["a", "b", "alpha", "beta"] $ \[a, b, alpha, beta] ->
+    let va = Var a
+        vb = Var b
+        simpClass = Id "Simple"
+        boxMode = M (BConst True) (BVar alpha) (BVar beta)
+        t1 = Arrow (Circ va vb boxMode) Unit identityMod
+        t1' = Imply [AppP (Base simpClass) va,
+                     AppP (Base simpClass) vb] t1 identityMod
+        ty = Forall (abst [a, b] t1') Type
+        ty' = abstractMode ty
+     in return (ty', RunCirc, identityMod)
+
 typeInfer False a@(Reverse) =
   freshNames ["a", "b", "alpha"] $ \[a, b, alpha] ->
     let va = Var a

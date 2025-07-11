@@ -120,6 +120,7 @@ erasure (Lift t) = do
 erasure (Force t) = EForce <$> erasure t
 erasure (ForceP t) = EForce <$> erasure t
 erasure (UnBox) = return EUnBox
+erasure (RunCirc) = return ERunCirc
 erasure (Reverse) = return EReverse
 erasure (Controlled) = return EControlled
 erasure (WithComputed) = return EWithComputed

@@ -40,6 +40,7 @@ data Exp
   | Box -- ^ Circuit boxing: @box@.
   | ExBox -- ^ Existential circuit boxing: @existsBox@.
   | UnBox -- ^ Circuit unbox: @unbox@.
+  | RunCirc -- ^ Run boxed circuit: @runCirc@
   | Reverse -- ^ Circuit reversal: @reverse@.
   | Controlled -- ^ Circuit control: @controlled@.
   | WithComputed -- ^ Circuit control: @controlled@.
