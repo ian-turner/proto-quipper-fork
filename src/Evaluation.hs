@@ -199,7 +199,8 @@ evalApp VUnBox v =
     (Wired _) -> return $ VApp VUnBox v
     _ -> return VUnBox
 
-evalApp VRunCirc v = return VStar
+-- evalApp VRunCirc circ = return (VConst (Id "True"))
+evalApp VRunCirc circ = return (VApp (VApp (VConst (Id "VCons")) (VConst (Id "True"))) (VConst (Id "VNil")))
 
 -- Note that (VRealOp pi) is a function.
 evalApp (VRealOp x) n | x == "pi" =
