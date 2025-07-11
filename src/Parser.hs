@@ -891,6 +891,10 @@ exBoxExp = reserved "existsBox" >> return ExBox
 unBoxExp :: Parser Exp
 unBoxExp = reserved "unbox" >> return UnBox
 
+-- | Parse a runCirc expression
+runCircExp :: Parser Exp
+runCircExp = reserved "runCirc" >> return RunCirc
+
 -- | Parse a reverse expression.
 reverseExp :: Parser Exp
 reverseExp = reserved "reverse" >> return Reverse
@@ -977,6 +981,7 @@ appExp =
       wrapPos $
       try unit <|> try opExp <|> unitTy <|> ty <|> boxExp <|> exBoxExp <|>
       unBoxExp <|>
+      runCircExp <|>
       reverseExp <|>
       realOp <|> realPi <|>
       controlExp <|>

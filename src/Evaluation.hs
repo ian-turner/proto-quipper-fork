@@ -113,6 +113,7 @@ eval !lenv (ETensor e1 e2) = do
 eval !lenv a@(ELam body) = return (VLam (abst lenv body))
 eval !lenv a@(ELift body) = return (VLift (abst lenv body))
 eval !lenv EUnBox = return VUnBox
+eval !lenv ERunCirc = return VRunCirc
 eval !lenv EReverse = return VReverse
 eval !lenv EDynlift = return VDynlift
 eval !lenv EControlled = return VControlled
@@ -197,6 +198,8 @@ evalApp VUnBox v =
   case v of
     (Wired _) -> return $ VApp VUnBox v
     _ -> return VUnBox
+
+evalApp VRunCirc v = return VStar
 
 -- Note that (VRealOp pi) is a function.
 evalApp (VRealOp x) n | x == "pi" =

@@ -132,6 +132,7 @@ bSubstitute s a@(Dynlift) = a
 bSubstitute s a@(Force m) = Force (bSubstitute s m)
 bSubstitute s a@(Box) = a
 bSubstitute s a@(UnBox) = a
+bSubstitute s a@(RunCirc) = a
 bSubstitute s a@(WithComputed) = a
 bSubstitute s a@(ExBox) = a
 bSubstitute s a@(Controlled) = a

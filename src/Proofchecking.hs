@@ -344,6 +344,15 @@ proofInfer flag UnBox =
         t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1 identityMod
         ty = Forall (abst [a, b] t1') Type
      in return ty
+proofInfer flag RunCirc =
+  freshNames ["a", "b"] $ \[a, b] ->
+    let va = Var a
+        vb = Var b
+        simpClass = Id "Simple"
+        t1 = Arrow (Circ va vb identityMod) Unit identityMod
+        t1' = Imply [AppP (Base simpClass) va, AppP (Base simpClass) vb] t1 identityMod
+        ty = Forall (abst [a, b] t1') Type
+     in return ty
 proofInfer flag t@(Box) =
   freshNames ["a", "b"] $ \[a, b] -> do
     let va = Var a

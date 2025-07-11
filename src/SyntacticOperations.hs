@@ -141,6 +141,7 @@ getVars b (Star) = S.empty
 getVars b (Sort) = S.empty
 getVars b (Type) = S.empty
 getVars b (UnBox) = S.empty
+getVars b (RunCirc) = S.empty
 getVars b (Reverse) = S.empty
 getVars b (Controlled) = S.empty
 getVars b (WithComputed) = S.empty
