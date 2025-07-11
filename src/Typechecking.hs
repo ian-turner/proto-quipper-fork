@@ -144,17 +144,18 @@ typeInfer False a@(UnBox) =
      in return (ty', UnBox, identityMod)
 
 typeInfer False a@(RunCirc) =
-  freshNames ["a", "b", "alpha", "beta"] $ \[a, b, alpha, beta] ->
-    let va = Var a
-        vb = Var b
-        simpClass = Id "Simple"
-        boxMode = M (BConst True) (BVar alpha) (BVar beta)
-        t1 = Arrow (Circ va vb boxMode) (Base (Id "Bool")) identityMod
-        t1' = Imply [AppP (Base simpClass) va,
-                     AppP (Base simpClass) vb] t1 identityMod
-        ty = Forall (abst [a, b] t1') Type
-        ty' = abstractMode ty
-     in return (ty', RunCirc, identityMod)
+  freshNames ["m", "n", "alpha", "beta"] $ \[m, n, alpha, beta] ->
+    let boxMode = M (BConst True) (BVar alpha) (BVar beta)
+        vm = Var m
+        vn = Var n
+        mVecType = AppP (AppP (Base (Id "Vec")) (Base (Id "Qubit"))) vm
+        nVecType = AppP (AppP (Base (Id "Vec")) (Base (Id "Qubit"))) vn
+        boolVecType = AppP (AppP (Base (Id "Vec")) (Base (Id "Bool"))) vn
+        t = Arrow (Circ mVecType nVecType boxMode) boolVecType identityMod
+        -- t1' = Imply [AppP (Base simpClass) vb] t1 identityMod
+        t' = Forall (abst [n, m] t) (Base (Id "Nat"))
+        -- ty' = abstractMode ty
+     in return (t', RunCirc, identityMod)
 
 typeInfer False a@(Reverse) =
   freshNames ["a", "b", "alpha"] $ \[a, b, alpha] ->
