@@ -300,7 +300,3 @@ toInt (VConst id) =
   else Nothing
 
 toInt _ = Nothing
-
-
--- Simulation for the 'runCirc' function
-runCirc circ = VStar

@@ -1,5 +1,6 @@
-module Adder where
+module Adders where
 import "lib/Prelude.dpq"
+import "lib/algos/QFT.dpq"
 
 
 maj : !(Qubit -> Qubit -> Qubit -> Qubit * Qubit * Qubit)
