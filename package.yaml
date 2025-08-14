@@ -42,6 +42,7 @@ dependencies:
 - syb
 - numbers
 - exceptions
+- bytestring
 
 library:
   source-dirs: src
