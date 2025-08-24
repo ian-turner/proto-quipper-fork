@@ -35,6 +35,20 @@ import Data.Map (Map)
 import qualified Data.MultiSet as S
 import Text.PrettyPrint
 
+import Control.Monad (filterM)
+
+
+-- Helper for file imports that checks within ':' separated paths string
+findFileInPath :: String -> String -> IO FilePath
+findFileInPath pathList filename = do
+  let dirs = splitSearchPath pathList
+      potentialPaths = map (`combine` filename) dirs
+  existingPaths <- filterM doesFileExist potentialPaths
+  case existingPaths of
+    (p:_) -> return p
+    []    -> error "Could not find file"
+
+
 -- | Perform top-level action on the command line input. The most complicated
 -- piece of code is about loading a file, here we implement a very simple kind of
 -- circularity checking for importation. We left implementing
@@ -300,7 +314,9 @@ dispatch (Load msg file) = do
             else do
               addParentFile file
               path <- getPath
-              h <- ioTop $ openFile (path </> file) ReadMode
+              impFilename <- ioTop $ findFileInPath path file
+--              h <- ioTop $ openFile (path </> file) ReadMode
+              h <- ioTop $ openFile (path </> impFilename) ReadMode
               str <- ioTop $ hGetContents h
               imports <- parserTop $ parseImports file str
               processImports imports
