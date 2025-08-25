@@ -70,6 +70,7 @@ library
     , process
     , syb
     , transformers
+    , bytestring
   default-language: Haskell2010
 
 executable dpq
@@ -99,6 +100,7 @@ executable dpq
     , process
     , syb
     , transformers
+    , bytestring
   default-language: Haskell2010
 
 executable dpqi
@@ -128,6 +130,7 @@ executable dpqi
     , process
     , syb
     , transformers
+    , bytestring
   default-language: Haskell2010
 
 test-suite dpq-test
@@ -158,4 +161,5 @@ test-suite dpq-test
     , process
     , syb
     , transformers
+    , bytestring
   default-language: Haskell2010
