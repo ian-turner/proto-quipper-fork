@@ -40,14 +40,15 @@ import Control.Monad (filterM)
 
 
 -- Helper for file imports that checks within ':' separated paths string
-findFileInPath :: String -> String -> IO FilePath
+findFileInPath :: String -> String -> Top FilePath
 findFileInPath pathList filename = do
   let dirs = splitSearchPath pathList
       potentialPaths = map (`combine` filename) dirs
-  existingPaths <- filterM doesFileExist potentialPaths
+  existingPaths <- ioTop $ filterM doesFileExist potentialPaths
+  let errorMsg = text $ "Could not find file '" ++ filename ++ "'"
   case existingPaths of
     (p:_) -> return p
-    []    -> error "Could not find file"
+    []    -> throwError $ Mess errorMsg
 
 
 -- | Perform top-level action on the command line input. The most complicated
@@ -327,7 +328,7 @@ dispatch (Load msg file) = do
             else do
               addParentFile file
               path <- getPath
-              filePath <- ioTop $ findFileInPath path file
+              filePath <- findFileInPath path file
               h <- ioTop $ openFile filePath ReadMode
               str <- ioTop $ hGetContents h
               imports <- parserTop $ parseImports file str
