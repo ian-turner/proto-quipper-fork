@@ -327,9 +327,8 @@ dispatch (Load msg file) = do
             else do
               addParentFile file
               path <- getPath
-              impFilename <- ioTop $ findFileInPath path file
---              h <- ioTop $ openFile (path </> file) ReadMode
-              h <- ioTop $ openFile (path </> impFilename) ReadMode
+              filePath <- ioTop $ findFileInPath path file
+              h <- ioTop $ openFile filePath ReadMode
               str <- ioTop $ hGetContents h
               imports <- parserTop $ parseImports file str
               processImports imports

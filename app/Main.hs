@@ -8,11 +8,16 @@ import System.Environment
 import System.Exit
 import Control.Exception hiding (TypeError)
 import System.FilePath
+import System.Directory (getCurrentDirectory)
+
 
 main :: IO ()
 main =
-  do p <- getEnv "DPQ" `catch` handler
-     runTop p $ read_eval_print 1
+  do dpq <- getEnv "DPQ" `catch` handler
+     -- Adding the current directory to the import path
+     currentDir <- getCurrentDirectory
+     let p = dpq ++ ":" ++ currentDir
+     runTop (p ++ ":" ++ currentDir) $ read_eval_print 1
      return ()
           
    where mesg = "please set the environment variable DPQ to the DPQ installation directory.\n"
