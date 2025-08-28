@@ -17,10 +17,15 @@ import System.Environment
 import System.Exit
 import Text.PrettyPrint
 
+import System.Directory (getCurrentDirectory)
+
 main :: IO ()
 main = do
   args <- getArgs
-  p <- getEnv "DPQ" `catches` handlers
+  dpq <- getEnv "DPQ" `catches` handlers
+  -- Adding the current directory to the import path
+  currentDir <- getCurrentDirectory
+  let p = dpq ++ ":" ++ currentDir
   case args of
     [filename, option]
       | option == "-m" -> do

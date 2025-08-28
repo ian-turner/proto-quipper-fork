@@ -9,9 +9,14 @@ import System.Exit
 import Control.Exception hiding (TypeError)
 import System.FilePath
 
+import System.Directory (getCurrentDirectory)
+
 main :: IO ()
 main =
-  do p <- getEnv "DPQ" `catch` handler
+  do dpq <- getEnv "DPQ" `catch` handler
+     -- Adding the current directory to the import path
+     currentDir <- getCurrentDirectory
+     let p = dpq ++ ":" ++ currentDir
      runTop p $ read_eval_print 1
      return ()
           
