@@ -148,6 +148,7 @@ data Decl
 data Command
   = Eval Exp -- ^ Evaluate an expression.
   | Quit -- ^ Quit.
+  | LoadQasm String -- ^ Load from OpenQasm file.
   | Help -- ^ Print help information.
   | Typing Exp -- ^ Print the type or kind information for an expression.
   | RawType Exp -- ^ Print the raw type or kind information for an expression.

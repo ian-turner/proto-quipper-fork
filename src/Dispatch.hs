@@ -35,6 +35,8 @@ import Data.Map (Map)
 import qualified Data.MultiSet as S
 import Text.PrettyPrint
 
+import QasmParser
+
 -- | Perform top-level action on the command line input. The most complicated
 -- piece of code is about loading a file, here we implement a very simple kind of
 -- circularity checking for importation. We left implementing
@@ -61,6 +63,10 @@ dispatch Help = do
       ":h                      show this list of commands\n" ++
       ":g [gate-name] <expr>   gate count of a boxed circuit\n" ++
       ":tg [gate-name] [<expr>] top level gate count" ++ "\n"
+
+dispatch (LoadQasm file) = do
+  liftIO $ loadQasmFile file
+  return True
 
 dispatch Reload = do
   f <- getFilename

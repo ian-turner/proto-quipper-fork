@@ -130,12 +130,21 @@ command :: Parser Command
 command = do
   whiteSpace
   quit <|> help <|> typing <|> rawType <|> reload <|> load <|> printing <|> displaying <|>
+    loadQasm <|>
     displayEx <|>
     annotation <|>
     showCirc <|>
     gateC <|>
     topGateC <|>
     eval
+
+-- | Parse load Qasm command.
+loadQasm :: Parser Command
+loadQasm = do
+  try (reserved ":loadqasm")
+  file <- stringLiteral
+  eof
+  return $ LoadQasm file
 
 -- | Parse quit command.
 quit :: Parser Command
