@@ -25,6 +25,7 @@ homepage:   https://gitlab.com/frank-peng-fu/dpq-remake
 
 dependencies:
 - base >= 4.7 && < 5
+- random
 - containers
 - multiset
 - parsec

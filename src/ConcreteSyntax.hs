@@ -44,6 +44,7 @@ data Exp
   | Controlled -- ^ Circuit control: @controlled@.
   | WithComputed -- ^ Circuit control: @controlled@.
   | Dynlift
+  | Random -- ^ Random number generation function
   | Case Exp Branches -- ^ Case expression.
   | Wild -- ^ Wildcard.
   | WrapR Int CReal -- ^ real numbers

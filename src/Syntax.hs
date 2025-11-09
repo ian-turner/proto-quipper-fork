@@ -97,6 +97,7 @@ data Exp
   | WithComputed -- ^ Operator for circuit conjugation. 
   | Circ Exp Exp Modality -- ^ The circuit type, with modalities.
   | Dynlift -- ^ Operator for dynamic lifting. 
+  | Random -- ^ Function for random number generation
   | Star -- ^ The unique inhabitant of unit type.
   | Unit -- ^ The unit type.
   | Type -- ^ The kind for all types.
@@ -445,6 +446,7 @@ instance Disp Exp where
   display flag (Controlled) = text "controlled"
   display flag (WithComputed) = text "withComputed"
   display flag (Dynlift) = text "dynlift"
+  display flag (Random) = text "random"
   display flag (Let m bd) =
     open bd $ \x b ->
       fsep
@@ -554,6 +556,7 @@ data Value
   | VControlled -- ^ Value version of 'Controlled'.
   | VWithComputed
   | VDynlift
+  | VRandom
   | VWrapR MyReal
   | VRealOp String
   deriving (Show, NominalShow, NominalSupport, Generic, Nominal)
@@ -643,6 +646,7 @@ instance Disp Value where
   display flag (VControlled) = text "controlled"
   display flag (VWithComputed) = text "withComputed"
   display flag (VDynlift) = text "dynlift"
+  display flag (VRandom) = text "random"
   display flag (Wired (Abst ws m)) =
     brackets (hsep $ punctuate comma $ map (display flag) ws) $$
     display flag m
@@ -814,6 +818,7 @@ data EExp
   | EBox
   | EExBox
   | EDynlift
+  | ERandom
   | ELet EExp (Bind Variable EExp)
   | ELetPair EExp (Bind [Variable] EExp)
   | ELetPat EExp (Bind EPattern EExp)
@@ -855,6 +860,7 @@ instance Disp EExp where
   display flag (EControlled) = text "controlled"
   display flag (EWithComputed) = text "withComputed"
   display flag (EDynlift) = text "dynlift"
+  display flag (ERandom) = text "random"
   display flag (ELam (Abst vs e)) =
     sep
       [ text "\\"

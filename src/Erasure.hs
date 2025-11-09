@@ -124,6 +124,7 @@ erasure (Reverse) = return EReverse
 erasure (Controlled) = return EControlled
 erasure (WithComputed) = return EWithComputed
 erasure (Dynlift) = return EDynlift
+erasure (Random) = return ERandom
 erasure a@(Box) = return EBox
 erasure a@(ExBox) = return EExBox
 erasure (Let m bd) =

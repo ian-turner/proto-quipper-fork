@@ -1,0 +1,3 @@
+:l "lib/Prelude.dpq"
+:l "lib/Prelude.dpq"
+:l "lib/Prelude.dpq"

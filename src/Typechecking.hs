@@ -185,6 +185,16 @@ typeInfer False Dynlift =
             (M (BConst False) (BConst False) (BConst False))
    in return (ty, Dynlift, identityMod)
 
+typeInfer True Random =
+  throwError $ ErrDoc $
+  text "random should not be used in a type expression"
+
+typeInfer False Random =
+  let ty =
+          Arrow (Base (Id "Nat")) (Base (Id "Nat"))
+            (M (BConst False) (BConst False) (BConst False))
+  in return (ty, Random, identityMod)
+
 typeInfer False a@(WithComputed) =
   freshNames ["a", "b", "x", "y"] $
    \xs@[a, b, x, y] ->

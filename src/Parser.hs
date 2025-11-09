@@ -895,6 +895,9 @@ withComputedExp = reserved "withComputed" >> return WithComputed
 dynliftExp :: Parser Exp
 dynliftExp = reserved "dynlift" >> return Dynlift
 
+randomExp :: Parser Exp
+randomExp = reserved "random" >> return Random
+
 -- | Parse a let expression.
 letExp :: Parser Exp
 letExp = handleLet True
@@ -973,6 +976,7 @@ appExp =
       realType <|>
       withComputedExp <|>
       dynliftExp <|>
+      randomExp <|>
       try varExp <|>
       try constExp <|> do
         tms <- parens (term `sepBy1` comma)

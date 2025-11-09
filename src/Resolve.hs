@@ -255,6 +255,7 @@ resolve d (C.Reverse) = return (Reverse)
 resolve d (C.Controlled) = return (Controlled)
 resolve d (C.WithComputed) = return (WithComputed)
 resolve d (C.Dynlift) = return (Dynlift)
+resolve d (C.Random) = return (Random)
      
 
 resolve d (C.Case t br) = do

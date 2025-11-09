@@ -11,6 +11,8 @@ module Evaluation
   , toVal
   ) where
 
+import System.Random
+
 import Erasure
 import Simulation
 import SyntacticOperations
@@ -115,6 +117,7 @@ eval !lenv a@(ELift body) = return (VLift (abst lenv body))
 eval !lenv EUnBox = return VUnBox
 eval !lenv EReverse = return VReverse
 eval !lenv EDynlift = return VDynlift
+eval !lenv ERandom = return VRandom
 eval !lenv EControlled = return VControlled
 eval !lenv EWithComputed = return VWithComputed
 eval !lenv a@(EBox) = return VBox
@@ -274,6 +277,11 @@ evalApp (VDynlift) (VLabel v) = do
   if b
     then return $ VConst (Id "True")
     else return $ VConst (Id "False")
+
+evalApp (VRandom) v = do
+  return $ toNat 8
+  where toNat i | i == 0 = VConst (Id "Z")
+        toNat i | i > 0 = VApp (VConst (Id "S")) (toNat (i-1))
 
 -- append gates
 evalApp (VForce (VApp VUnBox (Wired (Abst wires morph)))) w = do
