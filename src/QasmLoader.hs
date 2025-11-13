@@ -1,9 +1,5 @@
 module QasmLoader where
 
-import Text.Parsec
-import Text.Parsec.Char (char, string, digit, letter, space, newline)
-import Control.Applicative ((<|>), many, some)
-
 import System.IO
 import QasmParser
 
