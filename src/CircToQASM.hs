@@ -226,7 +226,7 @@ gateToQasm g =
               q2 <- lookupQubit l2i
               setQubitLabel l1o q1
               setQubitLabel l2o q2
-              emit ("ctrl @ rz(" ++ show (pi / (2^n)) ++ ") qubits["
+              emit ("cphase(" ++ show (pi / (2^n)) ++ ") qubits["
                     ++ show q2 ++ "], qubits[" ++ show q1 ++ "];")
 
     -- Diagonal gates
