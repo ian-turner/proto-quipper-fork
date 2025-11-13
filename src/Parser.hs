@@ -143,8 +143,9 @@ loadQasm :: Parser Command
 loadQasm = do
   try (reserved ":loadqasm")
   file <- stringLiteral
+  name <- stringLiteral
   eof
-  return $ LoadQasm file
+  return $ LoadQasm file name
 
 -- | Parse quit command.
 quit :: Parser Command

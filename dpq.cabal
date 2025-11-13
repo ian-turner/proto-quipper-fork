@@ -31,7 +31,7 @@ library
       Printcircuits
       ProcessDecls
       Proofchecking
-      QasmParser
+      QasmLoader
       ReadEvalPrint
       Resolve
       Simplecheck
@@ -68,6 +68,7 @@ library
     , parsec
     , pretty
     , process
+    , qasm-parser
     , syb
     , transformers
   default-language: Haskell2010
@@ -97,6 +98,7 @@ executable dpq
     , parsec
     , pretty
     , process
+    , qasm-parser
     , syb
     , transformers
   default-language: Haskell2010
@@ -126,6 +128,7 @@ executable dpqi
     , parsec
     , pretty
     , process
+    , qasm-parser
     , syb
     , transformers
   default-language: Haskell2010
@@ -156,6 +159,7 @@ test-suite dpq-test
     , parsec
     , pretty
     , process
+    , qasm-parser
     , syb
     , transformers
   default-language: Haskell2010

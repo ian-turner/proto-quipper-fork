@@ -42,6 +42,7 @@ dependencies:
 - syb
 - numbers
 - exceptions
+- qasm-parser
 
 library:
   source-dirs: src

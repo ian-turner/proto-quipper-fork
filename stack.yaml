@@ -46,6 +46,8 @@ packages:
 extra-deps: 
 - easyrender-0.1.1.4
 - nominal-0.3.0.0
+- git: https://github.com/ian-turner/qasm-parser.git
+  commit: 8a73c7bee227bf8400c3604ae43115b9d7228cd2
 
 
 
