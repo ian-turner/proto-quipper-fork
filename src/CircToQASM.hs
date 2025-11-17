@@ -19,6 +19,12 @@ import Control.Monad.State.Strict (State, execState, get, put, modify)
 -- ----------------------------------------------------------------------
 -- * Auxiliary functions
 
+-- String join utility function
+stringJoin :: String -> [String] -> String
+stringJoin _ []     = ""
+stringJoin _ [x]    = x
+stringJoin s (x:xs) = x ++ s ++ stringJoin s xs
+
 -- | An unsafe version of 'Map.lookup'. This should only be used for
 -- keys that are guaranteed to be in the map. It is an error to call
 -- this function otherwise.
@@ -27,62 +33,30 @@ mapLookup ds x = case Map.lookup x ds of
                       Nothing -> error $ "can't find " ++ show (disp x)
                       Just v -> v
 
-
 -- Converts Quipper gate Ids to OpenQASM gate names
-to_qasm_gate "H"          = "h"
-to_qasm_gate "SGate"      = "s"
-to_qasm_gate "SGate_Inv"  = "sdg"
-to_qasm_gate "TGate"      = "t"
-to_qasm_gate "TGate_Inv"  = "tdg"
-to_qasm_gate "QNot"       = "x"
-to_qasm_gate "ZGate"      = "z"
-to_qasm_gate "YGate"      = "y"
-to_qasm_gate "Rot"        = "rz"
-to_qasm_gate "Toffoli"    = "ccx"
-to_qasm_gate "CNot"       = "cx"
-to_qasm_gate "CZ"         = "cz"
-to_qasm_gate "CY"         = "cy"
-to_qasm_gate "C_Z"        = "z"
-to_qasm_gate "C_Y"        = "y"
-to_qasm_gate "C_X"        = "x"
-
-qasm_header :: String
-qasm_header = "OPENQASM 3.0; \n\
-              \include \"stdgates.inc\";"
+toQasmGate "H"          = "h"
+toQasmGate "SGate"      = "s"
+toQasmGate "SGate_Inv"  = "sdg"
+toQasmGate "TGate"      = "t"
+toQasmGate "TGate_Inv"  = "tdg"
+toQasmGate "QNot"       = "x"
+toQasmGate "ZGate"      = "z"
+toQasmGate "YGate"      = "y"
+toQasmGate "Rot"        = "rz"
+toQasmGate "Toffoli"    = "ccx"
+toQasmGate "CNot"       = "cx"
+toQasmGate "CZ"         = "cz"
+toQasmGate "CY"         = "cy"
+toQasmGate "C_Z"        = "z"
+toQasmGate "C_Y"        = "y"
+toQasmGate "C_X"        = "x"
 
 
--- ----------------------------------------------------------------------
--- * Resource counting
-
--- Determines number of qubit and bit registers needed for circuit
-get_resource_count_rec [] curr_bits curr_qubits max_bits max_qubits =
-    (max_bits, max_qubits)
-get_resource_count_rec (g:gs) curr_bits curr_qubits max_bits max_qubits =
-    case g of
-        (Gate (Id gateName) _ _ _ VStar _ _ _ _) | gateName == "Init0" || gateName == "Init1" ->
-            get_resource_count_rec gs curr_bits (curr_qubits + 1) max_bits (max max_qubits (curr_qubits + 1))
-
-        (Gate (Id gateName) _ _ _ VStar _ _ _ _) | gateName == "Meas" ->
-            get_resource_count_rec gs (curr_bits + 1) (curr_qubits - 1) (max max_bits (curr_bits + 1)) max_qubits
-
-        (Gate (Id gateName) _ _ _ VStar _ _ _ _) | gateName == "Term0" ->
-            get_resource_count_rec gs curr_bits (curr_qubits - 1) max_bits max_qubits
-
-        (Gate (Id gateName) _ _ _ VStar _ _ _ _) | gateName == "Discard" ->
-            get_resource_count_rec gs (curr_bits - 1) curr_qubits max_bits max_qubits
-
-        _ -> get_resource_count_rec gs curr_bits curr_qubits max_bits max_qubits
-
-get_resource_count gs = get_resource_count_rec gs 0 0 0 0
-
-
--- ----------------------------------------------------------------------
--- * State monad for QASM conversion
-
--- | Internal state threaded through the QASM conversion.
---   'l' is the type of the Proto-Quipper labels (the thing inside VLabel).
+-- State monad for QASM conversion
 data QasmState l = QasmState
-  { qsFreeBits   :: [Int]
+  { qsNumBits    :: Int
+  , qsNumQubits  :: Int
+  , qsFreeBits   :: [Int]
   , qsFreeQubits :: [Int]
   , qsBits       :: Map l Int
   , qsQubits     :: Map l Int
@@ -94,29 +68,35 @@ type QasmM l = State (QasmState l)
 emit :: String -> QasmM l ()
 emit line = modify $ \s -> s { qsLines = line : qsLines s }
 
-takeFreeBit :: QasmM l Int
-takeFreeBit = do
-  s <- get
-  case qsFreeBits s of
-    []     -> error "No free classical bits left in QASM converter"
-    (b:bs) -> do
-      put s { qsFreeBits = bs }
-      return b
-
-takeFreeQubit :: QasmM l Int
-takeFreeQubit = do
-  s <- get
-  case qsFreeQubits s of
-    []     -> error "No free qubits left in QASM converter"
-    (q:qs) -> do
-      put s { qsFreeQubits = qs }
-      return q
-
 addFreeBit :: Int -> QasmM l ()
 addFreeBit b = modify $ \s -> s { qsFreeBits = b : qsFreeBits s }
 
 addFreeQubit :: Int -> QasmM l ()
 addFreeQubit q = modify $ \s -> s { qsFreeQubits = q : qsFreeQubits s }
+
+allocBit :: QasmM l Int
+allocBit = do
+    s <- get
+    case qsFreeBits s of
+        (b:bs) -> do
+            put s { qsFreeBits = bs }
+            return b
+        [] -> do
+            let b = qsNumBits s
+            put s { qsNumBits = b + 1 }
+            return b
+
+allocQubit :: QasmM l Int
+allocQubit = do
+    s <- get
+    case qsFreeQubits s of
+        (q:qs) -> do
+            put s { qsFreeQubits = qs }
+            return q
+        [] -> do
+            let q = qsNumQubits s
+            put s { qsNumQubits = q + 1 }
+            return q
 
 lookupBit :: (Ord l, Disp l) => l -> QasmM l Int
 lookupBit l = do
@@ -137,34 +117,31 @@ setQubitLabel l q = modify $ \s ->
   s { qsQubits = Map.insert l q (qsQubits s) }
 
 
--- ----------------------------------------------------------------------
--- * Gate -> QASM (monadic)
-
--- | Process a single gate, updating the QasmState and possibly emitting QASM.
+-- | Process a single gate, updating the QasmState and possibly emitting a QASM line
 gateToQasm g =
   case g of
     -- Init gates
     (Gate (Id gateName) _ _ (VLabel l) VStar _ _ _ _)
       | gateName == "Init0" -> do
-          fq <- takeFreeQubit
-          setQubitLabel l fq
-          emit ("reset qubits[" ++ show fq ++ "];")
+          q <- allocQubit
+          setQubitLabel l q
+          emit ("reset qubits[" ++ show q ++ "];")
 
     (Gate (Id gateName) _ _ (VLabel l) VStar _ _ _ _)
       | gateName == "Init1" -> do
-          fq <- takeFreeQubit
-          setQubitLabel l fq
-          emit ("reset qubits[" ++ show fq ++ "];\n"
-                ++ "x qubits[" ++ show fq ++ "];")
+          q <- allocQubit
+          setQubitLabel l q
+          emit ("reset qubits[" ++ show q ++ "];\n"
+                ++ "x qubits[" ++ show q ++ "];")
 
     -- Measurement gate
     (Gate (Id gateName) _ (VLabel li) (VLabel lo) VStar _ _ _ _)
       | gateName == "Meas" -> do
-          fb    <- takeFreeBit
+          b <- allocBit
           qubit <- lookupQubit li
-          setBitLabel lo fb
+          setBitLabel lo b
           addFreeQubit qubit
-          emit ("bits[" ++ show fb ++ "] = measure qubits[" ++ show qubit ++ "];")
+          emit ("bits[" ++ show b ++ "] = measure qubits[" ++ show qubit ++ "];")
 
     -- Term gates
     (Gate (Id gateName) _ (VLabel li) VStar VStar _ _ _ _)
@@ -182,7 +159,7 @@ gateToQasm g =
     (Gate (Id gateName) [] (VLabel li) (VLabel lo) VStar _ _ _ _) -> do
           qubit <- lookupQubit li
           setQubitLabel lo qubit
-          emit (to_qasm_gate gateName ++ " qubits[" ++ show qubit ++ "];")
+          emit (toQasmGate gateName ++ " qubits[" ++ show qubit ++ "];")
 
     -- Single qubit rotation gates
     (Gate (Id gateName) [VWrapR (MR len r)] (VLabel li) (VLabel lo) VStar _ _ _ _)
@@ -200,7 +177,7 @@ gateToQasm g =
           setQubitLabel l1o qubit
           setBitLabel   l2o bit
           emit ("if (bits[" ++ show bit ++ "]) "
-                ++ to_qasm_gate gateName
+                ++ toQasmGate gateName
                 ++ " qubits[" ++ show qubit ++ "];")
 
     -- CNot gates
@@ -256,62 +233,39 @@ gateToQasm g =
     _ -> return ()
 
 
--- | Monadic version of 'gates_to_qasm' using 'State' to carry maps and free lists.
-gates_to_qasm gs free_bits free_qubits bits qubits =
-    let initialState = QasmState
-          { qsFreeBits   = free_bits
-          , qsFreeQubits = free_qubits
-          , qsBits       = bits
-          , qsQubits     = qubits
-          , qsLines      = []
-          }
-
-        finalState = execState (mapM_ gateToQasm gs) initialState
-    in ( reverse (qsLines finalState)
-       , qsBits   finalState
-       , qsQubits finalState
-       )
-
-
--- ----------------------------------------------------------------------
--- * Utilities
-
-string_join :: String -> [String] -> String
-string_join _ []     = ""
-string_join _ [x]    = x
-string_join s (x:xs) = x ++ s ++ string_join s xs
-
-
--- ----------------------------------------------------------------------
--- * Circuit -> QASM
-
 -- Converts `Wired` circuit objects to QASM circuit
-circ_to_qasm circ =
+circToQasm circ =
     open circ $ \ _ morph ->
         -- Getting gates from circuit
         let gs = gates morph
-            -- Calculating how many bit and qubit register to use
-            (nbits, nqubits) = get_resource_count gs
 
-            reg_init =
-                case (nbits, nqubits) of
-                    (0, nq) ->
-                        "qreg qubits[" ++ show nqubits ++ "];"
-                    (nb, nq) ->
-                        "qreg qubits[" ++ show nq ++ "]; \n\
-                        \creg bits[" ++ show nb ++ "];"
+            -- Setting up initial state for monadic computation
+            initialState = QasmState
+              { qsNumBits    = 0
+              , qsNumQubits  = 0
+              , qsFreeBits   = []
+              , qsFreeQubits = []
+              , qsBits       = Map.empty
+              , qsQubits     = Map.empty
+              , qsLines      = []
+              }
 
-            -- Converting gates to qasm
-            free_bits   = [0..(nbits-1)]
-            free_qubits = [0..(nqubits-1)]
-            (gates_qasm, _, _) =
-              gates_to_qasm gs free_bits free_qubits Map.empty Map.empty
+            -- Running OpenQASM conversion
+            finalState = execState (mapM_ gateToQasm gs) initialState
+            qasmLines = reverse $ qsLines finalState
 
-        in string_join "\n" (qasm_header : reg_init : gates_qasm)
+            -- Generating header and register initialization code
+            qasmHeader = "OpenQASM 3.0;\ninclude \"stdgates.inc\";"
+            nbits = qsNumBits finalState
+            nqubits = qsNumQubits finalState
+            regInit = "bit[" ++ show nbits ++ "] bits;\n" ++ "qubit[" ++ show nqubits ++ "] qubits;"
+
+        -- All lines of QASM together with newline characters in between
+        in stringJoin "\n" (qasmHeader : regInit : qasmLines)
 
 
 -- Runs the OpenQASM converter and stores result to text file
-save_circ_as_qasm (Wired circ) s =
+saveCircAsQasm (Wired circ) s =
     do  h <- openFile s WriteMode
-        hPutStr h (circ_to_qasm circ)
+        hPutStr h (circToQasm circ)
         hClose h
