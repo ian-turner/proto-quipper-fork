@@ -255,7 +255,7 @@ circToQasm circ =
             qasmLines = reverse $ qsLines finalState
 
             -- Generating header and register initialization code
-            qasmHeader = "OpenQASM 3.0;\ninclude \"stdgates.inc\";"
+            qasmHeader = "OPENQASM 3.0;\ninclude \"stdgates.inc\";"
             nbits = qsNumBits finalState
             nqubits = qsNumQubits finalState
             regInit = "bit[" ++ show nbits ++ "] bits;\n" ++ "qubit[" ++ show nqubits ++ "] qubits;"
