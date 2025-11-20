@@ -19,6 +19,8 @@ import Data.Char
 import Data.List
 import qualified Data.Map as Map
 import System.Console.Haskeline hiding (catch, display)
+import Data.Time.Clock (getCurrentTime, UTCTime, diffUTCTime)
+import Control.Monad.IO.Class (liftIO)
 import System.IO
 import Text.Parsec
 import Text.PrettyPrint
@@ -30,6 +32,7 @@ import Text.PrettyPrint
 read_eval_print_line :: Num b => b -> String -> InputT Top (Bool, b)
 read_eval_print_line lineno initString = do
   s <- getInputLine "> "
+  startTime <- liftIO getCurrentTime
   case s of
     Just line
       | all isSpace line ->
@@ -55,6 +58,9 @@ read_eval_print_line lineno initString = do
               Left e -> lift $ throwError (ParseErr e)
               Right a -> do
                 r <- lift $ dispatch a
+                endTime <- liftIO getCurrentTime
+                let timeDiff = diffUTCTime endTime startTime
+                outputStrLn $ "time: " ++ (show timeDiff)
                 return (r, lineno)
     Nothing -> return (False, lineno)
 
