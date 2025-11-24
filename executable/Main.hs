@@ -10,6 +10,7 @@ import SyntacticOperations (gateCount)
 import Syntax as A
 import TopMonad
 import Utils
+import CircToQASM
 
 import Control.Exception
 import Control.Monad.Except
@@ -35,7 +36,6 @@ main = do
       | option == "-v" -> do
         runTop p $ catchTop error_handler_verbose  (load filename)
         return ()
-        
     [filename, option]
       | option == "-s" -> do
         runTop p $ catchTop error_handler (printTopLevel Nothing filename)
@@ -76,6 +76,10 @@ main = do
         runTop p $
           catchTop error_handler (topGateCount (Just name) filename (Just exp))
         return ()
+    [filename, option, outfile]
+      | (option == "--save-qasm") -> do
+        runTop p $ catchTop error_handler $ (saveQasm filename outfile)
+        return ()
     [filename] -> do
       runTop p $ catchTop error_handler (load filename)
       return ()
@@ -83,6 +87,14 @@ main = do
       print $ text "unknown command option"
       print $ text cmdUsage
   where
+    saveQasm infile outfile = do
+      dispatch (Load False infile)
+      circ <- getMain
+      case circ of
+        Just (c, _) -> ioTop $ saveCircAsQasm c outfile
+        Nothing ->
+          throwError $
+          Mess (text "cannot find the main function in:" <+> text infile)
     printMain fn = do
       dispatch (Load False fn)
       circ <- getMain
