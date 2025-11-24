@@ -91,7 +91,13 @@ main = do
       dispatch (Load False infile)
       circ <- getMain
       case circ of
-        Just (c, _) -> ioTop $ saveCircAsQasm c outfile
+        Just (c, _) ->
+          case c of
+            (Wired c) -> do
+              ioTop $ saveCircAsQasm c outfile
+            _ ->
+              throwError $
+              Mess (text "main function is not of type `Circ a`")
         Nothing ->
           throwError $
           Mess (text "cannot find the main function in:" <+> text infile)

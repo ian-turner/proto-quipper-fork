@@ -265,7 +265,7 @@ circToQasm circ =
 
 
 -- Runs the OpenQASM converter and stores result to text file
-saveCircAsQasm (Wired circ) s =
+saveCircAsQasm circ s =
     do  h <- openFile s WriteMode
         hPutStr h (circToQasm circ)
         hClose h
