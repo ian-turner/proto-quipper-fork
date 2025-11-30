@@ -1,4 +1,4 @@
-module CircToQASM where
+module CircToQASM (saveCircAsQasm) where
 
 import Syntax
 import Utils
@@ -52,6 +52,43 @@ toQasmGate "C_Y"        = "y"
 toQasmGate "C_X"        = "x"
 
 
+-- OpenQASM syntax tree
+data QasmStmt = QasmVersion String
+                | QasmImport String
+                | QubitDecl String Int
+                | BitDecl String Int
+                | QubitVar String Int
+                | BitVar String Int
+                | GateApp String [String] [QasmStmt]
+                | CtrlMod QasmStmt QasmStmt
+                | QasmMeas QasmStmt QasmStmt
+                | QasmIf QasmStmt [QasmStmt]
+                deriving (Show, Eq)
+
+
+qasmStmtToString (QasmVersion x) = "OPENQASM " ++ x ++ ";"
+qasmStmtToString (QasmImport x) = "include \"" ++ x ++ "\";"
+qasmStmtToString (QubitDecl name size) = "qubit[" ++ (show size) ++ "] " ++ name ++ ";"
+qasmStmtToString (BitDecl name size) = "bit[" ++ (show size) ++ "] " ++ name ++ ";"
+qasmStmtToString (QubitVar name idx) = name ++ "[" ++ (show idx) ++ "]"
+qasmStmtToString (BitVar name idx) = name ++ "[" ++ (show idx) ++ "]"
+qasmStmtToString (GateApp name params inps) =
+    let inpString = stringJoin "," $ map qasmStmtToString inps
+        paramString = case params of
+            [] -> ""
+            params -> "(" ++ (stringJoin ", " params) ++ ")"
+    in name ++ paramString ++ " " ++ inpString ++ ";"
+qasmStmtToString (QasmMeas left right) =
+    let leftStr = qasmStmtToString left
+        rightStr = qasmStmtToString right
+    in leftStr ++ " = measure " ++ rightStr ++ ";"
+qasmStmtToString (QasmIf cond stmts) =
+    let condString = "if (" ++ (qasmStmtToString cond) ++ ") {"
+        stmtStrings = map qasmStmtToString stmts
+        trueBlock = stringJoin "\n" $ map (\x -> "\t" ++ x) stmtStrings
+    in stringJoin "\n" $ condString : trueBlock : "}" : []
+
+
 -- State monad for QASM conversion
 data QasmState l = QasmState
   { qsNumBits    :: Int
@@ -60,12 +97,12 @@ data QasmState l = QasmState
   , qsFreeQubits :: [Int]
   , qsBits       :: Map l Int
   , qsQubits     :: Map l Int
-  , qsLines      :: [String]   -- accumulated QASM lines, stored in reverse
+  , qsLines      :: [QasmStmt]   -- accumulated QASM statements, stored in reverse
   }
 
 type QasmM l = State (QasmState l)
 
-emit :: String -> QasmM l ()
+emit :: QasmStmt -> QasmM l ()
 emit line = modify $ \s -> s { qsLines = line : qsLines s }
 
 addFreeBit :: Int -> QasmM l ()
@@ -125,14 +162,14 @@ gateToQasm g =
       | gateName == "Init0" -> do
           q <- allocQubit
           setQubitLabel l q
-          emit ("reset qubits[" ++ show q ++ "];")
+          emit $ GateApp "reset" [] [QubitVar "qubits" q]
 
     (Gate (Id gateName) _ _ (VLabel l) VStar _ _ _ _)
       | gateName == "Init1" -> do
           q <- allocQubit
           setQubitLabel l q
-          emit ("reset qubits[" ++ show q ++ "];\n"
-                ++ "x qubits[" ++ show q ++ "];")
+          emit $ GateApp "reset" [] [QubitVar "qubits" q]
+          emit $ GateApp "x" [] [QubitVar "qubits" q]
 
     -- Measurement gate
     (Gate (Id gateName) _ (VLabel li) (VLabel lo) VStar _ _ _ _)
@@ -141,7 +178,7 @@ gateToQasm g =
           qubit <- lookupQubit li
           setBitLabel lo b
           addFreeQubit qubit
-          emit ("bits[" ++ show b ++ "] = measure qubits[" ++ show qubit ++ "];")
+          emit $ QasmMeas (BitVar "bits" b) (QubitVar "qubits" qubit)
 
     -- Term gates
     (Gate (Id gateName) _ (VLabel li) VStar VStar _ _ _ _)
@@ -159,14 +196,14 @@ gateToQasm g =
     (Gate (Id gateName) [] (VLabel li) (VLabel lo) VStar _ _ _ _) -> do
           qubit <- lookupQubit li
           setQubitLabel lo qubit
-          emit (toQasmGate gateName ++ " qubits[" ++ show qubit ++ "];")
+          emit $ GateApp (toQasmGate gateName) [] [QubitVar "qubits" qubit]
 
     -- Single qubit rotation gates
     (Gate (Id gateName) [VWrapR (MR len r)] (VLabel li) (VLabel lo) VStar _ _ _ _)
       | gateName == "Rot" -> do
           qubit <- lookupQubit li
           setQubitLabel lo qubit
-          emit ("rz(" ++ showCReal len r ++ ") qubits[" ++ show qubit ++ "];")
+          emit $ GateApp "rz" [showCReal len r] [(QubitVar "qubits" qubit)]
 
     -- Classically controlled X, Y, Z gates
     (Gate (Id gateName) [] (VPair (VLabel l1i) (VLabel l2i))
@@ -176,9 +213,8 @@ gateToQasm g =
           bit   <- lookupBit l2i
           setQubitLabel l1o qubit
           setBitLabel   l2o bit
-          emit ("if (bits[" ++ show bit ++ "]) "
-                ++ toQasmGate gateName
-                ++ " qubits[" ++ show qubit ++ "];")
+          let qasmGateName = toQasmGate gateName
+          emit $ QasmIf (BitVar "bits" bit) [GateApp qasmGateName [] [(QubitVar "qubits" qubit)]]
 
     -- CNot gates
     (Gate (Id gateName) [] (VPair (VLabel l1i) (VLabel l2i))
@@ -189,7 +225,7 @@ gateToQasm g =
           setQubitLabel l1o q1
           setQubitLabel l2o q2
           -- Keeping the original control/target ordering:
-          emit ("cx qubits[" ++ show q2 ++ "], qubits[" ++ show q1 ++ "];")
+          emit $ GateApp "cx" [] [(QubitVar "qubits" q2), (QubitVar "qubits" q1)]
 
     -- Controlled rotation gate
     (Gate (Id gateName) [a]
@@ -203,8 +239,7 @@ gateToQasm g =
               q2 <- lookupQubit l2i
               setQubitLabel l1o q1
               setQubitLabel l2o q2
-              emit ("cp(" ++ show (pi / (2^n)) ++ ") qubits["
-                    ++ show q2 ++ "], qubits[" ++ show q1 ++ "];")
+              emit $ GateApp "cp" [show (pi / (2^n))] [(QubitVar "qubits" q2), (QubitVar "qubits" q2)]
 
     -- Diagonal gates
     (Gate (Id gateName)
@@ -226,8 +261,7 @@ gateToQasm g =
           setQubitLabel la_out qa
           setQubitLabel lb_out qb
           setQubitLabel lc_out qc
-          emit ("ccx qubits[" ++ show qc ++ "], qubits[" ++ show qb
-                ++ "], qubits[" ++ show qa ++ "];")
+          emit $ GateApp "ccx" [] [(QubitVar "qubits" qa), (QubitVar "qubits" qb), (QubitVar "qubits" qc)]
 
     -- Any gate we don’t handle explicitly: do nothing
     _ -> return ()
@@ -254,14 +288,21 @@ circToQasm circ =
             finalState = execState (mapM_ gateToQasm gs) initialState
             qasmLines = reverse $ qsLines finalState
 
-            -- Generating header and register initialization code
-            qasmHeader = "OPENQASM 3.0;\ninclude \"stdgates.inc\";"
+            -- Header
+            qasmVersion = QasmVersion "3.0"
+            importGates = QasmImport "stdgates.inc"
+
+            -- Register initialization code
             nbits = qsNumBits finalState
             nqubits = qsNumQubits finalState
-            regInit = "bit[" ++ show nbits ++ "] bits;\n" ++ "qubit[" ++ show nqubits ++ "] qubits;"
+            bitInit = BitDecl "bits" nbits
+            qubitInit = QubitDecl "qubits" nqubits
+            
+            -- Full program
+            qasmProgram = qasmVersion : importGates : qubitInit : bitInit : qasmLines
 
         -- All lines of QASM together with newline characters in between
-        in stringJoin "\n" (qasmHeader : regInit : qasmLines)
+        in stringJoin "\n" $ map qasmStmtToString qasmProgram
 
 
 -- Runs the OpenQASM converter and stores result to text file
