@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -69,8 +69,8 @@ library
     , pretty
     , process
     , syb
-    , transformers
     , time
+    , transformers
   default-language: Haskell2010
 
 executable dpq
@@ -99,6 +99,7 @@ executable dpq
     , pretty
     , process
     , syb
+    , time
     , transformers
   default-language: Haskell2010
 
@@ -128,6 +129,7 @@ executable dpqi
     , pretty
     , process
     , syb
+    , time
     , transformers
   default-language: Haskell2010
 
@@ -158,5 +160,6 @@ test-suite dpq-test
     , pretty
     , process
     , syb
+    , time
     , transformers
   default-language: Haskell2010

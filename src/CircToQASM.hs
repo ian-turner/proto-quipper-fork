@@ -218,14 +218,13 @@ gateToQasm g =
 
     -- CNot gates
     (Gate (Id gateName) [] (VPair (VLabel l1i) (VLabel l2i))
-                           (VPair (VLabel l1o) (VLabel l2o)) VStar _ _ _ _)
-      | gateName == "CNot" -> do
+                           (VPair (VLabel l1o) (VLabel l2o)) VStar _ _ _ _) -> do
           q1 <- lookupQubit l1i
           q2 <- lookupQubit l2i
           setQubitLabel l1o q1
           setQubitLabel l2o q2
           -- Keeping the original control/target ordering:
-          emit $ GateApp "cx" [] [(QubitVar "qubits" q2), (QubitVar "qubits" q1)]
+          emit $ GateApp (toQasmGate gateName) [] [(QubitVar "qubits" q2), (QubitVar "qubits" q1)]
 
     -- Controlled rotation gate
     (Gate (Id gateName) [a]

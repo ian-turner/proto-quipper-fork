@@ -42,6 +42,7 @@ dependencies:
 - syb
 - numbers
 - exceptions
+- time
 
 library:
   source-dirs: src
