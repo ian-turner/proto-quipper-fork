@@ -80,6 +80,13 @@ main = do
       | (option == "--save-qasm") -> do
         runTop p $ catchTop error_handler $ (saveQasm filename outfile)
         return ()
+    [filename, opt0, inp0, opt1, inp1]
+      | ((opt0 == "--save-qasm" && opt1 == "--input") ||
+         (opt0 == "--input" && opt1 == "--save-qasm")) -> do
+        let outfile = if opt0 == "--save-qasm" then inp0 else inp1
+        let input = if opt0 == "--input" then inp0 else inp1
+        runTop p $ catchTop error_handler $ (saveQasmWithInput filename input outfile)
+        return ()
     [filename] -> do
       runTop p $ catchTop error_handler (load filename)
       return ()
@@ -101,6 +108,20 @@ main = do
         Nothing ->
           throwError $
           Mess (text "cannot find the main function in:" <+> text infile)
+    saveQasmWithInput filename input outfile = do
+      dispatch (Load False filename)
+      main <- getMain
+      case main of
+        Just (fn, _) -> do
+          case fn of
+            (VLift x) -> do
+              ioTop $ putStrLn $ show x
+            _ ->
+              throwError $
+              Mess (text "main function is not of type `!(a -> Circ b)`")
+        Nothing ->
+          throwError $
+          Mess (text "cannot find the main function in:" <+> text filename)
     printMain fn = do
       dispatch (Load False fn)
       circ <- getMain

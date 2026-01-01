@@ -143,7 +143,10 @@ lookupBit l = do
 lookupQubit :: (Ord l, Disp l) => l -> QasmM l Int
 lookupQubit l = do
   s <- get
-  return $ mapLookup (qsQubits s) l
+  case Map.lookup l (qsQubits s) of
+    Nothing -> do allocQubit
+    Just v -> return v
+--  return $ mapLookup (qsQubits s) l -- Use this instead of you don't want inputs to the circuit
 
 setBitLabel :: Ord l => l -> Int -> QasmM l ()
 setBitLabel l b = modify $ \s ->
