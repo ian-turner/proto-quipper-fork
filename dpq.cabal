@@ -32,6 +32,7 @@ library
       Printcircuits
       ProcessDecls
       Proofchecking
+      Qasm
       ReadEvalPrint
       Resolve
       Simplecheck

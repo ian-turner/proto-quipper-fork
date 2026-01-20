@@ -11,6 +11,7 @@ import Syntax as A
 import TopMonad
 import Utils
 import CircToQASM
+import Qasm
 
 import Control.Exception
 import Control.Monad.Except
@@ -80,13 +81,6 @@ main = do
       | (option == "--save-qasm") -> do
         runTop p $ catchTop error_handler $ (saveQasm filename outfile)
         return ()
-    [filename, opt0, inp0, opt1, inp1]
-      | ((opt0 == "--save-qasm" && opt1 == "--input") ||
-         (opt0 == "--input" && opt1 == "--save-qasm")) -> do
-        let outfile = if opt0 == "--save-qasm" then inp0 else inp1
-        let input = if opt0 == "--input" then inp0 else inp1
-        runTop p $ catchTop error_handler $ (saveQasmWithInput filename input outfile)
-        return ()
     [filename] -> do
       runTop p $ catchTop error_handler (load filename)
       return ()
@@ -96,32 +90,19 @@ main = do
   where
     saveQasm infile outfile = do
       dispatch (Load False infile)
-      circ <- getMain
-      case circ of
+      mainExp <- getMain
+      case mainExp of
         Just (c, _) ->
           case c of
-            (Wired c) -> do
-              ioTop $ saveCircAsQasm c outfile
-            _ ->
-              throwError $
-              Mess (text "main function is not of type `Circ a`")
+            (Wired circ) -> do
+              ioTop $ saveCircAsQasm circ outfile
+            _ -> do
+              compileToQasm mainExp outfile
+--              throwError $
+--              Mess (text "main function is not of type `Circ a`")
         Nothing ->
           throwError $
           Mess (text "cannot find the main function in:" <+> text infile)
-    saveQasmWithInput filename input outfile = do
-      dispatch (Load False filename)
-      main <- getMain
-      case main of
-        Just (fn, _) -> do
-          case fn of
-            (VLift x) -> do
-              ioTop $ putStrLn $ show x
-            _ ->
-              throwError $
-              Mess (text "main function is not of type `!(a -> Circ b)`")
-        Nothing ->
-          throwError $
-          Mess (text "cannot find the main function in:" <+> text filename)
     printMain fn = do
       dispatch (Load False fn)
       circ <- getMain

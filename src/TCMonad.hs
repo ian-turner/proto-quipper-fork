@@ -36,7 +36,7 @@ data Info =
   Info
     { classifier :: Exp
     , identification :: Identification
-    }
+    } deriving Show
 
 -- | Identification for top-level identifiers. 
 data Identification
