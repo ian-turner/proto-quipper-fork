@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.38.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -70,6 +70,7 @@ library
     , process
     , qasm-parser
     , syb
+    , time
     , transformers
   default-language: Haskell2010
 
@@ -100,6 +101,7 @@ executable dpq
     , process
     , qasm-parser
     , syb
+    , time
     , transformers
   default-language: Haskell2010
 
@@ -130,6 +132,7 @@ executable dpqi
     , process
     , qasm-parser
     , syb
+    , time
     , transformers
   default-language: Haskell2010
 
@@ -161,5 +164,6 @@ test-suite dpq-test
     , process
     , qasm-parser
     , syb
+    , time
     , transformers
   default-language: Haskell2010

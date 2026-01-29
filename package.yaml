@@ -43,6 +43,7 @@ dependencies:
 - numbers
 - exceptions
 - qasm-parser
+- time
 
 library:
   source-dirs: src

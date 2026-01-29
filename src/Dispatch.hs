@@ -65,10 +65,6 @@ dispatch Help = do
       ":g [gate-name] <expr>   gate count of a boxed circuit\n" ++
       ":tg [gate-name] [<expr>] top level gate count" ++ "\n"
 
-dispatch (LoadQasm file name) = do
-  liftIO $ loadQasmFile file
-  return True
-
 dispatch Reload = do
   f <- getFilename
   case f of
@@ -250,6 +246,11 @@ dispatch (Annotation e) = do
         _ -> do
           liftIO $ putStrLn ("there is nothing to show \n")
           return True
+
+dispatch (LoadQasm file name) = do
+  prg <- liftIO $ loadQasmFile file
+  liftIO $ putStrLn $ show prg
+  return True
 
 -- A load command will first initialize the Simple and Parameter class
 -- instances, then proceed to load file.

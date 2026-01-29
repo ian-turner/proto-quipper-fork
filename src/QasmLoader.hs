@@ -1,14 +1,12 @@
 module QasmLoader where
 
 import System.IO
-import QasmParser
+import qualified QasmParser as QASM
 
 import Syntax
 
 
-loadQasmFile :: String -> Top String
+loadQasmFile :: String -> IO QASM.Program
 loadQasmFile file = do
-    (Program _ stmts) <- parseQasmFile file
-    let stmts_str = map show stmts
-    ioTop $ putStr (unlines stmts_str)
-    return "test"
+    prg <- QASM.parseQasmFile file
+    return prg
